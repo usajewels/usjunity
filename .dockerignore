@@ -1,0 +1,36 @@
+# Node
+**/node_modules
+**/.next
+**/dist
+
+# Java
+**/target
+**/*.class
+
+# IDE
+**/.idea
+**/.vscode
+**/*.iml
+
+# Git
+**/.git
+**/.gitignore
+
+# Docker
+**/docker-compose*.yml
+**/.dockerignore
+
+# Env
+**/.env
+**/.env.local
+
+# Docs (not needed in images)
+mxsuite-docs
+MXSuite_Architecture_Document.html
+
+# OS
+**/.DS_Store
+**/Thumbs.db
+
+# Logs
+**/*.log

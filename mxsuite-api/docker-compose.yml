@@ -1,0 +1,241 @@
+version: '3.8'
+
+services:
+  # =====================================================
+  # Infrastructure
+  # =====================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: mxsuite-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-mxsuite}
+      POSTGRES_USER: ${POSTGRES_USER:-mxsuite}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mxsuite_dev}
+    ports:
+      - "5432:5432"
+    volumes:
+      # For production: use a bind mount to a known host path for easy backups
+      # e.g.  - /mnt/data/mxsuite/postgres:/var/lib/postgresql/data
+      # For development: use the named volume below
+      - ${POSTGRES_DATA_PATH:-postgres_data}:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mxsuite}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: mxsuite-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - ${REDIS_DATA_PATH:-redis_data}:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # =====================================================
+  # Keycloak (optional - use with AUTH_MODE=keycloak)
+  # =====================================================
+  keycloak:
+    image: quay.io/keycloak/keycloak:25.0
+    container_name: mxsuite-keycloak
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/mxsuite
+      KC_DB_USERNAME: ${POSTGRES_USER:-mxsuite}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD:-mxsuite_dev}
+    command: start-dev
+    ports:
+      - "8180:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles:
+      - keycloak
+
+  # =====================================================
+  # Observability — Metrics, Logs, Traces
+  # =====================================================
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.108.0
+    container_name: mxsuite-otel
+    command: ["--config=/etc/otel-collector-config.yml"]
+    volumes:
+      - ./otel-collector-config.yml:/etc/otel-collector-config.yml
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+    depends_on:
+      - tempo
+      - loki
+
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: mxsuite-prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+      - "--web.enable-lifecycle"
+      - "--web.enable-remote-write-receiver"
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: mxsuite-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    ports:
+      - "3100:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./observability/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./observability/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+
+  loki:
+    image: grafana/loki:3.1.0
+    container_name: mxsuite-loki
+    command: ["-config.file=/etc/loki/loki.yml"]
+    volumes:
+      - ./observability/loki/loki.yml:/etc/loki/loki.yml:ro
+      - loki_data:/loki
+    ports:
+      - "3101:3100"
+
+  tempo:
+    image: grafana/tempo:2.5.0
+    container_name: mxsuite-tempo
+    command: ["-config.file=/etc/tempo/tempo.yml"]
+    volumes:
+      - ./observability/tempo/tempo.yml:/etc/tempo/tempo.yml:ro
+      - tempo_data:/var/tempo
+    ports:
+      - "3200:3200"   # Tempo HTTP API
+      - "4320:4317"   # Tempo OTLP gRPC (internal, OTEL collector forwards here)
+
+  # =====================================================
+  # Backend API
+  # =====================================================
+  mxsuite-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mxsuite-api
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-mxsuite}
+      POSTGRES_USER: ${POSTGRES_USER:-mxsuite}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mxsuite_dev}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET:-mxsuite-dev-secret-key-change-in-production-must-be-at-least-256-bits}
+      AUTH_MODE: ${AUTH_MODE:-local}
+      STORAGE_TYPE: local
+      STORAGE_LOCAL_PATH: /data/files
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_SERVICE_NAME: mxsuite-api
+      OTEL_METRICS_EXPORTER: otlp
+      OTEL_LOGS_EXPORTER: otlp
+      # Email
+      SMTP_HOST: ${SMTP_HOST:-localhost}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      MXSUITE_EMAIL_FROM: ${MXSUITE_EMAIL_FROM:-noreply@mxsuite.com}
+      MXSUITE_BASE_URL: ${MXSUITE_BASE_URL:-http://localhost:3000}
+      # Bootstrap admin
+      MXSUITE_ADMIN_EMAIL: ${MXSUITE_ADMIN_EMAIL:-admin@mxsuite.com}
+      MXSUITE_ADMIN_PASSWORD: ${MXSUITE_ADMIN_PASSWORD:-}
+      MXSUITE_ADMIN_FIRST_NAME: ${MXSUITE_ADMIN_FIRST_NAME:-Platform}
+      MXSUITE_ADMIN_LAST_NAME: ${MXSUITE_ADMIN_LAST_NAME:-Admin}
+    ports:
+      - "8080:8080"
+    volumes:
+      - ${FILE_STORAGE_PATH:-file_storage}:/data/files
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+
+  # =====================================================
+  # Horizontal Scaling — Additional API Instance
+  # (Uncomment to test multi-instance load balancing)
+  # =====================================================
+  # mxsuite-api-2:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   container_name: mxsuite-api-2
+  #   environment:
+  #     SPRING_PROFILES_ACTIVE: docker
+  #     POSTGRES_HOST: postgres
+  #     POSTGRES_PORT: 5432
+  #     POSTGRES_DB: ${POSTGRES_DB:-mxsuite}
+  #     POSTGRES_USER: ${POSTGRES_USER:-mxsuite}
+  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mxsuite_dev}
+  #     REDIS_HOST: redis
+  #     REDIS_PORT: 6379
+  #     JWT_SECRET: ${JWT_SECRET:-mxsuite-dev-secret-key-change-in-production-must-be-at-least-256-bits}
+  #     AUTH_MODE: ${AUTH_MODE:-local}
+  #     STORAGE_TYPE: local
+  #     STORAGE_LOCAL_PATH: /data/files
+  #     OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+  #     OTEL_SERVICE_NAME: mxsuite-api
+  #     OTEL_METRICS_EXPORTER: otlp
+  #     OTEL_LOGS_EXPORTER: otlp
+  #   ports:
+  #     - "8081:8080"
+  #   volumes:
+  #     - file_storage:/data/files
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #     otel-collector:
+  #       condition: service_started
+
+# Named volumes for development.
+# For production, set POSTGRES_DATA_PATH, REDIS_DATA_PATH, FILE_STORAGE_PATH
+# in your .env to bind-mount host directories instead:
+#   POSTGRES_DATA_PATH=/mnt/data/mxsuite/postgres
+#   REDIS_DATA_PATH=/mnt/data/mxsuite/redis
+#   FILE_STORAGE_PATH=/mnt/data/mxsuite/files
+volumes:
+  postgres_data:
+  redis_data:
+  file_storage:
+  grafana_data:
+  prometheus_data:
+  loki_data:
+  tempo_data:

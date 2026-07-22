@@ -1,0 +1,29 @@
+# Local authentication profile - username/password stored in Postgres
+# No external identity provider required
+
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          enabled: false
+  mail:
+    host: localhost
+    port: 1025
+    username: ""
+    password: ""
+    properties:
+      mail:
+        smtp:
+          auth: false
+          starttls:
+            enable: false
+
+mxsuite:
+  security:
+    auth-mode: local
+
+logging:
+  level:
+    com.mxsuite: DEBUG
+    org.springframework.security: DEBUG

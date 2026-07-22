@@ -1,0 +1,1430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GrowthZone MemberSuite — User Guide</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', sans-serif; color: #1a1a2e; line-height: 1.7; background: #fff; }
+
+  .cover { background: linear-gradient(135deg, #0a1628 0%, #1e3a5f 50%, #2d5a8e 100%);
+    color: #fff; padding: 120px 60px; text-align: center; page-break-after: always; min-height: 100vh;
+    display: flex; flex-direction: column; justify-content: center; }
+  .cover h1 { font-size: 48px; font-weight: 700; margin-bottom: 12px; letter-spacing: -1px; }
+  .cover .subtitle { font-size: 22px; font-weight: 300; opacity: 0.9; margin-bottom: 40px; }
+  .cover .meta { font-size: 14px; opacity: 0.7; }
+  .cover .version { display: inline-block; background: rgba(255,255,255,0.15); padding: 6px 20px;
+    border-radius: 20px; font-size: 13px; margin-top: 20px; }
+
+  .container { max-width: 900px; margin: 0 auto; padding: 60px 40px; }
+
+  h2 { font-size: 28px; font-weight: 700; color: #1e3a5f; margin-top: 60px; margin-bottom: 20px;
+    padding-bottom: 10px; border-bottom: 3px solid #1e3a5f; }
+  h3 { font-size: 20px; font-weight: 600; color: #2d5a8e; margin-top: 36px; margin-bottom: 12px; }
+  h4 { font-size: 16px; font-weight: 600; margin-top: 24px; margin-bottom: 8px; }
+
+  p { margin-bottom: 14px; }
+  ul, ol { margin-left: 24px; margin-bottom: 16px; }
+  li { margin-bottom: 6px; }
+
+  table { width: 100%; border-collapse: collapse; margin: 16px 0 24px; }
+  th { background: #1e3a5f; color: #fff; padding: 10px 14px; text-align: left; font-weight: 600; font-size: 13px; }
+  td { padding: 10px 14px; border-bottom: 1px solid #e8e8e8; font-size: 14px; }
+  tr:nth-child(even) { background: #f8f9fa; }
+
+  .box { background: #f0f5ff; border-left: 4px solid #1e3a5f; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0; }
+  .box.warning { background: #fff7e6; border-color: #faad14; }
+  .box.success { background: #f6ffed; border-color: #52c41a; }
+
+  .diagram { background: #f8f9fa; border: 1px solid #e8e8e8; border-radius: 8px; padding: 24px; margin: 24px 0;
+    font-family: 'Courier New', monospace; font-size: 13px; line-height: 1.5; white-space: pre; overflow-x: auto; }
+
+  .tag { display: inline-block; padding: 2px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; margin-right: 6px; }
+  .tag.blue { background: #e6f0ff; color: #1e3a5f; }
+  .tag.green { background: #f6ffed; color: #389e0d; }
+  .tag.orange { background: #fff7e6; color: #d48806; }
+
+  .toc { background: #fafafa; padding: 30px; border-radius: 8px; margin: 30px 0; }
+  .toc a { color: #1e3a5f; text-decoration: none; display: block; padding: 4px 0; }
+  .toc a:hover { text-decoration: underline; }
+
+  .step { background: #fafafa; border: 1px solid #e8e8e8; border-radius: 12px; padding: 20px 24px; margin: 16px 0; position: relative; }
+  .step-number { display: inline-block; background: #1e3a5f; color: #fff; width: 32px; height: 32px; border-radius: 50%;
+    text-align: center; line-height: 32px; font-weight: 700; font-size: 15px; margin-right: 12px; }
+  .step-title { font-weight: 600; font-size: 16px; color: #1e3a5f; }
+
+  .tip { background: #e6f7ff; border-left: 4px solid #1890ff; padding: 12px 16px; margin: 12px 0; border-radius: 0 8px 8px 0; font-size: 14px; }
+
+  @media print { .cover { page-break-after: always; } h2 { page-break-before: always; } .diagram { font-size: 11px; } }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════ COVER ═══════════════════════════════════════════════════ -->
+<div class="cover">
+  <h1>GrowthZone MemberSuite</h1>
+  <div class="subtitle">User Guide</div>
+  <div class="meta">
+    Author: Joseph M. Vogel (Independent Contractor &mdash; Platform Architect)<br>
+    July 2026
+  </div>
+  <div class="version">Version 2.0.0</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ BODY ═══════════════════════════════════════════════════ -->
+<div class="container">
+
+<!-- ─────────────────── TABLE OF CONTENTS ─────────────────── -->
+<div class="toc">
+  <h3 style="margin-top:0">Table of Contents</h3>
+  <a href="#welcome">1. Welcome to GrowthZone MemberSuite</a>
+  <a href="#getting-started">2. Getting Started</a>
+  <a href="#roles">3. Understanding Your Role</a>
+  <a href="#workspaces-projects">4. Workspaces &amp; Projects</a>
+  <a href="#onboarding">5. The Onboarding Wizard</a>
+  <a href="#uploading">6. Uploading Data Files</a>
+  <a href="#plans">7. Working with Plans</a>
+  <a href="#run-results">8. Viewing Run Results</a>
+  <a href="#chat">9. Chat &amp; AI Assistant</a>
+  <a href="#invitations">10. Inviting Team Members</a>
+  <a href="#account">11. Password &amp; Account</a>
+  <a href="#platform-admin">12. For Platform Administrators</a>
+  <a href="#help">13. Getting Help</a>
+  <a href="#glossary">14. Glossary</a>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+<h2 id="welcome">1. Welcome to GrowthZone MemberSuite</h2>
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+
+<h3>What is GrowthZone MemberSuite?</h3>
+<p>
+  GrowthZone MemberSuite is a web-based platform that helps you move data from one system into another. Think of it as a smart assistant
+  that takes your data files (like spreadsheets or CSV exports), lets you tell it how the columns in your file match up
+  with the columns the destination system expects, and then does the heavy lifting of converting and transferring
+  everything for you.
+</p>
+<p>
+  Instead of manually copying and pasting rows of data or writing complicated formulas, you use MemberSuite's visual tools
+  to draw connections between your data and the format you need. Then you click a button and let the platform do the work.
+</p>
+
+<h3>What can you do with it?</h3>
+<ul>
+  <li><strong>Upload data files</strong> &mdash; Bring in your CSV spreadsheets, Excel files, JSON files, XML files, or plain text files.</li>
+  <li><strong>Map your fields</strong> &mdash; Tell MemberSuite which column in your file matches which field in the target system. For example, "First Name" in your spreadsheet maps to "given_name" in the destination.</li>
+  <li><strong>Run transformations</strong> &mdash; Let MemberSuite process your data. You can do a test run first to make sure everything looks right, and then do the real thing when you are ready.</li>
+  <li><strong>Track your progress</strong> &mdash; See how many records were processed successfully and which ones need attention.</li>
+</ul>
+
+<h3>Who is it for?</h3>
+<p>
+  MemberSuite is built for <strong>GrowthZone customers and staff</strong>. Whether you are a GrowthZone customer bringing
+  your data into the platform, or a GrowthZone support team member helping customers with their data onboarding,
+  MemberSuite gives you a clean, organized way to manage the process from start to finish.
+</p>
+
+<div class="box success">
+  <strong>No technical skills required.</strong> MemberSuite was designed to be used by anyone, regardless of technical
+  background. If you can use a web browser and work with spreadsheets, you can use MemberSuite.
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+<h2 id="getting-started">2. Getting Started</h2>
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+
+<h3>Accepting Your Invitation Email</h3>
+<p>
+  Before you can use MemberSuite, someone from your organization (or from GrowthZone) will send you an invitation by email.
+  Here is what to do when you receive it:
+</p>
+
+<div class="step">
+  <span class="step-number">1</span>
+  <span class="step-title">Open the invitation email</span>
+  <p style="margin-top:10px">
+    Look for an email with the subject line containing your organization's name and an invitation to MemberSuite.
+    Check your spam or junk folder if you don't see it in your inbox.
+  </p>
+</div>
+
+<div class="step">
+  <span class="step-number">2</span>
+  <span class="step-title">Click the invitation link</span>
+  <p style="margin-top:10px">
+    The email contains a special link that is unique to you. Click it to open the MemberSuite sign-up page in your
+    web browser.
+  </p>
+</div>
+
+<div class="step">
+  <span class="step-number">3</span>
+  <span class="step-title">Enter your name and choose a password</span>
+  <p style="margin-top:10px">
+    On the sign-up page, fill in your <strong>first name</strong>, <strong>last name</strong>, and choose a
+    <strong>password</strong>. Your password must be at least 8 characters long. Use a mix of letters, numbers,
+    and symbols for best security.
+  </p>
+</div>
+
+<div class="step">
+  <span class="step-number">4</span>
+  <span class="step-title">Click "Create Account"</span>
+  <p style="margin-top:10px">
+    Once you submit the form, your account is created. You will see a confirmation message telling you that you
+    can now log in.
+  </p>
+</div>
+
+<div class="box warning">
+  <strong>Invitation links expire after 7 days.</strong> If your link has expired, ask the person who invited you
+  to resend the invitation. They can do this from within MemberSuite.
+</div>
+
+<h3>Logging In for the First Time</h3>
+
+<div class="step">
+  <span class="step-number">1</span>
+  <span class="step-title">Go to the MemberSuite login page</span>
+  <p style="margin-top:10px">
+    Open your web browser and navigate to the MemberSuite URL provided by your organization or GrowthZone representative.
+  </p>
+</div>
+
+<div class="step">
+  <span class="step-number">2</span>
+  <span class="step-title">Enter your email and password</span>
+  <p style="margin-top:10px">
+    Type in the email address that was used for your invitation, and the password you chose when you accepted the
+    invitation.
+  </p>
+</div>
+
+<div class="step">
+  <span class="step-number">3</span>
+  <span class="step-title">Click "Log In"</span>
+  <p style="margin-top:10px">
+    If your email and password are correct, you will be taken to your dashboard. If you see an error message,
+    double-check that you typed your email and password correctly. Remember that passwords are case-sensitive.
+  </p>
+</div>
+
+<h3>The Dashboard &mdash; What You See When You Log In</h3>
+<p>
+  When you first log in, you will land on your <strong>dashboard</strong>. This is your home base. From here you can
+  see your recent workspaces, projects, and any recent activity. Think of it as your personal starting page that gives
+  you a quick overview of what is happening.
+</p>
+
+<img src="images/tenant/dashboard.png" alt="The Dashboard — your home screen after logging in"
+     style="width: 100%; border: 1px solid #e8e8e8; border-radius: 8px; margin: 16px 0;" />
+<p style="font-size: 13px; color: #666; text-align: center; margin-top: -8px;">
+  The Dashboard shows a personalized welcome message, onboarding status, quick stats (Total Projects, Active Plans,
+  Recent Runs, Team Members), and your Recent Activity feed.
+</p>
+
+<h3>Navigation &mdash; The Sidebar Menu Explained</h3>
+<p>
+  On the left side of the screen you will see the <strong>sidebar menu</strong>. This is how you move around the
+  platform. Here is what each item means:
+</p>
+
+<table>
+  <tr><th>Menu Item</th><th>What It Does</th></tr>
+  <tr><td><strong>Dashboard</strong></td><td>Takes you back to your home screen with an overview of your recent activity.</td></tr>
+  <tr><td><strong>Onboarding</strong></td><td>A guided wizard that walks you through uploading your data and mapping columns. This is the easiest way to get your data into the system.</td></tr>
+  <tr><td><strong>Workspaces</strong></td><td>Shows all the workspaces you have access to. This is where your projects are organized.</td></tr>
+  <tr><td><strong>Projects</strong></td><td>Lists all projects within your organization. Each project contains data files and plans.</td></tr>
+  <tr><td><strong>Chat</strong></td><td>Chat with your GrowthZone support team and access the AI Assistant for quick help.</td></tr>
+  <tr><td><strong>Activity Log</strong></td><td>Shows a history of what has happened &mdash; uploads, runs, changes, and more.</td></tr>
+  <tr><td><strong>Team</strong></td><td>Manage team members and invitations (visible to Admins only).</td></tr>
+  <tr><td><strong>Settings</strong></td><td>Your profile and account settings.</td></tr>
+</table>
+
+<div class="tip">
+  <strong>Tip:</strong> You can collapse the sidebar by clicking the arrow icon at the top of the menu. This gives you
+  more screen space when working with your data.
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+<h2 id="roles">3. Understanding Your Role</h2>
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+
+<p>
+  Every user in MemberSuite has a <strong>role</strong> that determines what they can see and do. Your role was assigned
+  when you were invited. Here is a simple breakdown of each role:
+</p>
+
+<table>
+  <tr><th>Role</th><th>What You Can Do</th><th>Who Has This Role</th></tr>
+  <tr>
+    <td><span class="tag blue">Platform Admin</span></td>
+    <td>You manage the entire system. You can see all organizations, all users, create new organizations,
+        and manage everything across the platform.</td>
+    <td>GrowthZone internal team leads</td>
+  </tr>
+  <tr>
+    <td><span class="tag green">Platform Support</span></td>
+    <td>You help customers with their data onboarding. You can see the organizations you are assigned to and
+        assist their users with projects, plans, and data uploads.</td>
+    <td>GrowthZone support staff</td>
+  </tr>
+  <tr>
+    <td><span class="tag orange">Tenant Admin</span></td>
+    <td>You manage your own organization. You can invite new users to your team, manage projects, and oversee
+        everything within your organization.</td>
+    <td>Customer organization managers</td>
+  </tr>
+  <tr>
+    <td><span class="tag blue">Tenant User</span></td>
+    <td>You work on data projects. You can upload files, create and edit plans, run transformations, and view
+        results within your organization.</td>
+    <td>Customer team members</td>
+  </tr>
+</table>
+
+<div class="tip">
+  <strong>Tip:</strong> Not sure what role you have? Look at your profile page (click your name or avatar in the
+  top-right corner). Your role is displayed there.
+</div>
+
+<div class="box">
+  <strong>A note about "Tenant":</strong> In MemberSuite, the word "Tenant" simply means "Organization." If you are
+  a GrowthZone customer, your company is a tenant. You do not need to worry about this term &mdash; it is just
+  the name the system uses behind the scenes.
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+<h2 id="workspaces-projects">4. Workspaces &amp; Projects</h2>
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+
+<h3>What Is a Workspace?</h3>
+<p>
+  A <strong>workspace</strong> is like a folder on your computer. It is a way to group related projects together so
+  you can stay organized. For example, you might have a workspace called "2026 Data Migration" that contains all the
+  projects related to that effort.
+</p>
+<p>
+  You can switch between workspaces using the <strong>Workspace dropdown</strong> at the top of the sidebar. Click the
+  dropdown to see your existing workspaces, create a new one, or edit or delete an existing workspace.
+</p>
+
+<img src="images/tenant/workspace.png" alt="Workspace dropdown in the sidebar"
+     style="width: 100%; border: 1px solid #e8e8e8; border-radius: 8px; margin: 16px 0;" />
+<p style="font-size: 13px; color: #666; text-align: center; margin-top: -8px;">
+  The Workspace dropdown shows your workspaces with edit and delete icons, plus a "+ New Workspace" option.
+</p>
+
+<h3>Creating a Workspace</h3>
+
+<div class="step">
+  <span class="step-number">1</span>
+  <span class="step-title">Go to the Workspaces page</span>
+  <p style="margin-top:10px">Click <strong>Workspaces</strong> in the sidebar menu.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">2</span>
+  <span class="step-title">Click "New Workspace"</span>
+  <p style="margin-top:10px">You will see a button labeled <strong>New Workspace</strong> near the top of the page. Click it.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">3</span>
+  <span class="step-title">Enter a name and description</span>
+  <p style="margin-top:10px">
+    Give your workspace a clear, descriptive name (up to 200 characters). The description is optional but helpful
+    for your team to understand what this workspace is for (up to 1,000 characters).
+  </p>
+</div>
+
+<div class="step">
+  <span class="step-number">4</span>
+  <span class="step-title">Click "Create"</span>
+  <p style="margin-top:10px">Your new workspace is ready. You can now add projects to it.</p>
+</div>
+
+<img src="images/tenant/newworkspace.png" alt="Create Workspace dialog"
+     style="width: 100%; border: 1px solid #e8e8e8; border-radius: 8px; margin: 16px 0;" />
+<p style="font-size: 13px; color: #666; text-align: center; margin-top: -8px;">
+  The Create Workspace dialog asks for a Workspace Name (required) and an optional Description.
+</p>
+
+<h3>Editing a Workspace</h3>
+<p>
+  To edit a workspace, click the <strong>pencil icon</strong> next to the workspace name in the dropdown. This opens
+  the Edit Workspace dialog where you can change the name or description and click <strong>Save</strong>.
+</p>
+
+<img src="images/tenant/editworkspace.png" alt="Edit Workspace dialog"
+     style="width: 100%; border: 1px solid #e8e8e8; border-radius: 8px; margin: 16px 0;" />
+<p style="font-size: 13px; color: #666; text-align: center; margin-top: -8px;">
+  The Edit Workspace dialog lets you update the workspace name and description.
+</p>
+
+<h3>What Is a Project?</h3>
+<p>
+  A <strong>project</strong> lives inside a workspace. It is a container for your data files and the plans that
+  describe how to transform them. Think of it this way:
+</p>
+
+<div class="diagram">Workspace (folder)
+  |
+  +-- Project A (container)
+  |     +-- Uploaded Files (your data)
+  |     +-- Plans (your transformation instructions)
+  |     +-- Run History (results of running plans)
+  |
+  +-- Project B (container)
+        +-- Uploaded Files
+        +-- Plans
+        +-- Run History</div>
+
+<h3>Creating a Project</h3>
+
+<div class="step">
+  <span class="step-number">1</span>
+  <span class="step-title">Open a workspace</span>
+  <p style="margin-top:10px">Navigate to the workspace where you want to create the project, or go to the <strong>Projects</strong> page from the sidebar.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">2</span>
+  <span class="step-title">Click "New Project"</span>
+  <p style="margin-top:10px">Click the <strong>New Project</strong> button.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">3</span>
+  <span class="step-title">Enter a name and description</span>
+  <p style="margin-top:10px">
+    Give your project a clear name (up to 200 characters). Add an optional description (up to 1,000 characters)
+    to help your team understand its purpose.
+  </p>
+</div>
+
+<div class="step">
+  <span class="step-number">4</span>
+  <span class="step-title">Click "Create"</span>
+  <p style="margin-top:10px">Your project is created. You can now upload files and create plans inside it.</p>
+</div>
+
+<h3>Sharing Workspaces with Team Members</h3>
+<p>
+  By default, a workspace is visible only to the person who created it (the owner). To let other team members
+  see and work in your workspace, you need to share it with them. When you share a workspace, you choose an
+  <strong>access level</strong> for each person:
+</p>
+
+<table>
+  <tr><th>Access Level</th><th>What It Means</th></tr>
+  <tr>
+    <td><span class="tag blue">Viewer</span></td>
+    <td>Can see the workspace and its projects, but cannot make any changes.</td>
+  </tr>
+  <tr>
+    <td><span class="tag green">Editor</span></td>
+    <td>Can see everything and make changes &mdash; upload files, create plans, run transformations.</td>
+  </tr>
+  <tr>
+    <td><span class="tag orange">Admin</span></td>
+    <td>Can do everything an Editor can, plus share the workspace with others and manage access.</td>
+  </tr>
+</table>
+
+<h4>How to Share a Workspace</h4>
+
+<div class="step">
+  <span class="step-number">1</span>
+  <span class="step-title">Open the workspace you want to share</span>
+  <p style="margin-top:10px">Navigate to the workspace from the Workspaces page.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">2</span>
+  <span class="step-title">Click the "Share" button</span>
+  <p style="margin-top:10px">You will find this near the top of the workspace page.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">3</span>
+  <span class="step-title">Select the team member and access level</span>
+  <p style="margin-top:10px">
+    Choose the person you want to share with from the list of your organization's users. Then select the
+    access level: <strong>Viewer</strong>, <strong>Editor</strong>, or <strong>Admin</strong>.
+  </p>
+</div>
+
+<div class="step">
+  <span class="step-number">4</span>
+  <span class="step-title">Click "Share"</span>
+  <p style="margin-top:10px">The team member will now be able to see the workspace the next time they log in or refresh their page.</p>
+</div>
+
+<div class="tip">
+  <strong>Tip:</strong> Only the workspace owner (the person who created it) and Platform-level users can share a
+  workspace. If you need to share a workspace but do not see the Share button, ask the workspace owner to do it for you.
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+<h2 id="onboarding">5. The Onboarding Wizard</h2>
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+
+<p>
+  The <strong>Onboarding</strong> wizard is the easiest way to get your data into GrowthZone MemberSuite. It walks
+  you through a simple five-step process: Welcome, Upload Data, Map Columns, Review, and Done. You do not need
+  to create workspaces or projects &mdash; the wizard handles everything for you.
+</p>
+
+<div class="tip">
+  <strong>Tip:</strong> The Onboarding wizard is available to organization users (Tenant Admins and Tenant Users).
+  Platform Administrators and Platform Support users do not see this menu item &mdash; they configure
+  onboarding settings through the Administration area instead.
+</div>
+
+<h3>Step 1 &mdash; Welcome</h3>
+<p>
+  Click <strong>Onboarding</strong> in the sidebar menu. You will see the Welcome screen, which explains the
+  three-step process:
+</p>
+<ol>
+  <li>Upload your data file (CSV format)</li>
+  <li>Map your columns to MemberSuite fields</li>
+  <li>Review and submit your mappings</li>
+</ol>
+<p>Click <strong>Get Started</strong> to begin.</p>
+
+<img src="images/onboarding/2026-07-17_12-41-52.png" alt="Onboarding Welcome screen"
+     style="width: 100%; border: 1px solid #e8e8e8; border-radius: 8px; margin: 16px 0;" />
+
+<h3>Step 2 &mdash; Upload Your Data</h3>
+<p>
+  On this screen, you upload the data file you want to import. Drag and drop your file onto the upload area, or
+  click to browse your computer. MemberSuite supports <strong>CSV</strong> and <strong>Excel</strong> (.xlsx, .xls)
+  files up to <strong>50 MB</strong>.
+</p>
+<p>
+  Once your file is uploaded, you will see a confirmation showing the file name and the number of rows detected.
+  A progress bar across the top tracks your position in the wizard.
+</p>
+
+<img src="images/onboarding/uploaddata.png" alt="Upload Data step with file uploaded"
+     style="width: 100%; border: 1px solid #e8e8e8; border-radius: 8px; margin: 16px 0;" />
+
+<p>
+  Below the upload area, a <strong>Data Preview</strong> table shows the first rows of your file so you can
+  verify the data looks correct before proceeding. The columns from your file (FirstName, LastName, Email, Phone,
+  Company, Title, etc.) are displayed exactly as they appear in your file.
+</p>
+
+<img src="images/onboarding/previewdata.png" alt="Data preview showing uploaded CSV data"
+     style="width: 100%; border: 1px solid #e8e8e8; border-radius: 8px; margin: 16px 0;" />
+
+<p>
+  Click <strong>Next: Map Columns</strong> to proceed to the mapping step.
+</p>
+
+<h3>Step 3 &mdash; Map Your Columns</h3>
+<p>
+  This is where you tell MemberSuite how the columns in your file correspond to the fields in the system. On the
+  left side, you see the <strong>MemberSuite fields</strong> (e.g., firstName, lastName, email). On the right,
+  you select which <strong>Source Column</strong> from your file maps to each field.
+</p>
+
+<img src="images/onboarding/mapper.png" alt="Column Mapping interface with dropdown open"
+     style="width: 100%; border: 1px solid #e8e8e8; border-radius: 8px; margin: 16px 0;" />
+
+<p>
+  For each MemberSuite field, click the <strong>Select source column</strong> dropdown and choose the matching
+  column from your file. Fields marked <span class="tag orange">Required</span> (like firstName, lastName, and
+  email) must be mapped before you can proceed.
+</p>
+<p>
+  As you map columns, the <strong>Sample Values</strong> column shows data from your file so you can verify
+  the mapping is correct. You can also use the <strong>Auto-Map</strong> button to let MemberSuite
+  automatically match columns that have similar names.
+</p>
+
+<img src="images/onboarding/mapper2.png" alt="Column Mapping with fields mapped and sample values"
+     style="width: 100%; border: 1px solid #e8e8e8; border-radius: 8px; margin: 16px 0;" />
+
+<h4>Adding Custom Fields</h4>
+<p>
+  If your data contains columns that do not match any of the standard MemberSuite fields, you can create your own.
+  Click the <strong>+ Add Custom Field</strong> button at the top of the mapping table. A dialog appears where you can define:
+</p>
+<ul>
+  <li><strong>Field Name</strong> &mdash; A short identifier for the field (letters, numbers, and underscores only).</li>
+  <li><strong>Type</strong> &mdash; The data type: Text, Number, or Date.</li>
+  <li><strong>Description</strong> &mdash; A brief explanation of what this field contains.</li>
+  <li><strong>Required</strong> &mdash; Toggle on if this field must have a value for every record.</li>
+</ul>
+<p>
+  Click <strong>Add Field</strong> to create it. The new field immediately appears in the MemberSuite Field list
+  and you can map a source column to it just like any other field.
+</p>
+
+<img src="images/onboarding/customfield.png" alt="Add Custom Field dialog during column mapping"
+     style="width: 100%; border: 1px solid #e8e8e8; border-radius: 8px; margin: 16px 0;" />
+<p style="font-size: 13px; color: #666; text-align: center; margin-top: -8px;">
+  The Add Custom Field dialog lets you define a new field with a name, type, description, and required toggle.
+</p>
+
+<div class="tip">
+  <strong>Tip:</strong> You do not need to map every column. Only map the fields that are relevant to your data.
+  You can always come back and update your mappings later. Your GrowthZone representative can assist with the
+  column mapping if needed.
+</div>
+
+<p>
+  When you are satisfied with your mappings, click <strong>Save</strong> to save your progress, or click
+  <strong>Next</strong> to proceed to the Review step.
+</p>
+
+<h3>Step 4 &mdash; Review Your Mappings</h3>
+<p>
+  Before submitting, the Review screen shows a summary of all the column mappings you configured. You will see:
+</p>
+<ul>
+  <li>The number of column mappings configured</li>
+  <li>The source file name and row count</li>
+  <li>A table showing each <strong>Source Column</strong>, the corresponding <strong>GrowthZone Field</strong>, and the <strong>Transformation</strong> applied (typically "Direct copy")</li>
+</ul>
+
+<img src="images/onboarding/mapperreview.png" alt="Review Your Mappings summary"
+     style="width: 100%; border: 1px solid #e8e8e8; border-radius: 8px; margin: 16px 0;" />
+
+<p>
+  If everything looks correct, click <strong>Submit Mappings</strong>. If you need to make changes, click
+  <strong>Back to Mapping</strong> to return to the previous step.
+</p>
+
+<h3>Step 5 &mdash; Done</h3>
+<p>
+  After submitting, you will see a confirmation screen with a green checkmark and the message
+  <strong>"Mappings Submitted."</strong> Your GrowthZone representative will review and finalize the import.
+</p>
+
+<img src="images/onboarding/mappersubmit.png" alt="Mappings Submitted confirmation"
+     style="width: 100%; border: 1px solid #e8e8e8; border-radius: 8px; margin: 16px 0;" />
+
+<p>
+  From this screen, you can:
+</p>
+<ul>
+  <li><strong>Edit Mappings</strong> &mdash; Go back and modify your column mappings if you realize something needs to change.</li>
+  <li><strong>Start Over</strong> &mdash; Begin the entire process from scratch with a new data file.</li>
+</ul>
+
+<div class="box success">
+  <strong>That is all there is to it!</strong> The onboarding wizard is designed to make your initial data
+  import as simple as possible. If you have questions about any step, your GrowthZone representative is
+  available to help.
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+<h2 id="uploading">6. Uploading Data Files</h2>
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+
+<h3>Supported File Types</h3>
+<p>MemberSuite accepts the following types of files:</p>
+
+<table>
+  <tr><th>File Type</th><th>Common Extensions</th><th>Description</th></tr>
+  <tr><td>CSV</td><td>.csv</td><td>Comma-separated values &mdash; the most common spreadsheet export format.</td></tr>
+  <tr><td>Excel</td><td>.xls, .xlsx</td><td>Microsoft Excel spreadsheets.</td></tr>
+  <tr><td>JSON</td><td>.json</td><td>A structured data format often used by web applications.</td></tr>
+  <tr><td>XML</td><td>.xml</td><td>A structured data format used by many business systems.</td></tr>
+  <tr><td>Plain Text</td><td>.txt</td><td>Simple text files with data in a consistent format.</td></tr>
+</table>
+
+<div class="box warning">
+  <strong>Maximum file size: 50 MB.</strong> If your file is larger than 50 MB, you will need to split it into
+  smaller files before uploading. Most spreadsheet programs (like Excel or Google Sheets) can help you do this.
+</div>
+
+<h3>How to Upload a File</h3>
+
+<div class="step">
+  <span class="step-number">1</span>
+  <span class="step-title">Open your project</span>
+  <p style="margin-top:10px">
+    Navigate to the project where you want to upload the file. You can find your project under its workspace
+    or on the Projects page.
+  </p>
+</div>
+
+<div class="step">
+  <span class="step-number">2</span>
+  <span class="step-title">Go to the "Files" or "Assets" tab</span>
+  <p style="margin-top:10px">Inside the project, look for the tab that shows your uploaded files.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">3</span>
+  <span class="step-title">Click "Upload File"</span>
+  <p style="margin-top:10px">Click the upload button. A file picker window will open.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">4</span>
+  <span class="step-title">Select your file</span>
+  <p style="margin-top:10px">
+    Browse your computer and select the file you want to upload. Make sure it is one of the supported file
+    types listed above and is under 50 MB.
+  </p>
+</div>
+
+<div class="step">
+  <span class="step-number">5</span>
+  <span class="step-title">Wait for the upload to finish</span>
+  <p style="margin-top:10px">
+    You will see a progress indicator while your file is being uploaded. Do not close the browser tab or navigate
+    away until the upload is complete.
+  </p>
+</div>
+
+<h3>What Happens After Upload</h3>
+<p>
+  Once your file is uploaded, MemberSuite stores it securely within your project. The file appears in your project's
+  file list with details like its name, size, type, who uploaded it, and when. You can now use this file as the
+  <strong>source data</strong> for a plan (see the next section).
+</p>
+
+<div class="tip">
+  <strong>Tip:</strong> Give your files clear, descriptive names before uploading them. For example,
+  "members_export_july_2026.csv" is much more helpful than "data.csv" when you come back to your project later.
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+<h2 id="plans">7. Working with Plans</h2>
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+
+<h3>What Is a Plan?</h3>
+<p>
+  A <strong>plan</strong> is a set of instructions that tells MemberSuite how to transform your data. It is where you
+  define which columns in your source file should go to which fields in the target system, and how the data should
+  be converted along the way.
+</p>
+<p>
+  Think of a plan like a recipe: it describes the ingredients (your source data), the steps (the field mappings
+  and transformations), and the result (the formatted output).
+</p>
+
+<h3>Plan Statuses Explained</h3>
+<p>
+  Every plan has a <strong>status</strong> that tells you where it is in its lifecycle. Here is what each status means:
+</p>
+
+<table>
+  <tr><th>Status</th><th>What It Means</th><th>What You Can Do</th></tr>
+  <tr>
+    <td><span class="tag blue">Draft</span></td>
+    <td>You are still working on it. The plan is not finalized yet.</td>
+    <td>Edit field mappings, change settings, update the plan definition. You <strong>cannot</strong> run a draft plan.</td>
+  </tr>
+  <tr>
+    <td><span class="tag green">Published</span></td>
+    <td>It is ready to use. The plan has been finalized and locked.</td>
+    <td>Run the plan (Dry Run or Full Run). You <strong>cannot</strong> edit a published plan. If you need to make changes, create a new plan.</td>
+  </tr>
+  <tr>
+    <td><span class="tag orange">Archived</span></td>
+    <td>It has been retired. The plan is no longer in active use.</td>
+    <td>View the plan and its past run history. You <strong>cannot</strong> run or edit an archived plan.</td>
+  </tr>
+</table>
+
+<div class="diagram">Plan Lifecycle:
+
+  DRAFT  ──────>  PUBLISHED  ──────>  ARCHIVED
+ (editing)       (ready to run)      (retired)
+</div>
+
+<h3>Creating a Plan</h3>
+
+<div class="step">
+  <span class="step-number">1</span>
+  <span class="step-title">Open your project</span>
+  <p style="margin-top:10px">Navigate to the project where you want to create the plan.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">2</span>
+  <span class="step-title">Go to the "Plans" tab</span>
+  <p style="margin-top:10px">Inside the project, click on the Plans tab to see your list of plans.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">3</span>
+  <span class="step-title">Click "New Plan"</span>
+  <p style="margin-top:10px">Click the button to create a new plan.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">4</span>
+  <span class="step-title">Enter a name and description</span>
+  <p style="margin-top:10px">
+    Give your plan a clear name (up to 200 characters), such as "Member Import - Phase 1". Add an optional
+    description to explain what this plan does.
+  </p>
+</div>
+
+<div class="step">
+  <span class="step-number">5</span>
+  <span class="step-title">Click "Create"</span>
+  <p style="margin-top:10px">
+    Your plan is created in <strong>Draft</strong> status. You can now open it and start mapping your fields.
+  </p>
+</div>
+
+<h3>The Visual Mapping Interface</h3>
+<p>
+  The mapping interface is where the real work happens. Here is the basic idea:
+</p>
+
+<div class="box">
+  <strong>Source Field &rarr; Target Field</strong><br><br>
+  On the <strong>left side</strong>, you see the columns from your uploaded data file (your source data).
+  For example: "First Name", "Last Name", "Email Address", "Phone".<br><br>
+  On the <strong>right side</strong>, you see the fields that the target system expects.
+  For example: "given_name", "family_name", "email", "phone_number".<br><br>
+  Your job is to connect each source field to the correct target field. You do this by drawing a line from
+  one side to the other, or by selecting from dropdown menus &mdash; depending on the interface your
+  organization uses.
+</div>
+
+<p>
+  For each connection you make, you are telling MemberSuite: "Take the data from <em>this</em> column in my file
+  and put it into <em>that</em> field in the target system."
+</p>
+
+<div class="tip">
+  <strong>Tip:</strong> You do not have to map every field at once. Save your work as you go. The plan stays
+  in Draft status until you are ready to publish it, so you can come back and make changes any time.
+</div>
+
+<h3>Publishing a Plan</h3>
+<p>
+  When you are satisfied with your field mappings and ready to run the plan, you need to <strong>publish</strong> it.
+  Publishing locks the plan so it cannot be accidentally changed.
+</p>
+
+<div class="step">
+  <span class="step-number">1</span>
+  <span class="step-title">Open your Draft plan</span>
+  <p style="margin-top:10px">Navigate to the plan you want to publish.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">2</span>
+  <span class="step-title">Review your field mappings</span>
+  <p style="margin-top:10px">Make sure everything looks correct. Once published, you will not be able to edit the plan.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">3</span>
+  <span class="step-title">Click "Publish"</span>
+  <p style="margin-top:10px">The plan's status changes from Draft to Published. It is now ready to run.</p>
+</div>
+
+<div class="box warning">
+  <strong>Important:</strong> Once a plan is published, it cannot be edited. If you discover a mistake after
+  publishing, you will need to create a new plan with the corrections. This is by design &mdash; it ensures
+  that every run uses a known, stable set of instructions.
+</div>
+
+<h3>Dry Run vs. Full Run</h3>
+<p>
+  When you run a published plan, you have two options:
+</p>
+
+<table>
+  <tr><th>Run Type</th><th>What It Does</th><th>When to Use It</th></tr>
+  <tr>
+    <td><span class="tag blue">Dry Run</span></td>
+    <td>
+      <strong>Tests your plan without making any real changes.</strong> It processes your data and shows you
+      what <em>would</em> happen, but does not actually write anything to the target system. Think of it as a
+      rehearsal.
+    </td>
+    <td>Always do a Dry Run first. It helps you catch mistakes before they affect real data.</td>
+  </tr>
+  <tr>
+    <td><span class="tag green">Full Run</span></td>
+    <td>
+      <strong>Actually processes your data for real.</strong> It reads your source file, applies your mappings,
+      and writes the results to the target system. This is the real thing.
+    </td>
+    <td>Use this only after you have reviewed the results of a Dry Run and are confident everything is correct.</td>
+  </tr>
+</table>
+
+<h4>How to Run a Plan</h4>
+
+<div class="step">
+  <span class="step-number">1</span>
+  <span class="step-title">Open a Published plan</span>
+  <p style="margin-top:10px">Navigate to the plan you want to run. It must be in Published status.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">2</span>
+  <span class="step-title">Click "Run"</span>
+  <p style="margin-top:10px">You will be asked to choose between a <strong>Dry Run</strong> and a <strong>Full Run</strong>.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">3</span>
+  <span class="step-title">Select your run type</span>
+  <p style="margin-top:10px">
+    Choose <strong>Dry Run</strong> to test, or <strong>Full Run</strong> to process for real.
+    We strongly recommend doing a Dry Run first.
+  </p>
+</div>
+
+<div class="step">
+  <span class="step-number">4</span>
+  <span class="step-title">Wait for the run to complete</span>
+  <p style="margin-top:10px">
+    The run is placed in a queue and processed. You will see the status change from
+    <strong>Queued</strong> to <strong>Running</strong> to <strong>Completed</strong> (or <strong>Failed</strong>
+    if something went wrong). You can leave the page and come back &mdash; the run continues in the background.
+  </p>
+</div>
+
+<div class="tip">
+  <strong>Tip:</strong> Always start with a Dry Run. It costs nothing and saves you from surprises. Review the
+  results carefully before doing a Full Run.
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+<h2 id="run-results">8. Viewing Run Results</h2>
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+
+<h3>Where to Find Run History</h3>
+<p>
+  Every time you run a plan (whether Dry Run or Full Run), MemberSuite keeps a record of it. To view your run history:
+</p>
+
+<div class="step">
+  <span class="step-number">1</span>
+  <span class="step-title">Open the project that contains your plan</span>
+  <p style="margin-top:10px">Navigate to the relevant project.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">2</span>
+  <span class="step-title">Open the plan</span>
+  <p style="margin-top:10px">Click on the plan you want to review.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">3</span>
+  <span class="step-title">Click on the "Runs" tab</span>
+  <p style="margin-top:10px">
+    You will see a list of all runs for this plan, sorted with the most recent at the top. Each entry shows the
+    run type, status, who started it, and when.
+  </p>
+</div>
+
+<h3>Understanding the Results</h3>
+<p>
+  When you click on a specific run, you will see a summary of what happened. Here are the key numbers to look at:
+</p>
+
+<table>
+  <tr><th>Metric</th><th>What It Means</th></tr>
+  <tr>
+    <td><strong>Records Processed</strong></td>
+    <td>The total number of rows or records from your source file that the plan attempted to process.</td>
+  </tr>
+  <tr>
+    <td><strong>Succeeded</strong></td>
+    <td>The number of records that were successfully transformed and (for Full Runs) written to the target system.</td>
+  </tr>
+  <tr>
+    <td><strong>Failed</strong></td>
+    <td>The number of records that could not be processed. These need your attention.</td>
+  </tr>
+</table>
+
+<h3>Run Status Meanings</h3>
+
+<table>
+  <tr><th>Status</th><th>What It Means</th></tr>
+  <tr>
+    <td><span class="tag blue">Queued</span></td>
+    <td>The run is waiting in line to be processed. It has not started yet.</td>
+  </tr>
+  <tr>
+    <td><span class="tag orange">Running</span></td>
+    <td>The run is currently being processed. Please wait.</td>
+  </tr>
+  <tr>
+    <td><span class="tag green">Completed</span></td>
+    <td>The run finished successfully. Check the results to see how many records succeeded or failed.</td>
+  </tr>
+  <tr>
+    <td style="color: #cf1322;"><strong>Failed</strong></td>
+    <td>The run encountered a serious problem and could not finish. See below for what to do.</td>
+  </tr>
+</table>
+
+<h3>What to Do If Records Fail</h3>
+<p>
+  It is common for some records to fail, especially on your first run. Do not worry &mdash; here is what to do:
+</p>
+
+<ol>
+  <li><strong>Look at the error details.</strong> Click on the failed run to see which records failed and why. Common reasons include missing required fields, data in the wrong format (for example, text where a number is expected), or values that are too long.</li>
+  <li><strong>Fix the source data.</strong> Go back to your original file, correct the problem rows, and re-upload the file.</li>
+  <li><strong>Run the plan again.</strong> Do another Dry Run to confirm the fixes, then a Full Run when you are satisfied.</li>
+</ol>
+
+<div class="tip">
+  <strong>Tip:</strong> If you are not sure what an error message means, check the Activity Log for more details,
+  or contact your GrowthZone support representative for help.
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+<h2 id="chat">9. Chat &amp; AI Assistant</h2>
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+
+<p>
+  The <strong>Chat</strong> page gives you two ways to get help: direct conversations with your GrowthZone support
+  team and an AI Assistant for quick answers.
+</p>
+
+<img src="images/tenant/chat.png" alt="Chat page with conversations and AI Assistant tabs"
+     style="width: 100%; border: 1px solid #e8e8e8; border-radius: 8px; margin: 16px 0;" />
+<p style="font-size: 13px; color: #666; text-align: center; margin-top: -8px;">
+  The Chat page shows your conversations on the left and the selected conversation on the right.
+  Switch between Chats and AI Assistant using the tabs at the top.
+</p>
+
+<h3>Chats</h3>
+<p>
+  The <strong>Chats</strong> tab shows your conversations with the GrowthZone support team. You can:
+</p>
+<ul>
+  <li><strong>Search conversations</strong> &mdash; Use the search bar to find previous conversations.</li>
+  <li><strong>Start a new conversation</strong> &mdash; Click <strong>+ New Conversation</strong> to send a message to the support team.</li>
+  <li><strong>View unread messages</strong> &mdash; A red badge appears on conversations with unread messages.</li>
+</ul>
+<p>
+  Click on a conversation in the list to open it. Type your message in the text box at the bottom and press
+  <strong>Enter</strong> or click <strong>Send</strong> to reply.
+</p>
+
+<h3>AI Assistant</h3>
+<p>
+  The <strong>AI Assistant</strong> tab lets you ask questions and get instant answers about using MemberSuite,
+  data formatting, mapping fields, and more. It is available around the clock and can help you troubleshoot
+  common issues without waiting for a support representative.
+</p>
+
+<div class="tip">
+  <strong>Tip:</strong> Use the AI Assistant for quick questions like "What file formats are supported?" or
+  "How do I map a date field?" For complex issues or account-specific questions, start a chat with the support team.
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+<h2 id="invitations">10. Inviting Team Members</h2>
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+
+<p>
+  If you are a <strong>Tenant Admin</strong>, <strong>Platform Admin</strong>, or <strong>Platform Support</strong>
+  user, you can invite new people to join your organization on MemberSuite.
+</p>
+
+<h3>How to Send an Invitation</h3>
+
+<div class="step">
+  <span class="step-number">1</span>
+  <span class="step-title">Go to the Team page</span>
+  <p style="margin-top:10px">Click <strong>Team</strong> in the sidebar menu.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">2</span>
+  <span class="step-title">Click "Invite User"</span>
+  <p style="margin-top:10px">You will see a button to invite a new team member.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">3</span>
+  <span class="step-title">Enter their email address</span>
+  <p style="margin-top:10px">Type the email address of the person you want to invite.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">4</span>
+  <span class="step-title">Choose their role</span>
+  <p style="margin-top:10px">
+    Select the appropriate role for this person. If you are a Tenant Admin, you can assign either
+    <strong>Tenant Admin</strong> or <strong>Tenant User</strong>. See the
+    <a href="#roles">Understanding Your Role</a> section above for descriptions of each role.
+  </p>
+</div>
+
+<div class="step">
+  <span class="step-number">5</span>
+  <span class="step-title">Click "Send Invitation"</span>
+  <p style="margin-top:10px">
+    An email is sent to the person with a link to create their account. The invitation is valid for
+    <strong>7 days</strong>.
+  </p>
+</div>
+
+<h3>Choosing the Right Role</h3>
+
+<div class="box">
+  <strong>Quick guide:</strong><br><br>
+  <strong>Choose "Tenant Admin"</strong> if this person needs to manage the team &mdash; invite others, oversee
+  projects, and have full control over your organization's MemberSuite account.<br><br>
+  <strong>Choose "Tenant User"</strong> if this person will be working with data &mdash; uploading files, creating
+  plans, and running transformations, but does not need to manage the team or invite others.
+</div>
+
+<h3>Managing Invitations</h3>
+<p>
+  On the Team page, you can see a list of all pending, accepted, and cancelled invitations. From here you can:
+</p>
+
+<table>
+  <tr><th>Action</th><th>What It Does</th><th>When to Use It</th></tr>
+  <tr>
+    <td><strong>Resend</strong></td>
+    <td>Sends a fresh invitation email with a new link and resets the 7-day expiration timer.</td>
+    <td>If the person did not receive the original email, or if the original link expired.</td>
+  </tr>
+  <tr>
+    <td><strong>Cancel</strong></td>
+    <td>Cancels the invitation. The link in the email will no longer work.</td>
+    <td>If you invited the wrong person or no longer need them to join.</td>
+  </tr>
+</table>
+
+<div class="box warning">
+  <strong>You cannot invite someone who already has an account.</strong> If the email address is already registered
+  in MemberSuite, the system will let you know. If that person needs to be in a different organization, contact a
+  Platform Administrator.
+</div>
+
+<h3>What the Invited Person Sees</h3>
+<p>
+  When someone receives your invitation, they get an email that includes your name, your organization's name,
+  and a link to accept the invitation. When they click the link, they are taken to a page where they enter their
+  first name, last name, and choose a password. Once they complete that, they can log in immediately.
+</p>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+<h2 id="account">11. Password &amp; Account</h2>
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+
+<h3>Changing Your Password</h3>
+
+<div class="step">
+  <span class="step-number">1</span>
+  <span class="step-title">Click your name or avatar in the top-right corner</span>
+  <p style="margin-top:10px">A dropdown menu will appear.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">2</span>
+  <span class="step-title">Click "Settings" or "Profile"</span>
+  <p style="margin-top:10px">This takes you to your account settings page.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">3</span>
+  <span class="step-title">Find the "Change Password" section</span>
+  <p style="margin-top:10px">Enter your current password, then type your new password twice to confirm it.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">4</span>
+  <span class="step-title">Click "Save" or "Update Password"</span>
+  <p style="margin-top:10px">Your password is updated. Use the new password the next time you log in.</p>
+</div>
+
+<img src="images/tenant/profile.png" alt="My Profile page with Edit Profile and Change Password sections"
+     style="width: 100%; border: 1px solid #e8e8e8; border-radius: 8px; margin: 16px 0;" />
+<p style="font-size: 13px; color: #666; text-align: center; margin-top: -8px;">
+  The My Profile page shows your avatar, account details, Edit Profile form (First Name, Last Name, Job Title, Bio), and Change Password section.
+</p>
+
+<div class="box">
+  <strong>Password requirements:</strong> Your password must be at least <strong>8 characters</strong> long and
+  no more than 128 characters. We recommend using a mix of uppercase letters, lowercase letters, numbers, and
+  special characters.
+</div>
+
+<h3>Forgot Password &mdash; How to Recover</h3>
+<p>
+  If you forget your password, you can reset it without contacting anyone:
+</p>
+
+<div class="step">
+  <span class="step-number">1</span>
+  <span class="step-title">Go to the login page</span>
+  <p style="margin-top:10px">Open MemberSuite in your web browser.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">2</span>
+  <span class="step-title">Click "Forgot Password?"</span>
+  <p style="margin-top:10px">You will find this link below the login form.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">3</span>
+  <span class="step-title">Enter your email address</span>
+  <p style="margin-top:10px">
+    Type the email address you use to log in to MemberSuite. Click "Send Reset Link."
+  </p>
+</div>
+
+<div class="step">
+  <span class="step-number">4</span>
+  <span class="step-title">Check your email</span>
+  <p style="margin-top:10px">
+    You will receive an email with a password reset link. Click it to open the reset page.
+    Check your spam or junk folder if you do not see the email within a few minutes.
+  </p>
+</div>
+
+<div class="step">
+  <span class="step-number">5</span>
+  <span class="step-title">Enter your new password</span>
+  <p style="margin-top:10px">
+    Type your new password (at least 8 characters) and confirm it. Click "Reset Password."
+  </p>
+</div>
+
+<div class="step">
+  <span class="step-number">6</span>
+  <span class="step-title">Log in with your new password</span>
+  <p style="margin-top:10px">
+    Go back to the login page and sign in using your email and new password.
+  </p>
+</div>
+
+<div class="box warning">
+  <strong>Password reset links expire after 1 hour.</strong> If your link has expired, go back to the login page
+  and request a new one.
+</div>
+
+<h3>Your Profile Settings</h3>
+<p>
+  On your profile page, you can view and update your personal information:
+</p>
+<ul>
+  <li><strong>First Name and Last Name</strong> &mdash; How your name appears throughout the platform.</li>
+  <li><strong>Email Address</strong> &mdash; The email you use to log in. This cannot be changed by you; contact a Platform Administrator if you need to change it.</li>
+  <li><strong>Role</strong> &mdash; Your assigned role (view only). Contact your administrator if you need a different role.</li>
+  <li><strong>Avatar</strong> &mdash; Your profile picture, if one has been set.</li>
+</ul>
+
+<h3>Application Settings</h3>
+<p>
+  Click <strong>Settings</strong> in the sidebar menu to access your application preferences:
+</p>
+<ul>
+  <li><strong>Appearance</strong> &mdash; Toggle Dark Mode or Compact Mode for a denser layout.</li>
+  <li><strong>Notifications</strong> &mdash; Control Email Notifications, In-App Notifications, and Weekly Digest preferences.</li>
+  <li><strong>Display</strong> &mdash; Choose your preferred date format.</li>
+  <li><strong>Workspaces</strong> &mdash; View and manage your workspaces directly from this page.</li>
+</ul>
+
+<img src="images/tenant/settings.png" alt="Settings page with Appearance, Notifications, Display, and Workspaces sections"
+     style="width: 100%; border: 1px solid #e8e8e8; border-radius: 8px; margin: 16px 0;" />
+<p style="font-size: 13px; color: #666; text-align: center; margin-top: -8px;">
+  The Settings page with Appearance toggles, Notification preferences, Date Format selector, and Workspace management.
+</p>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+<h2 id="platform-admin">12. For Platform Administrators</h2>
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+
+<p>
+  If you are a <strong>Platform Admin</strong> or <strong>Platform Support</strong> user, you have access to
+  a full set of administration tools for managing organizations, users, invitations, platform branding,
+  onboarding schemas, activity logs, and more.
+</p>
+
+<p>
+  These features are covered in detail in the dedicated
+  <strong><a href="GrowthZone_MemberSuite_Platform_Admin_Guide.html">Platform Administrator Guide</a></strong>,
+  which includes step-by-step instructions and screenshots for every administration task.
+</p>
+
+<div class="box">
+  <strong>Quick summary of what Platform Administrators can do:</strong>
+  <ul style="margin-top: 10px;">
+    <li><strong>Organizations</strong> &mdash; Create, edit, activate/deactivate customer organizations and optionally invite an admin owner during creation.</li>
+    <li><strong>Users</strong> &mdash; View, create, edit, and activate/deactivate users across all organizations. Filter by organization, role, or status.</li>
+    <li><strong>Invitations</strong> &mdash; Send, resend, and cancel invitation emails platform-wide. Track invitation status (Pending, Accepted, Cancelled, Expired).</li>
+    <li><strong>Platform Branding</strong> &mdash; Set the platform-wide brand name and logo that appears on the login page and sidebar for all users.</li>
+    <li><strong>Onboarding Schema</strong> &mdash; Configure the data collection fields for each organization's onboarding process.</li>
+    <li><strong>Theme Customization</strong> &mdash; Customize UI colors, sidebar background, and border radius per organization.</li>
+    <li><strong>Activity Log</strong> &mdash; View a read-only audit trail of all actions performed across the platform.</li>
+  </ul>
+</div>
+
+<div class="tip">
+  <strong>Tip:</strong> For the complete guide with detailed procedures and screenshots, open the
+  <a href="GrowthZone_MemberSuite_Platform_Admin_Guide.html">Platform Administrator Guide</a>.
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+<h2 id="help">13. Getting Help</h2>
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+
+<h3>Contact Your GrowthZone Support Representative</h3>
+<p>
+  If you run into a problem you cannot solve on your own, reach out to your GrowthZone support representative.
+  They have access to your organization's data and can help troubleshoot issues, answer questions, and guide you
+  through any part of the platform.
+</p>
+
+<h3>Check the Activity Log</h3>
+<p>
+  If something unexpected happened &mdash; data that looks wrong, a missing file, or a setting that changed &mdash;
+  the Activity Log is the first place to look. It shows who did what and when, so you can quickly understand what
+  happened.
+</p>
+
+<h3>Common Questions and Answers</h3>
+
+<table>
+  <tr><th style="width:45%">Question</th><th>Answer</th></tr>
+  <tr>
+    <td><strong>I did not receive my invitation email. What should I do?</strong></td>
+    <td>Check your spam or junk folder first. If it is not there, ask the person who invited you to resend the invitation from the Team page.</td>
+  </tr>
+  <tr>
+    <td><strong>My invitation link says it is expired. What now?</strong></td>
+    <td>Invitation links are valid for 7 days. Ask the person who invited you to click "Resend" on your invitation. This creates a fresh link with a new 7-day window.</td>
+  </tr>
+  <tr>
+    <td><strong>I forgot my password. How do I get back in?</strong></td>
+    <td>Go to the login page and click "Forgot Password?" Enter your email address and follow the instructions in the email you receive. The reset link is valid for 1 hour.</td>
+  </tr>
+  <tr>
+    <td><strong>My file upload failed. What went wrong?</strong></td>
+    <td>The most common reasons are: the file is too large (over 50 MB), the file type is not supported, or the file is empty. Check the file and try again. If the problem continues, contact support.</td>
+  </tr>
+  <tr>
+    <td><strong>I published my plan but found a mistake. Can I undo it?</strong></td>
+    <td>Published plans cannot be edited. Create a new plan with the corrections, map your fields again, and publish the new plan. You can archive the old plan to keep things tidy.</td>
+  </tr>
+  <tr>
+    <td><strong>What is the difference between a Dry Run and a Full Run?</strong></td>
+    <td>A Dry Run is a test &mdash; it shows you what would happen without actually changing anything. A Full Run does the real processing. Always do a Dry Run first.</td>
+  </tr>
+  <tr>
+    <td><strong>Can I delete a project or workspace?</strong></td>
+    <td>Yes, if you are the owner of the project or have the appropriate permissions. Be careful &mdash; deleting a project removes all of its files, plans, and run history.</td>
+  </tr>
+  <tr>
+    <td><strong>I cannot see a workspace that my colleague shared with me.</strong></td>
+    <td>Try refreshing your browser. If you still cannot see it, ask your colleague to confirm they shared it with the correct email address and that your access level is set correctly.</td>
+  </tr>
+  <tr>
+    <td><strong>What happens to my data when an organization is deactivated?</strong></td>
+    <td>Your data is preserved but not accessible. No one in the organization can log in while it is deactivated. If the organization is reactivated, everything will be available again as before.</td>
+  </tr>
+</table>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+<h2 id="glossary">14. Glossary</h2>
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+
+<p>
+  Here are simple definitions for terms you will encounter while using GrowthZone MemberSuite:
+</p>
+
+<table>
+  <tr><th style="width:22%">Term</th><th>What It Means</th></tr>
+  <tr>
+    <td><strong>Tenant</strong></td>
+    <td>An organization that uses MemberSuite. If you are a GrowthZone customer, your company is a tenant. Each tenant has its own users, workspaces, projects, and data &mdash; completely separate from other tenants.</td>
+  </tr>
+  <tr>
+    <td><strong>Workspace</strong></td>
+    <td>A folder-like container used to group related projects together. You can share workspaces with team members and control who can view or edit them.</td>
+  </tr>
+  <tr>
+    <td><strong>Project</strong></td>
+    <td>A container that holds your uploaded data files, transformation plans, and run history. Projects live inside workspaces.</td>
+  </tr>
+  <tr>
+    <td><strong>Plan</strong></td>
+    <td>A set of instructions that tells MemberSuite how to transform your data &mdash; specifically, which fields in your source file map to which fields in the target system. Plans go through three stages: Draft, Published, and Archived.</td>
+  </tr>
+  <tr>
+    <td><strong>Plan Run</strong></td>
+    <td>A single execution of a plan. Every time you run a plan, a Plan Run record is created that tracks the status and results.</td>
+  </tr>
+  <tr>
+    <td><strong>Dry Run</strong></td>
+    <td>A test run that shows you what would happen if you ran your plan for real, without actually making any changes. Use this to verify your plan is correct before doing a Full Run.</td>
+  </tr>
+  <tr>
+    <td><strong>Full Run</strong></td>
+    <td>A real run that actually processes your data and writes the results to the target system. Only do this after reviewing the results of a Dry Run.</td>
+  </tr>
+  <tr>
+    <td><strong>Asset</strong></td>
+    <td>A file that has been uploaded to a project. This could be a CSV, Excel, JSON, XML, or text file. Also called a "data file" or "uploaded file" in this guide.</td>
+  </tr>
+  <tr>
+    <td><strong>Role</strong></td>
+    <td>Your permission level in MemberSuite. There are four roles: Platform Admin, Platform Support, Tenant Admin, and Tenant User. Your role determines what you can see and do.</td>
+  </tr>
+  <tr>
+    <td><strong>Invitation</strong></td>
+    <td>An email sent to someone asking them to join MemberSuite. The email contains a special link that lets them create their account. Invitations are valid for 7 days.</td>
+  </tr>
+  <tr>
+    <td><strong>Field Mapping</strong></td>
+    <td>The connection between a column in your source file and a field in the target system. For example, mapping your "Email Address" column to the target system's "email" field.</td>
+  </tr>
+  <tr>
+    <td><strong>Source Field</strong></td>
+    <td>A column or field in your uploaded data file. This is where the data comes from.</td>
+  </tr>
+  <tr>
+    <td><strong>Target Field</strong></td>
+    <td>A field in the destination system. This is where the data will go.</td>
+  </tr>
+</table>
+
+<div class="box success" style="margin-top: 40px; margin-bottom: 60px;">
+  <strong>You are ready to go!</strong> This guide covers everything you need to get started with GrowthZone MemberSuite.
+  Remember: start with a workspace, create a project, upload your data, build a plan, test with a Dry Run,
+  and then do a Full Run when everything looks right. If you ever get stuck, your GrowthZone support
+  representative is just a message away.
+</div>
+
+</div><!-- /container -->
+</body>
+</html>

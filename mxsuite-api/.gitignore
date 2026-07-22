@@ -1,0 +1,28 @@
+# Build
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# IDE
+*.iml
+.idea/
+*.ipr
+*.iws
+.vscode/
+*.swp
+*.swo
+
+# Environment - NEVER commit secrets
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data
+data/
+
+# Logs
+logs/
+*.log

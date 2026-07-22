@@ -1,0 +1,1223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GrowthZone MemberSuite — Platform Administrator Guide</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', sans-serif; color: #1a1a2e; line-height: 1.7; background: #fff; }
+
+  .cover { background: linear-gradient(135deg, #0a1628 0%, #1e3a5f 50%, #2d5a8e 100%);
+    color: #fff; padding: 120px 60px; text-align: center; page-break-after: always; min-height: 100vh;
+    display: flex; flex-direction: column; justify-content: center; }
+  .cover h1 { font-size: 48px; font-weight: 700; margin-bottom: 12px; letter-spacing: -1px; }
+  .cover .subtitle { font-size: 22px; font-weight: 300; opacity: 0.9; margin-bottom: 40px; }
+  .cover .meta { font-size: 14px; opacity: 0.7; }
+  .cover .version { display: inline-block; background: rgba(255,255,255,0.15); padding: 6px 20px;
+    border-radius: 20px; font-size: 13px; margin-top: 20px; }
+
+  .container { max-width: 900px; margin: 0 auto; padding: 60px 40px; }
+
+  h2 { font-size: 28px; font-weight: 700; color: #1e3a5f; margin-top: 60px; margin-bottom: 20px;
+    padding-bottom: 10px; border-bottom: 3px solid #1e3a5f; }
+  h3 { font-size: 20px; font-weight: 600; color: #2d5a8e; margin-top: 36px; margin-bottom: 12px; }
+  h4 { font-size: 16px; font-weight: 600; margin-top: 24px; margin-bottom: 8px; }
+
+  p { margin-bottom: 14px; }
+  ul, ol { margin-left: 24px; margin-bottom: 16px; }
+  li { margin-bottom: 6px; }
+
+  table { width: 100%; border-collapse: collapse; margin: 16px 0 24px; }
+  th { background: #1e3a5f; color: #fff; padding: 10px 14px; text-align: left; font-weight: 600; font-size: 13px; }
+  td { padding: 10px 14px; border-bottom: 1px solid #e8e8e8; font-size: 14px; }
+  tr:nth-child(even) { background: #f8f9fa; }
+
+  .box { background: #f0f5ff; border-left: 4px solid #1e3a5f; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0; }
+  .box.warning { background: #fff7e6; border-color: #faad14; }
+  .box.success { background: #f6ffed; border-color: #52c41a; }
+  .box.danger { background: #fff1f0; border-color: #ff4d4f; }
+
+  .tag { display: inline-block; padding: 2px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; margin-right: 6px; }
+  .tag.blue { background: #e6f0ff; color: #1e3a5f; }
+  .tag.green { background: #f6ffed; color: #389e0d; }
+  .tag.orange { background: #fff7e6; color: #d48806; }
+  .tag.red { background: #fff1f0; color: #cf1322; }
+
+  .toc { background: #fafafa; padding: 30px; border-radius: 8px; margin: 30px 0; }
+  .toc a { color: #1e3a5f; text-decoration: none; display: block; padding: 4px 0; }
+  .toc a:hover { text-decoration: underline; }
+  .toc .indent { padding-left: 20px; font-size: 14px; }
+
+  .step { background: #fafafa; border: 1px solid #e8e8e8; border-radius: 12px; padding: 20px 24px; margin: 16px 0; position: relative; }
+  .step-number { display: inline-block; background: #1e3a5f; color: #fff; width: 32px; height: 32px; border-radius: 50%;
+    text-align: center; line-height: 32px; font-weight: 700; font-size: 15px; margin-right: 12px; }
+  .step-title { font-weight: 600; font-size: 16px; color: #1e3a5f; }
+
+  .tip { background: #e6f7ff; border-left: 4px solid #1890ff; padding: 12px 16px; margin: 12px 0; border-radius: 0 8px 8px 0; font-size: 14px; }
+
+  .screenshot { background: #f8f9fa; border: 2px dashed #d9d9d9; border-radius: 8px; padding: 40px; margin: 20px 0;
+    text-align: center; color: #8c8c8c; font-size: 14px; font-style: italic; }
+
+  code { background: #f0f0f0; padding: 2px 6px; border-radius: 4px; font-size: 13px; font-family: 'Courier New', monospace; }
+
+  @media print { .cover { page-break-after: always; } h2 { page-break-before: always; } }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════ COVER ═══════════════════════════════════════════════════ -->
+<div class="cover">
+  <h1>GrowthZone MemberSuite</h1>
+  <div class="subtitle">Platform Administrator Guide</div>
+  <div class="meta">
+    Author: Joseph M. Vogel (Independent Contractor &mdash; Platform Architect)<br>
+    July 2026
+  </div>
+  <div class="version">Version 1.0.0</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ BODY ═══════════════════════════════════════════════════ -->
+<div class="container">
+
+<!-- ─────────────────── TABLE OF CONTENTS ─────────────────── -->
+<div class="toc">
+  <h3 style="margin-top:0">Table of Contents</h3>
+  <a href="#overview">1. Overview</a>
+  <a href="#admin-roles">2. Admin Roles &amp; Permissions</a>
+  <a href="#navigation">3. Navigating the Administration Area</a>
+  <a href="#organizations">4. Managing Organizations</a>
+  <a class="indent" href="#org-list">4.1 Organization List</a>
+  <a class="indent" href="#org-create">4.2 Creating an Organization</a>
+  <a class="indent" href="#org-create-with-owner">4.3 Creating an Organization with an Admin Owner</a>
+  <a class="indent" href="#org-edit">4.4 Editing an Organization</a>
+  <a class="indent" href="#org-activate">4.5 Activating &amp; Deactivating</a>
+  <a class="indent" href="#org-detail">4.6 Organization Detail Page</a>
+  <a href="#users">5. Managing Users</a>
+  <a class="indent" href="#user-list">5.1 User List</a>
+  <a class="indent" href="#user-create">5.2 Creating a User</a>
+  <a class="indent" href="#user-edit">5.3 Editing a User</a>
+  <a class="indent" href="#user-activate">5.4 Activating &amp; Deactivating Users</a>
+  <a href="#invitations">6. Invitations</a>
+  <a class="indent" href="#inv-list">6.1 Invitation List</a>
+  <a class="indent" href="#inv-send">6.2 Sending an Invitation</a>
+  <a class="indent" href="#inv-resend">6.3 Resending an Invitation</a>
+  <a class="indent" href="#inv-cancel">6.4 Cancelling an Invitation</a>
+  <a class="indent" href="#inv-lifecycle">6.5 Invitation Lifecycle</a>
+  <a href="#branding">7. Platform Branding</a>
+  <a class="indent" href="#brand-name">7.1 Setting the Platform Brand Name</a>
+  <a class="indent" href="#brand-logo">7.2 Uploading a Logo</a>
+  <a href="#onboarding-schema">8. Onboarding Schema</a>
+  <a href="#theme">9. Theme Customization</a>
+  <a href="#activity-log">10. Activity Log</a>
+  <a href="#workspaces">11. Workspaces</a>
+  <a href="#reference">12. Quick Reference</a>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+<h2 id="overview">1. Overview</h2>
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+
+<p>
+  This guide is for <strong>Platform Administrators</strong> and <strong>Platform Support</strong> users who
+  manage the GrowthZone MemberSuite platform. It covers every administration feature available in the
+  platform, including organization management, user management, invitations, branding, onboarding configuration,
+  theme customization, and activity monitoring.
+</p>
+
+<p>
+  GrowthZone MemberSuite is a multi-tenant data onboarding platform. Each customer organization (called a
+  <strong>tenant</strong>) has its own isolated set of users, workspaces, projects, data files, and transformation
+  plans. As a Platform Administrator, you oversee all of these organizations from a single administration interface.
+</p>
+
+<div class="box">
+  <strong>Prerequisite:</strong> This guide assumes you are already familiar with the basic concepts of
+  GrowthZone MemberSuite (workspaces, projects, plans, and runs). If not, please read the
+  <a href="MXSuite_User_Guide.html">User Guide</a> first.
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+<h2 id="admin-roles">2. Admin Roles &amp; Permissions</h2>
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+
+<p>
+  There are two platform-level roles. Both have access to the <strong>Administration</strong> menu in the
+  sidebar, but their permissions differ:
+</p>
+
+<table>
+  <tr><th>Role</th><th>Permissions</th><th>Typical User</th></tr>
+  <tr>
+    <td><span class="tag red">Platform Admin</span></td>
+    <td>
+      Full read/write access to all administration features:
+      <ul style="margin: 8px 0 0 16px;">
+        <li>Create, edit, and activate/deactivate organizations</li>
+        <li>Create, edit, and activate/deactivate users across all organizations</li>
+        <li>Send, resend, and cancel invitations</li>
+        <li>Configure platform branding (brand name, logo)</li>
+        <li>Manage onboarding schemas per organization</li>
+        <li>Customize organization themes</li>
+        <li>View the full activity log across all organizations</li>
+      </ul>
+    </td>
+    <td>GrowthZone internal team leads and administrators</td>
+  </tr>
+  <tr>
+    <td><span class="tag orange">Platform Support</span></td>
+    <td>
+      Read access to most administration areas plus the ability to assist customers:
+      <ul style="margin: 8px 0 0 16px;">
+        <li>View organizations and their details</li>
+        <li>View users across organizations</li>
+        <li>View and manage invitations</li>
+        <li>View the activity log</li>
+        <li>Assist with onboarding and workspace management</li>
+      </ul>
+    </td>
+    <td>GrowthZone support staff assigned to help customers</td>
+  </tr>
+</table>
+
+<div class="tip">
+  <strong>Tip:</strong> Platform Admin and Platform Support users do not see the <strong>Onboarding</strong>
+  menu item in the sidebar. Onboarding is a tenant-facing feature only. Platform users manage onboarding
+  configuration through the Organization Detail page instead.
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+<h2 id="navigation">3. Navigating the Administration Area</h2>
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+
+<p>
+  When logged in as a Platform Admin or Platform Support user, you will see an <strong>Administration</strong>
+  section in the sidebar menu. This section contains the following sub-items:
+</p>
+
+<table>
+  <tr><th>Menu Item</th><th>What It Does</th></tr>
+  <tr><td><strong>Organizations</strong></td><td>Manage all customer organizations on the platform. Create, edit, search, and activate/deactivate organizations.</td></tr>
+  <tr><td><strong>Users</strong></td><td>View and manage user accounts across all organizations. Create users, edit roles, and toggle active status.</td></tr>
+  <tr><td><strong>Invitations</strong></td><td>Manage all invitation emails sent across the platform. Send new invitations, resend expired ones, or cancel pending invitations.</td></tr>
+  <tr><td><strong>Activity</strong></td><td>View a read-only audit trail of all actions performed on the platform.</td></tr>
+</table>
+
+<img src="images/admin/organization.png" alt="Administration sidebar with Organizations, Users, Invitations, Assignments, and Activity Log"
+     style="width: 100%; border: 1px solid #e8e8e8; border-radius: 8px; margin: 16px 0;" />
+<p style="font-size: 13px; color: #666; text-align: center; margin-top: -8px;">
+  The Administration menu in the sidebar expands to show Organizations, Users, Invitations, Assignments, and Activity Log.
+</p>
+
+<p>
+  In addition to the Administration section, platform users also have access to the standard menu items:
+  <strong>Dashboard</strong>, <strong>Workspaces</strong>, <strong>Projects</strong>, and
+  <strong>Settings</strong>.
+</p>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+<h2 id="organizations">4. Managing Organizations</h2>
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+
+<p>
+  Organizations (also called <strong>tenants</strong>) are the top-level containers in GrowthZone MemberSuite.
+  Each customer organization has its own isolated set of users, data, and configuration. As a Platform
+  Administrator, you create and manage these organizations.
+</p>
+
+<!-- ──────── 4.1 ──────── -->
+<h3 id="org-list">4.1 Organization List</h3>
+
+<p>
+  Navigate to <strong>Administration &rarr; Organizations</strong> to see the full list of organizations
+  on the platform.
+</p>
+
+<img src="images/admin/organization.png" alt="Organization list page with search, table, and New Organization button"
+     style="width: 100%; border: 1px solid #e8e8e8; border-radius: 8px; margin: 16px 0;" />
+<p style="font-size: 13px; color: #666; text-align: center; margin-top: -8px;">
+  The Organizations page lists all organizations with their slug, type, status, active toggle, and action icons.
+</p>
+
+<p>The organization list shows the following columns:</p>
+
+<table>
+  <tr><th>Column</th><th>Description</th></tr>
+  <tr><td><strong>Organization</strong></td><td>The display name of the organization. Inactive organizations show a red badge.</td></tr>
+  <tr><td><strong>Slug</strong></td><td>The unique URL-safe identifier for the organization (e.g., <code>denver-chamber</code>).</td></tr>
+  <tr><td><strong>Type</strong></td><td>Either <span class="tag blue">Platform</span> (the GrowthZone platform organization) or <span class="tag green">Customer</span> (a customer organization).</td></tr>
+  <tr><td><strong>Status</strong></td><td>Shows <span class="tag green">Active</span> or <span class="tag">Inactive</span> with an icon.</td></tr>
+  <tr><td><strong>Active</strong></td><td>A toggle switch to quickly activate or deactivate the organization.</td></tr>
+  <tr><td><strong>Actions</strong></td><td>View details (eye icon) and Edit (pencil icon).</td></tr>
+</table>
+
+<h4>Searching Organizations</h4>
+<p>
+  Use the search bar at the top of the list to find organizations by name or slug. Type your search term and
+  press Enter or click the Search button. To clear the search, click the X in the search field.
+</p>
+
+<h4>Pagination</h4>
+<p>
+  The list shows 20 organizations per page by default. You can change this to 10 or 50 using the page size
+  selector at the bottom of the table. Navigate between pages using the pagination controls.
+</p>
+
+<!-- ──────── 4.2 ──────── -->
+<h3 id="org-create">4.2 Creating an Organization</h3>
+
+<p>
+  To create a new customer organization:
+</p>
+
+<div class="step">
+  <span class="step-number">1</span>
+  <span class="step-title">Click "New Organization"</span>
+  <p style="margin-top:10px">
+    Click the blue <strong>New Organization</strong> button in the top-right corner of the Organizations page.
+    A modal dialog will appear.
+  </p>
+</div>
+
+<div class="step">
+  <span class="step-number">2</span>
+  <span class="step-title">Enter the Organization Name</span>
+  <p style="margin-top:10px">
+    Type the full name of the organization (e.g., "Denver Chamber of Commerce"). This name is displayed
+    throughout the platform.
+  </p>
+</div>
+
+<div class="step">
+  <span class="step-number">3</span>
+  <span class="step-title">Review the Slug</span>
+  <p style="margin-top:10px">
+    A URL-safe slug is automatically generated from the name (e.g., "denver-chamber-of-commerce"). You can
+    edit it if needed. The slug must contain only lowercase letters, numbers, and hyphens.
+  </p>
+</div>
+
+<div class="step">
+  <span class="step-number">4</span>
+  <span class="step-title">Click "Create Organization"</span>
+  <p style="margin-top:10px">
+    The organization is created and appears in the list immediately. It is active by default.
+  </p>
+</div>
+
+<img src="images/admin/new-organization.png" alt="Create New Organization modal with Name, Slug, and Admin Owner fields"
+     style="width: 100%; border: 1px solid #e8e8e8; border-radius: 8px; margin: 16px 0;" />
+<p style="font-size: 13px; color: #666; text-align: center; margin-top: -8px;">
+  The Create New Organization modal with Organization Name and Slug fields.
+</p>
+
+<!-- ──────── 4.3 ──────── -->
+<h3 id="org-create-with-owner">4.3 Creating an Organization with an Admin Owner</h3>
+
+<p>
+  When creating an organization, you can optionally invite an admin user (the owner) at the same time.
+  This is the recommended approach because it sends an invitation email to the owner, allowing them to
+  set up their own password and start managing their organization immediately.
+</p>
+
+<div class="step">
+  <span class="step-number">1</span>
+  <span class="step-title">Fill in the Organization Name and Slug</span>
+  <p style="margin-top:10px">Follow the same steps as creating a basic organization (see above).</p>
+</div>
+
+<div class="step">
+  <span class="step-number">2</span>
+  <span class="step-title">Fill in the Admin User (Owner) section</span>
+  <p style="margin-top:10px">
+    Below the slug field, you will see a section titled <strong>Admin User (Owner)</strong> with three fields:
+  </p>
+  <ul style="margin-top: 8px;">
+    <li><strong>Email</strong> &mdash; The email address of the organization's admin (e.g., admin@denverchamber.org)</li>
+    <li><strong>First Name</strong> &mdash; The admin's first name</li>
+    <li><strong>Last Name</strong> &mdash; The admin's last name</li>
+  </ul>
+</div>
+
+<div class="step">
+  <span class="step-number">3</span>
+  <span class="step-title">Click "Create Organization"</span>
+  <p style="margin-top:10px">
+    The organization is created and an invitation email is sent to the admin. You will see a confirmation
+    message: "Organization created &mdash; invitation sent to [email]."
+  </p>
+</div>
+
+<div class="box">
+  <strong>What happens behind the scenes:</strong> The system creates a
+  <span class="tag blue">TENANT_ADMIN</span> invitation for the specified email. The recipient receives an
+  email with a link to set up their account. The invitation expires after <strong>7 days</strong>. You can
+  track the invitation status in the <a href="#invitations">Invitations</a> section.
+</div>
+
+<img src="images/admin/new-organization.png" alt="Create Organization modal showing Admin User (Owner) section"
+     style="width: 100%; border: 1px solid #e8e8e8; border-radius: 8px; margin: 16px 0;" />
+<p style="font-size: 13px; color: #666; text-align: center; margin-top: -8px;">
+  The Admin User (Owner) section appears below the Organization Name and Slug. Fill in the Email, First Name, and Last Name
+  to invite an admin when the organization is created.
+</p>
+
+<!-- ──────── 4.4 ──────── -->
+<h3 id="org-edit">4.4 Editing an Organization</h3>
+
+<p>
+  To edit an organization's details:
+</p>
+
+<div class="step">
+  <span class="step-number">1</span>
+  <span class="step-title">Click the Edit icon</span>
+  <p style="margin-top:10px">
+    In the organization list, click the pencil icon (<strong>Edit</strong>) in the Actions column for the
+    organization you want to modify.
+  </p>
+</div>
+
+<div class="step">
+  <span class="step-number">2</span>
+  <span class="step-title">Update the fields</span>
+  <p style="margin-top:10px">
+    You can change the <strong>Organization Name</strong> and <strong>Slug</strong>. For the Platform
+    organization (type = Platform), you will also see a <strong>Brand Name</strong> field &mdash; see
+    <a href="#branding">Section 7: Platform Branding</a> for details.
+  </p>
+</div>
+
+<div class="step">
+  <span class="step-number">3</span>
+  <span class="step-title">Click "Save Changes"</span>
+  <p style="margin-top:10px">Your changes are saved immediately.</p>
+</div>
+
+<img src="images/admin/organization_edit.png" alt="Organization detail page showing header, stats, and tabs"
+     style="width: 100%; border: 1px solid #e8e8e8; border-radius: 8px; margin: 16px 0;" />
+<p style="font-size: 13px; color: #666; text-align: center; margin-top: -8px;">
+  The Organization detail page shows the organization header with Edit and Deactivate buttons, stats cards, and tabs for Users, Activity, Onboarding Schema, and Theme.
+</p>
+
+<!-- ──────── 4.5 ──────── -->
+<h3 id="org-activate">4.5 Activating &amp; Deactivating Organizations</h3>
+
+<p>
+  You can activate or deactivate customer organizations using the toggle switch in the <strong>Active</strong>
+  column of the organization list.
+</p>
+
+<table>
+  <tr><th>Action</th><th>What Happens</th></tr>
+  <tr>
+    <td><strong>Deactivate</strong></td>
+    <td>All users in the organization immediately lose access. They will see an "organization inactive" message
+    if they try to log in. No data is deleted.</td>
+  </tr>
+  <tr>
+    <td><strong>Activate</strong></td>
+    <td>All existing users regain access immediately. All data, projects, and plans are preserved.</td>
+  </tr>
+</table>
+
+<p>
+  When you click the toggle, a confirmation dialog appears asking you to confirm the action. For deactivation,
+  the dialog warns that all users under this organization will lose access.
+</p>
+
+<div class="box warning">
+  <strong>The Platform organization cannot be deactivated.</strong> The toggle is disabled for the Platform
+  organization to prevent accidentally locking out all platform administrators.
+</div>
+
+<!-- ──────── 4.6 ──────── -->
+<h3 id="org-detail">4.6 Organization Detail Page</h3>
+
+<p>
+  Click the eye icon (<strong>View details</strong>) in the organization list to open the full detail page
+  for an organization. This page provides a comprehensive view of the organization with multiple tabs:
+</p>
+
+<h4>Organization Information Card</h4>
+<p>
+  The top of the page shows the organization's name, slug, type, status, and creation/modification timestamps.
+  It includes an Edit button and an Activate/Deactivate toggle.
+</p>
+
+<h4>Statistics Cards</h4>
+<p>
+  Below the information card, three statistic cards show:
+</p>
+<ul>
+  <li><strong>Total Users</strong> &mdash; The number of users in this organization (with a count of active users)</li>
+  <li><strong>Projects</strong> &mdash; The number of projects</li>
+  <li><strong>Plans</strong> &mdash; The number of plans</li>
+</ul>
+
+<img src="images/admin/organization_edit.png" alt="Organization detail page with header, statistics, and user list"
+     style="width: 100%; border: 1px solid #e8e8e8; border-radius: 8px; margin: 16px 0;" />
+<p style="font-size: 13px; color: #666; text-align: center; margin-top: -8px;">
+  The Organization Detail page for Denver Chamber of Commerce showing Total Users, Projects, Plans stats and the Users tab with an Invite User button.
+</p>
+
+<h4>Users Tab</h4>
+<p>
+  Shows a table of all users belonging to this organization. You can:
+</p>
+<ul>
+  <li>Filter by role (Platform Admin, Platform Support, Tenant Admin, Tenant User)</li>
+  <li>Filter by status (Active, Inactive)</li>
+  <li>Toggle individual users active/inactive</li>
+  <li>Click <strong>Invite User</strong> to send an invitation to this organization</li>
+</ul>
+
+<h4>Activity Tab</h4>
+<p>
+  Shows the audit log filtered to this organization. Each entry includes a timestamp, actor, action, entity,
+  and a platform indicator. Click a row to see the full event details including before/after state (where
+  applicable).
+</p>
+
+<h4>Onboarding Schema Tab</h4>
+<p>
+  Configure the data collection fields for this organization's onboarding process. See
+  <a href="#onboarding-schema">Section 8: Onboarding Schema</a> for details.
+</p>
+
+<h4>Theme Tab</h4>
+<p>
+  Customize the UI colors and appearance for this organization. See
+  <a href="#theme">Section 9: Theme Customization</a> for details.
+</p>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+<h2 id="users">5. Managing Users</h2>
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+
+<p>
+  The Users page gives you a centralized view of every user account across all organizations on the platform.
+  Navigate to <strong>Administration &rarr; Users</strong>.
+</p>
+
+<!-- ──────── 5.1 ──────── -->
+<h3 id="user-list">5.1 User List</h3>
+
+<img src="images/admin/usermanagement.png" alt="Users page with search, tenant filter, and user table"
+     style="width: 100%; border: 1px solid #e8e8e8; border-radius: 8px; margin: 16px 0;" />
+<p style="font-size: 13px; color: #666; text-align: center; margin-top: -8px;">
+  The Users page shows all users across organizations with name, tenant, role, status, active toggle, and edit actions.
+</p>
+
+<p>The user list shows the following columns:</p>
+
+<table>
+  <tr><th>Column</th><th>Description</th></tr>
+  <tr><td><strong>Name</strong></td><td>The user's full name with their avatar (initials or uploaded photo).</td></tr>
+  <tr><td><strong>Email</strong></td><td>The user's email address (used for login).</td></tr>
+  <tr><td><strong>Role</strong></td><td>The user's role: <span class="tag red">Platform Admin</span>, <span class="tag orange">Platform Support</span>, <span class="tag blue">Tenant Admin</span>, or <span class="tag green">Tenant User</span>.</td></tr>
+  <tr><td><strong>Organization</strong></td><td>The organization the user belongs to.</td></tr>
+  <tr><td><strong>Status</strong></td><td>Active or Inactive.</td></tr>
+  <tr><td><strong>Actions</strong></td><td>Edit and Activate/Deactivate.</td></tr>
+</table>
+
+<h4>Filtering Users</h4>
+<p>You can filter the user list by:</p>
+<ul>
+  <li><strong>Search</strong> &mdash; Type a name or email in the search bar</li>
+  <li><strong>Organization</strong> &mdash; Select a specific organization from the dropdown</li>
+  <li><strong>Role</strong> &mdash; Filter by Platform Admin, Platform Support, Tenant Admin, or Tenant User</li>
+  <li><strong>Status</strong> &mdash; Show only Active or Inactive users</li>
+</ul>
+
+<!-- ──────── 5.2 ──────── -->
+<h3 id="user-create">5.2 Creating a User</h3>
+
+<p>
+  To create a user account directly (without sending an invitation):
+</p>
+
+<div class="step">
+  <span class="step-number">1</span>
+  <span class="step-title">Click "New User"</span>
+  <p style="margin-top:10px">Click the button in the top-right corner of the Users page.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">2</span>
+  <span class="step-title">Fill in the user details</span>
+  <p style="margin-top:10px">
+    <strong>Email:</strong> The user's email address (must be unique across the platform).<br>
+    <strong>First Name</strong> and <strong>Last Name:</strong> The user's display name.<br>
+    <strong>Password:</strong> Must be at least 8 characters with at least one uppercase letter, one lowercase
+    letter, one digit, and one special character.<br>
+    <strong>Role:</strong> Select the appropriate role (see <a href="#admin-roles">Section 2</a>).<br>
+    <strong>Organization:</strong> Select which organization this user belongs to.
+  </p>
+</div>
+
+<div class="step">
+  <span class="step-number">3</span>
+  <span class="step-title">Click "Create User"</span>
+  <p style="margin-top:10px">The user account is created immediately and the user can log in right away.</p>
+</div>
+
+<div class="tip">
+  <strong>Recommendation:</strong> In most cases, use the <a href="#invitations">Invitation</a> system instead
+  of creating users directly. Invitations let the user set their own password and provide a better onboarding
+  experience.
+</div>
+
+<img src="images/admin/newuser.png" alt="Create New User modal with email, name, password, role, and tenant fields"
+     style="width: 100%; border: 1px solid #e8e8e8; border-radius: 8px; margin: 16px 0;" />
+<p style="font-size: 13px; color: #666; text-align: center; margin-top: -8px;">
+  The Create New User modal with Email, First Name, Last Name, Password, Role, and Tenant fields.
+</p>
+
+<!-- ──────── 5.3 ──────── -->
+<h3 id="user-edit">5.3 Editing a User</h3>
+
+<p>
+  Click the <strong>Edit</strong> icon next to any user to modify their details. You can change:
+</p>
+
+<ul>
+  <li><strong>First Name</strong> and <strong>Last Name</strong></li>
+  <li><strong>Role</strong> &mdash; Change the user's permission level</li>
+</ul>
+
+<div class="box">
+  <strong>Note:</strong> The user's email address cannot be changed through the edit form. If a user needs
+  a different email address, deactivate the old account and create a new one (or send a new invitation).
+</div>
+
+<!-- ──────── 5.4 ──────── -->
+<h3 id="user-activate">5.4 Activating &amp; Deactivating Users</h3>
+
+<p>
+  Toggle a user's active status using the switch in the user list or on the user's detail page. Deactivating
+  a user prevents them from logging in but preserves all of their data, workspaces, and projects.
+</p>
+
+<div class="box warning">
+  <strong>Deactivation vs. Deletion:</strong> GrowthZone MemberSuite does not support permanent user deletion
+  from the admin interface. Deactivation is the recommended approach for removing access while preserving
+  data integrity and audit history.
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+<h2 id="invitations">6. Invitations</h2>
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+
+<p>
+  The invitation system allows you to onboard new users by sending them an email with a secure link to
+  create their account. Navigate to <strong>Administration &rarr; Invitations</strong>.
+</p>
+
+<!-- ──────── 6.1 ──────── -->
+<h3 id="inv-list">6.1 Invitation List</h3>
+
+<img src="images/admin/user-invitations.png" alt="Invitations page with status tabs and table"
+     style="width: 100%; border: 1px solid #e8e8e8; border-radius: 8px; margin: 16px 0;" />
+<p style="font-size: 13px; color: #666; text-align: center; margin-top: -8px;">
+  The Invitations page with All, Pending, Accepted, Cancelled, and Expired status tabs. Click Send Invitation to invite a new user.
+</p>
+
+<p>The invitation list shows all invitations sent across the platform. You can filter by status using the tabs:</p>
+
+<table>
+  <tr><th>Status</th><th>Icon</th><th>Meaning</th></tr>
+  <tr>
+    <td><span class="tag blue">Pending</span></td>
+    <td>Clock icon</td>
+    <td>The invitation has been sent but not yet accepted. The link is still active.</td>
+  </tr>
+  <tr>
+    <td><span class="tag green">Accepted</span></td>
+    <td>Check icon</td>
+    <td>The recipient has accepted the invitation and created their account.</td>
+  </tr>
+  <tr>
+    <td><span class="tag">Cancelled</span></td>
+    <td>Close icon</td>
+    <td>The invitation was manually cancelled by an administrator. The link no longer works.</td>
+  </tr>
+  <tr>
+    <td><span class="tag orange">Expired</span></td>
+    <td>Warning icon</td>
+    <td>The invitation expired after 7 days without being accepted.</td>
+  </tr>
+</table>
+
+<p>Each invitation entry shows:</p>
+<ul>
+  <li><strong>Email</strong> &mdash; The recipient's email address</li>
+  <li><strong>Role</strong> &mdash; The role assigned to the invitation</li>
+  <li><strong>Status</strong> &mdash; Current status with icon</li>
+  <li><strong>Invited By</strong> &mdash; The administrator who sent the invitation</li>
+  <li><strong>Sent</strong> &mdash; When the invitation was sent</li>
+  <li><strong>Expires</strong> &mdash; When the invitation will expire (shows countdown for pending invitations)</li>
+  <li><strong>Actions</strong> &mdash; Resend or Cancel (only available for pending invitations)</li>
+</ul>
+
+<!-- ──────── 6.2 ──────── -->
+<h3 id="inv-send">6.2 Sending an Invitation</h3>
+
+<div class="step">
+  <span class="step-number">1</span>
+  <span class="step-title">Click "Send Invitation"</span>
+  <p style="margin-top:10px">Click the button in the top-right corner of the Invitations page.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">2</span>
+  <span class="step-title">Enter the recipient's email</span>
+  <p style="margin-top:10px">Type the email address of the person you want to invite.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">3</span>
+  <span class="step-title">Select the role</span>
+  <p style="margin-top:10px">
+    Choose the appropriate role. As a platform administrator, you can assign any role:
+    Platform Admin, Platform Support, Tenant Admin, or Tenant User.
+  </p>
+</div>
+
+<div class="step">
+  <span class="step-number">4</span>
+  <span class="step-title">Click "Send"</span>
+  <p style="margin-top:10px">
+    The invitation email is sent immediately. The recipient has <strong>7 days</strong> to accept it.
+  </p>
+</div>
+
+<img src="images/admin/sendinvitation.png" alt="Send Invitation dialog with email and role fields"
+     style="width: 100%; border: 1px solid #e8e8e8; border-radius: 8px; margin: 16px 0;" />
+<p style="font-size: 13px; color: #666; text-align: center; margin-top: -8px;">
+  The Send Invitation dialog asks for the Email Address and Role. The role determines what permissions the user will have after they accept.
+</p>
+
+<div class="box warning">
+  <strong>Duplicate check:</strong> You cannot send an invitation to an email address that already has an
+  active account in GrowthZone MemberSuite. The system will display an error message if you try.
+</div>
+
+<!-- ──────── 6.3 ──────── -->
+<h3 id="inv-resend">6.3 Resending an Invitation</h3>
+
+<p>
+  If a recipient did not receive the original email or if the invitation has expired, you can resend it:
+</p>
+
+<ul>
+  <li>Find the invitation in the list</li>
+  <li>Click the <strong>Resend</strong> button in the Actions column</li>
+  <li>A new email is sent with a fresh link and a new 7-day expiration window</li>
+</ul>
+
+<div class="tip">
+  <strong>Tip:</strong> The old invitation link is invalidated when you resend. Only the most recent link
+  will work.
+</div>
+
+<!-- ──────── 6.4 ──────── -->
+<h3 id="inv-cancel">6.4 Cancelling an Invitation</h3>
+
+<p>
+  To revoke a pending invitation:
+</p>
+
+<ul>
+  <li>Find the invitation in the list</li>
+  <li>Click the <strong>Cancel</strong> button in the Actions column</li>
+  <li>The invitation status changes to Cancelled and the link immediately stops working</li>
+</ul>
+
+<div class="box">
+  <strong>Note:</strong> You can only cancel invitations that are in <strong>Pending</strong> status.
+  Accepted, Cancelled, and Expired invitations cannot be modified.
+</div>
+
+<!-- ──────── 6.5 ──────── -->
+<h3 id="inv-lifecycle">6.5 Invitation Lifecycle</h3>
+
+<p>
+  Every invitation goes through a defined lifecycle:
+</p>
+
+<table>
+  <tr><th>Stage</th><th>Duration</th><th>What Happens</th></tr>
+  <tr>
+    <td><strong>Sent</strong></td>
+    <td>Immediate</td>
+    <td>A cryptographically secure token is generated and an email is sent to the recipient with a unique link.</td>
+  </tr>
+  <tr>
+    <td><strong>Pending</strong></td>
+    <td>Up to 7 days</td>
+    <td>The invitation is active and waiting for the recipient to click the link and create their account.</td>
+  </tr>
+  <tr>
+    <td><strong>Accepted</strong></td>
+    <td>Permanent</td>
+    <td>The recipient clicked the link, entered their name and password, and their account was created.</td>
+  </tr>
+  <tr>
+    <td><strong>Expired</strong></td>
+    <td>After 7 days</td>
+    <td>The invitation was not accepted within the 7-day window. Use <strong>Resend</strong> to send a fresh invitation.</td>
+  </tr>
+  <tr>
+    <td><strong>Cancelled</strong></td>
+    <td>Permanent</td>
+    <td>An administrator manually revoked the invitation. The link no longer works.</td>
+  </tr>
+</table>
+
+<div class="box">
+  <strong>Security:</strong> Invitation tokens are generated using a cryptographically secure random number
+  generator (32 bytes, URL-safe Base64 encoded). Each token is unique and cannot be guessed. The system uses
+  pessimistic database locking when an invitation is accepted to prevent race conditions.
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+<h2 id="branding">7. Platform Branding</h2>
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+
+<p>
+  Platform branding controls the product name and logo that appear in two key locations:
+</p>
+<ul>
+  <li><strong>Sidebar</strong> &mdash; The brand name (and optionally a logo) is displayed at the top-left of
+  the sidebar for all users, regardless of which organization they belong to.</li>
+  <li><strong>Login page</strong> &mdash; The brand name is displayed as the heading on the login screen.</li>
+</ul>
+
+<p>
+  Platform branding is managed through the <strong>Platform organization</strong> (the organization with
+  type = Platform). This is your GrowthZone internal organization.
+</p>
+
+<!-- ──────── 7.1 ──────── -->
+<h3 id="brand-name">7.1 Setting the Platform Brand Name</h3>
+
+<div class="step">
+  <span class="step-number">1</span>
+  <span class="step-title">Go to Administration &rarr; Organizations</span>
+  <p style="margin-top:10px">Open the Organizations list.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">2</span>
+  <span class="step-title">Find the Platform organization</span>
+  <p style="margin-top:10px">
+    Look for the organization with the <span class="tag blue">Platform</span> type badge. This is typically
+    the first entry in the list.
+  </p>
+</div>
+
+<div class="step">
+  <span class="step-number">3</span>
+  <span class="step-title">Click the Edit icon</span>
+  <p style="margin-top:10px">
+    Click the pencil icon in the Actions column. The edit modal will appear with a
+    <strong>Brand Name</strong> field (this field is only visible for the Platform organization).
+  </p>
+</div>
+
+<div class="step">
+  <span class="step-number">4</span>
+  <span class="step-title">Enter the desired brand name</span>
+  <p style="margin-top:10px">
+    Type the product name you want to display (e.g., "GrowthZone MemberSuite"). This name appears in the
+    sidebar for all users and on the login page.
+  </p>
+</div>
+
+<div class="step">
+  <span class="step-number">5</span>
+  <span class="step-title">Click "Save Changes"</span>
+  <p style="margin-top:10px">
+    The sidebar updates immediately for the current session. Other users will see the updated name on their
+    next page load or login.
+  </p>
+</div>
+
+<img src="images/admin/organization.png" alt="Organizations list showing Platform organization with edit icon"
+     style="width: 100%; border: 1px solid #e8e8e8; border-radius: 8px; margin: 16px 0;" />
+<p style="font-size: 13px; color: #666; text-align: center; margin-top: -8px;">
+  Find the Platform organization in the list and click the edit icon. The Brand Name field appears only for the Platform organization type.
+</p>
+
+<div class="box">
+  <strong>How it works:</strong> The Brand Name field is stored on the Platform organization and served
+  through a public API endpoint. The login page fetches it before authentication, and the shell application
+  syncs it from the server on every page load. Changes take effect without requiring users to log out.
+</div>
+
+<!-- ──────── 7.2 ──────── -->
+<h3 id="brand-logo">7.2 Uploading a Logo</h3>
+
+<p>
+  You can upload a logo image for the Platform organization that replaces the text brand name in the sidebar.
+</p>
+
+<div class="step">
+  <span class="step-number">1</span>
+  <span class="step-title">Open the Platform organization detail page</span>
+  <p style="margin-top:10px">Click the eye icon to view the Platform organization's detail page.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">2</span>
+  <span class="step-title">Upload the logo</span>
+  <p style="margin-top:10px">
+    In the organization information card, click the logo upload area. Select an image file from your computer.
+    Supported formats: <strong>PNG, JPG, SVG, WEBP</strong>. Maximum size: <strong>2 MB</strong>.
+  </p>
+</div>
+
+<div class="step">
+  <span class="step-number">3</span>
+  <span class="step-title">Verify the logo</span>
+  <p style="margin-top:10px">
+    After uploading, the logo appears in the sidebar. When the sidebar is collapsed, the logo scales down
+    automatically.
+  </p>
+</div>
+
+<div class="tip">
+  <strong>Tip:</strong> For best results, use a horizontal logo with a transparent background (PNG or SVG).
+  The sidebar constrains the logo to a maximum width of 200px and height of 32px, so wider logos work better
+  than tall ones.
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+<h2 id="onboarding-schema">8. Onboarding Schema</h2>
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+
+<p>
+  Each organization has an <strong>onboarding schema</strong> that defines the data fields collected during
+  the member onboarding process. As a Platform Administrator, you can customize the schema for each
+  organization to match their specific data requirements.
+</p>
+
+<h3>Accessing the Onboarding Schema</h3>
+
+<div class="step">
+  <span class="step-number">1</span>
+  <span class="step-title">Open the Organization Detail page</span>
+  <p style="margin-top:10px">Navigate to <strong>Administration &rarr; Organizations</strong> and click the eye icon for the organization.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">2</span>
+  <span class="step-title">Click the "Onboarding Schema" tab</span>
+  <p style="margin-top:10px">You will see the list of data fields configured for this organization's onboarding.</p>
+</div>
+
+<img src="images/admin/2026-07-17_13-15-09.png" alt="Onboarding Schema tab showing field list with name, type, required, and description columns"
+     style="width: 100%; border: 1px solid #e8e8e8; border-radius: 8px; margin: 16px 0;" />
+<p style="font-size: 13px; color: #666; text-align: center; margin-top: -8px;">
+  The Onboarding Schema tab displays all configured fields with their Name, Type, Required status, and Description. Use the Add Field button to add custom fields, or Reset to Defaults to restore the standard 16 fields.
+</p>
+
+<h3>Default Fields</h3>
+<p>
+  When a new organization is created, the system automatically provisions 16 default onboarding fields:
+</p>
+
+<table>
+  <tr><th>Field</th><th>Type</th><th>Required</th></tr>
+  <tr><td>firstName</td><td>string</td><td>Yes</td></tr>
+  <tr><td>lastName</td><td>string</td><td>Yes</td></tr>
+  <tr><td>email</td><td>string</td><td>Yes</td></tr>
+  <tr><td>phone</td><td>string</td><td>No</td></tr>
+  <tr><td>company</td><td>string</td><td>No</td></tr>
+  <tr><td>title</td><td>string</td><td>No</td></tr>
+  <tr><td>address1, address2, city, state, zip, country</td><td>string</td><td>No</td></tr>
+  <tr><td>memberType</td><td>string</td><td>No</td></tr>
+  <tr><td>joinDate, expirationDate</td><td>date</td><td>No</td></tr>
+  <tr><td>notes</td><td>string</td><td>No</td></tr>
+</table>
+
+<h3>Managing Schema Fields</h3>
+<p>
+  For each field, you can configure the following properties:
+</p>
+
+<table>
+  <tr><th>Property</th><th>Description</th></tr>
+  <tr><td><strong>Name</strong></td><td>The field identifier (used internally and in mapping).</td></tr>
+  <tr><td><strong>Type</strong></td><td>The data type: <code>string</code>, <code>date</code>, or <code>number</code>.</td></tr>
+  <tr><td><strong>Required</strong></td><td>Whether this field must be provided during onboarding.</td></tr>
+  <tr><td><strong>Description</strong></td><td>A human-readable description of the field's purpose.</td></tr>
+</table>
+
+<p>You can:</p>
+<ul>
+  <li><strong>Add a field</strong> &mdash; Click the "Add Field" button to add a new custom field</li>
+  <li><strong>Edit a field</strong> &mdash; Click on an existing field to modify its properties</li>
+  <li><strong>Delete a field</strong> &mdash; Remove a field that is no longer needed</li>
+  <li><strong>Reset to defaults</strong> &mdash; Restore the original 16 default fields (this overwrites any customizations)</li>
+</ul>
+
+<div class="box warning">
+  <strong>Caution:</strong> Resetting to defaults will overwrite all custom fields for this organization.
+  This action cannot be undone. Make sure you want to proceed before clicking Reset.
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+<h2 id="theme">9. Theme Customization</h2>
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+
+<p>
+  Each organization can have a custom color theme applied to their GrowthZone MemberSuite interface.
+  Theme settings are managed from the <strong>Theme</strong> tab on the Organization Detail page.
+</p>
+
+<h3>Accessing Theme Settings</h3>
+
+<div class="step">
+  <span class="step-number">1</span>
+  <span class="step-title">Open the Organization Detail page</span>
+  <p style="margin-top:10px">Navigate to <strong>Administration &rarr; Organizations</strong> and click the eye icon.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">2</span>
+  <span class="step-title">Click the "Theme" tab</span>
+  <p style="margin-top:10px">You will see color pickers and sliders for customizing the organization's UI.</p>
+</div>
+
+<img src="images/admin/themebuilder.png" alt="Theme Customization tab with color pickers, border radius slider, and preview"
+     style="width: 100%; border: 1px solid #e8e8e8; border-radius: 8px; margin: 16px 0;" />
+<p style="font-size: 13px; color: #666; text-align: center; margin-top: -8px;">
+  The Theme tab lets you customize Primary Color, Sidebar Background, Success/Warning/Error Colors, and Border Radius. A live preview shows the effect of your changes. Click Save Theme to apply.
+</p>
+
+<h3>Available Theme Settings</h3>
+
+<table>
+  <tr><th>Setting</th><th>Description</th><th>Default</th></tr>
+  <tr><td><strong>Primary Color</strong></td><td>Used for buttons, links, and accent elements throughout the UI.</td><td>#1e3a5f</td></tr>
+  <tr><td><strong>Sidebar Background</strong></td><td>The background color of the sidebar navigation.</td><td>#001529</td></tr>
+  <tr><td><strong>Success Color</strong></td><td>Used for success messages and indicators.</td><td>#52c41a</td></tr>
+  <tr><td><strong>Warning Color</strong></td><td>Used for warning messages and indicators.</td><td>#faad14</td></tr>
+  <tr><td><strong>Error Color</strong></td><td>Used for error messages and indicators.</td><td>#ff4d4f</td></tr>
+  <tr><td><strong>Border Radius</strong></td><td>Controls the roundness of UI elements (0px = sharp corners, 16px = very rounded).</td><td>6px</td></tr>
+</table>
+
+<p>
+  After making changes, click <strong>Save Theme</strong> to apply. You can also click <strong>Reset to
+  Defaults</strong> to restore the standard GrowthZone theme.
+</p>
+
+<div class="box">
+  <strong>When do changes take effect?</strong> Theme changes take effect on the user's next login or page
+  refresh. Existing sessions will continue to use the previous theme until they reload.
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+<h2 id="activity-log">10. Activity Log</h2>
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+
+<p>
+  The Activity Log provides a complete, read-only audit trail of all actions performed on the platform.
+  Navigate to <strong>Administration &rarr; Activity</strong>.
+</p>
+
+<img src="images/admin/activitylog.png" alt="Activity Log showing timestamped actions with actor, role, action, entity, and platform columns"
+     style="width: 100%; border: 1px solid #e8e8e8; border-radius: 8px; margin: 16px 0;" />
+<p style="font-size: 13px; color: #666; text-align: center; margin-top: -8px;">
+  The Activity Log records every action on the platform with Timestamp, Actor, Role, Action, Entity, and Platform indicator columns.
+</p>
+
+<h3>What Gets Logged</h3>
+<p>
+  Every significant action is automatically recorded, including:
+</p>
+
+<table>
+  <tr><th>Action</th><th>Examples</th></tr>
+  <tr><td><strong>CREATE</strong></td><td>New organization, user, project, plan, workspace, or invitation created.</td></tr>
+  <tr><td><strong>UPDATE</strong></td><td>Organization name changed, user role modified, plan published, theme updated.</td></tr>
+  <tr><td><strong>DELETE</strong></td><td>Project deleted, workspace removed.</td></tr>
+  <tr><td><strong>UPLOAD</strong></td><td>Data file uploaded to a project.</td></tr>
+  <tr><td><strong>UPLOAD_LOGO</strong></td><td>Organization logo uploaded.</td></tr>
+  <tr><td><strong>PUBLISH</strong></td><td>Plan published (moved from Draft to Published status).</td></tr>
+  <tr><td><strong>EXECUTE</strong></td><td>Plan run started (Dry Run or Full Run).</td></tr>
+  <tr><td><strong>SHARE</strong></td><td>Workspace shared with another user.</td></tr>
+  <tr><td><strong>LOGIN_FAILED</strong></td><td>Failed login attempt (recorded with email and IP address).</td></tr>
+</table>
+
+<h3>Reading the Activity Log</h3>
+<p>
+  Each entry in the log includes:
+</p>
+
+<table>
+  <tr><th>Field</th><th>Description</th></tr>
+  <tr><td><strong>Timestamp</strong></td><td>The exact date and time of the action.</td></tr>
+  <tr><td><strong>Actor</strong></td><td>The user who performed the action (name displayed).</td></tr>
+  <tr><td><strong>Role</strong></td><td>The role of the user who performed the action.</td></tr>
+  <tr><td><strong>Action</strong></td><td>The type of action (CREATE, UPDATE, DELETE, etc.).</td></tr>
+  <tr><td><strong>Entity</strong></td><td>What was affected &mdash; the entity type (e.g., Tenant, User, Project) and its name.</td></tr>
+  <tr><td><strong>Platform</strong></td><td>A badge indicating whether this was a platform-level action.</td></tr>
+</table>
+
+<h3>Event Details</h3>
+<p>
+  Click on any row in the activity log to see the full event details in a modal dialog. The details include:
+</p>
+
+<ul>
+  <li><strong>Actor name and role</strong></li>
+  <li><strong>Action and entity information</strong></li>
+  <li><strong>Trace ID</strong> &mdash; A unique identifier for the event, useful for debugging</li>
+  <li><strong>Before/After state</strong> &mdash; For UPDATE actions, a JSON diff showing what changed</li>
+</ul>
+
+<h3>Filtering</h3>
+<p>
+  Use the <strong>"Platform actions only"</strong> toggle to show only actions performed at the platform
+  level (e.g., organization creation, user role changes) and filter out tenant-level actions (e.g., file
+  uploads, plan runs).
+</p>
+
+<div class="box">
+  <strong>Immutability:</strong> Audit log entries cannot be edited or deleted by anyone, including Platform
+  Administrators. This ensures a tamper-proof record of all activity for compliance and security purposes.
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+<h2 id="workspaces">11. Workspaces</h2>
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+
+<p>
+  Platform Administrators have access to the workspace management features that all users have, with the
+  addition of being able to see workspaces across all organizations. The workspace selector in the sidebar
+  allows you to switch between your workspaces.
+</p>
+
+<h3>Workspace Actions</h3>
+
+<table>
+  <tr><th>Action</th><th>How</th><th>Notes</th></tr>
+  <tr>
+    <td><strong>Create Workspace</strong></td>
+    <td>Click the workspace dropdown in the sidebar, then "New Workspace." Enter a name and optional description.</td>
+    <td>Each workspace starts with zero projects. Add projects after creation.</td>
+  </tr>
+  <tr>
+    <td><strong>Edit Workspace</strong></td>
+    <td>Open the workspace dropdown, hover over a workspace, and click the edit icon.</td>
+    <td>You can change the name and description.</td>
+  </tr>
+  <tr>
+    <td><strong>Delete Workspace</strong></td>
+    <td>Open the workspace dropdown, hover over a workspace, and click the delete icon.</td>
+    <td>You cannot delete a workspace that still contains projects. Move or delete the projects first.</td>
+  </tr>
+  <tr>
+    <td><strong>Share Workspace</strong></td>
+    <td>Open a workspace and click "Share." Select a user and choose an access level (Viewer, Editor, Admin).</td>
+    <td>Shared users can see the workspace and its projects according to their access level.</td>
+  </tr>
+</table>
+
+<div class="tip">
+  <strong>Tip:</strong> A default workspace is automatically created for every user the first time they log in.
+  This ensures users always have at least one workspace to start working in.
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+<h2 id="reference">12. Quick Reference</h2>
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+
+<h3>Keyboard Shortcuts &amp; Navigation</h3>
+
+<table>
+  <tr><th>Location</th><th>Path</th></tr>
+  <tr><td>Organizations List</td><td>Sidebar &rarr; Administration &rarr; Organizations</td></tr>
+  <tr><td>Organization Detail</td><td>Organizations list &rarr; Eye icon on any row</td></tr>
+  <tr><td>Users List</td><td>Sidebar &rarr; Administration &rarr; Users</td></tr>
+  <tr><td>Invitations List</td><td>Sidebar &rarr; Administration &rarr; Invitations</td></tr>
+  <tr><td>Activity Log</td><td>Sidebar &rarr; Administration &rarr; Activity</td></tr>
+  <tr><td>Platform Branding</td><td>Organizations &rarr; Edit the Platform organization &rarr; Brand Name field</td></tr>
+  <tr><td>Onboarding Schema</td><td>Organization Detail &rarr; Onboarding Schema tab</td></tr>
+  <tr><td>Theme Settings</td><td>Organization Detail &rarr; Theme tab</td></tr>
+  <tr><td>Logo Upload</td><td>Organization Detail &rarr; Logo section in info card</td></tr>
+</table>
+
+<h3>Common Administration Tasks</h3>
+
+<table>
+  <tr><th>Task</th><th>Steps</th></tr>
+  <tr>
+    <td>Onboard a new customer</td>
+    <td>1. Create organization (with admin owner) &rarr; 2. Owner accepts invitation &rarr; 3. Owner invites their team members &rarr; 4. Configure onboarding schema if needed</td>
+  </tr>
+  <tr>
+    <td>Change the sidebar product name</td>
+    <td>Organizations &rarr; Edit Platform org &rarr; Update Brand Name &rarr; Save</td>
+  </tr>
+  <tr>
+    <td>Temporarily disable a customer</td>
+    <td>Organizations &rarr; Toggle the Active switch off for the customer org</td>
+  </tr>
+  <tr>
+    <td>Revoke a user's access</td>
+    <td>Users &rarr; Find the user &rarr; Toggle the Active switch off</td>
+  </tr>
+  <tr>
+    <td>Resend an expired invitation</td>
+    <td>Invitations &rarr; Find the invitation &rarr; Click Resend</td>
+  </tr>
+  <tr>
+    <td>Investigate suspicious activity</td>
+    <td>Activity &rarr; Toggle "Platform actions only" off &rarr; Browse events by timestamp</td>
+  </tr>
+  <tr>
+    <td>Customize a customer's theme</td>
+    <td>Organizations &rarr; View detail &rarr; Theme tab &rarr; Adjust colors &rarr; Save</td>
+  </tr>
+</table>
+
+<h3>Security Notes</h3>
+
+<table>
+  <tr><th>Feature</th><th>Detail</th></tr>
+  <tr><td>Password Requirements</td><td>Minimum 8 characters, at least one uppercase, one lowercase, one digit, and one special character.</td></tr>
+  <tr><td>Account Lockout</td><td>After 5 failed login attempts, the account is locked for 15 minutes.</td></tr>
+  <tr><td>Invitation Tokens</td><td>Cryptographically secure (32-byte SecureRandom, URL-safe Base64). Valid for 7 days.</td></tr>
+  <tr><td>Session Tokens</td><td>JWT-based authentication. Tokens are stored in localStorage.</td></tr>
+  <tr><td>Audit Trail</td><td>All actions logged immutably. Includes actor, timestamp, entity, action, and IP address for login events.</td></tr>
+  <tr><td>Tenant Isolation</td><td>All data queries are scoped to the user's tenant. Platform users can access cross-tenant data through the admin interface only.</td></tr>
+</table>
+
+
+<div class="box success" style="margin-top: 40px; margin-bottom: 60px;">
+  <strong>Need more help?</strong> For general user features (workspaces, projects, plans, and runs), refer to
+  the <a href="MXSuite_User_Guide.html">GrowthZone MemberSuite User Guide</a>. For technical deployment and
+  architecture details, refer to the Deployment Guide and Architecture Document.
+</div>
+
+</div><!-- /container -->
+</body>
+</html>

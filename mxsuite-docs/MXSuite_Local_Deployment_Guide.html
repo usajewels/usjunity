@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MXSuite — Local Laptop Deployment Guide</title>
+<style>
+  :root {
+    --primary: #1e3a5f;
+    --success: #52c41a;
+    --warning: #faad14;
+    --danger: #ff4d4f;
+    --bg: #f8f9fa;
+    --card: #ffffff;
+    --border: #e8e8e8;
+    --text: #333333;
+    --code-bg: #1e1e2e;
+    --code-fg: #cdd6f4;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', -apple-system, sans-serif;
+    background: var(--bg); color: var(--text);
+    line-height: 1.7; padding: 40px 20px;
+  }
+  .container { max-width: 900px; margin: 0 auto; }
+
+  /* Header */
+  .header {
+    background: linear-gradient(135deg, var(--primary), #2d5a8e);
+    color: white; padding: 48px 40px; border-radius: 12px;
+    margin-bottom: 40px; text-align: center;
+  }
+  .header h1 { font-size: 32px; margin-bottom: 8px; }
+  .header .subtitle { opacity: 0.85; font-size: 16px; }
+  .header .version { margin-top: 12px; font-size: 13px; opacity: 0.7; }
+
+  /* Step cards */
+  .step {
+    background: var(--card); border-radius: 10px;
+    border: 1px solid var(--border); margin-bottom: 24px;
+    overflow: hidden;
+  }
+  .step-header {
+    display: flex; align-items: center; gap: 16px;
+    padding: 20px 24px; border-bottom: 1px solid var(--border);
+    background: #fafbfc;
+  }
+  .step-number {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: var(--primary); color: white;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 18px; flex-shrink: 0;
+  }
+  .step-title { font-size: 20px; font-weight: 600; }
+  .step-body { padding: 24px; }
+
+  /* Code blocks */
+  pre {
+    background: var(--code-bg); color: var(--code-fg);
+    padding: 16px 20px; border-radius: 8px;
+    overflow-x: auto; font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    font-size: 14px; line-height: 1.6; margin: 12px 0;
+  }
+  code {
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    background: #f0f0f0; padding: 2px 6px; border-radius: 4px;
+    font-size: 13px;
+  }
+  pre code { background: none; padding: 0; }
+
+  /* Callouts */
+  .callout {
+    padding: 16px 20px; border-radius: 8px; margin: 16px 0;
+    display: flex; gap: 12px; align-items: flex-start;
+  }
+  .callout-icon { font-size: 20px; flex-shrink: 0; margin-top: 2px; }
+  .callout-info { background: #e6f7ff; border-left: 4px solid #1890ff; }
+  .callout-warning { background: #fffbe6; border-left: 4px solid var(--warning); }
+  .callout-success { background: #f6ffed; border-left: 4px solid var(--success); }
+  .callout-danger { background: #fff2f0; border-left: 4px solid var(--danger); }
+
+  /* Time estimate */
+  .time-badge {
+    display: inline-block; padding: 4px 12px;
+    background: #e6f7ff; color: #1890ff;
+    border-radius: 20px; font-size: 13px; font-weight: 500;
+    margin-bottom: 12px;
+  }
+
+  /* Checkbox list */
+  .checklist { list-style: none; padding: 0; }
+  .checklist li {
+    padding: 8px 0; display: flex; align-items: flex-start; gap: 10px;
+  }
+  .checklist li::before {
+    content: "☐"; font-size: 16px; color: var(--primary); flex-shrink: 0;
+  }
+
+  /* Table */
+  table {
+    width: 100%; border-collapse: collapse; margin: 16px 0;
+    font-size: 14px;
+  }
+  th { background: #fafafa; text-align: left; font-weight: 600; }
+  th, td { padding: 10px 16px; border: 1px solid var(--border); }
+
+  /* Diagram */
+  .diagram {
+    background: var(--code-bg); color: var(--code-fg);
+    padding: 20px; border-radius: 8px; margin: 16px 0;
+    font-family: 'Cascadia Code', monospace; font-size: 13px;
+    white-space: pre; overflow-x: auto;
+  }
+
+  /* Screenshots placeholder */
+  .screenshot {
+    background: #f5f5f5; border: 2px dashed #d9d9d9;
+    border-radius: 8px; padding: 40px; text-align: center;
+    color: #999; margin: 16px 0;
+  }
+
+  h3 { margin: 20px 0 8px; color: var(--primary); }
+  p { margin: 8px 0; }
+  strong { color: #1a1a1a; }
+  a { color: #1890ff; }
+  hr { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+
+  /* Footer */
+  .footer {
+    text-align: center; padding: 32px; color: #999; font-size: 13px;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- HEADER                                                 -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="header">
+  <h1>MXSuite — Local Deployment Guide</h1>
+  <div class="subtitle">Step-by-step instructions to run MXSuite on your laptop using Docker</div>
+  <div class="version">Version 0.3.0 &bull; July 2026 &bull; Authored by Joseph M. Vogel</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- OVERVIEW                                               -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="step">
+  <div class="step-header">
+    <div class="step-title">What You'll Set Up</div>
+  </div>
+  <div class="step-body">
+    <p>By the end of this guide, you'll have the complete MXSuite platform running on your laptop:</p>
+    <div class="diagram">
+┌──────────────────────────────────────────────────────────────┐
+│                      Your Laptop                             │
+│                                                              │
+│  ┌───────────── Docker Desktop ───────────────────────────┐  │
+│  │                                                         │  │
+│  │  ┌─────────────┐   ┌──────────────────────────┐        │  │
+│  │  │  PostgreSQL  │   │     MXSuite Frontend     │        │  │
+│  │  │  :5432 (dev) │   │  Nginx (port 80)         │        │  │
+│  │  └──────┬───────┘   │  ┌─ Shell (host app)     │        │  │
+│  │         │            │  ├─ Admin MFE            │        │  │
+│  │  ┌──────┴───────┐   │  ├─ Workspaces MFE       │        │  │
+│  │  │    Redis     │   │  ├─ Planner MFE          │        │  │
+│  │  │  :6379 (dev) │   │  └─ Chat MFE             │        │  │
+│  │  └──────┬───────┘   └────────────┬─────────────┘        │  │
+│  │         │                        │ /api proxy           │  │
+│  │         │            ┌───────────┴──────────────┐        │  │
+│  │         └────────────┤     MXSuite API          │        │  │
+│  │                      │  Spring Boot :8080       │        │  │
+│  │  ┌─────────────┐    │  Debug :5005 (dev)       │        │  │
+│  │  │   MailHog   │◄───┤                          │        │  │
+│  │  │  :8025 (dev)│    └──────────────────────────┘        │  │
+│  │  └─────────────┘                                        │  │
+│  └─────────────────────────────────────────────────────────┘  │
+│                                                              │
+│  Browser → http://localhost                                  │
+└──────────────────────────────────────────────────────────────┘</div>
+
+    <table>
+      <tr><th>Component</th><th>Technology</th><th>Access</th></tr>
+      <tr><td>Frontend</td><td>React + Nginx</td><td><code>http://localhost</code></td></tr>
+      <tr><td>Backend API</td><td>Spring Boot 3.3</td><td><code>http://localhost/api/</code></td></tr>
+      <tr><td>Swagger UI</td><td>SpringDoc OpenAPI</td><td><code>http://localhost/swagger-ui/index.html</code></td></tr>
+      <tr><td>Database</td><td>PostgreSQL 16</td><td><code>localhost:5432</code> (dev only)</td></tr>
+      <tr><td>Cache</td><td>Redis 7</td><td><code>localhost:6379</code> (dev only)</td></tr>
+      <tr><td>MailHog</td><td>Email testing</td><td><code>http://localhost:8025</code> (dev only)</td></tr>
+      <tr><td>JVM Debug</td><td>JDWP</td><td><code>localhost:5005</code> (dev only)</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- PREREQUISITES                                          -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="step">
+  <div class="step-header">
+    <div class="step-title">Prerequisites</div>
+  </div>
+  <div class="step-body">
+    <ul class="checklist">
+      <li>Windows 10/11 Pro or Enterprise (for Hyper-V) — or Windows Home with WSL2</li>
+      <li>At least 8 GB RAM (16 GB recommended)</li>
+      <li>At least 10 GB free disk space</li>
+      <li>Internet connection (for downloading Docker images)</li>
+      <li>The MXSuite source code folder (<code>D:\growthzone\</code>)</li>
+    </ul>
+
+    <div class="callout callout-info">
+      <span class="callout-icon">ℹ️</span>
+      <div>You do <strong>NOT</strong> need Java, Node.js, or Maven installed. Docker handles all the building.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- STEP 1: Install Docker                                 -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="step">
+  <div class="step-header">
+    <div class="step-number">1</div>
+    <div class="step-title">Install Docker Desktop</div>
+  </div>
+  <div class="step-body">
+    <span class="time-badge">~10 minutes</span>
+
+    <h3>1a. Download Docker Desktop</h3>
+    <p>Go to <a href="https://www.docker.com/products/docker-desktop/" target="_blank">docker.com/products/docker-desktop</a> and download the Windows installer.</p>
+
+    <h3>1b. Run the Installer</h3>
+    <ul class="checklist">
+      <li>Double-click <code>Docker Desktop Installer.exe</code></li>
+      <li>When prompted, select <strong>"Use WSL 2 instead of Hyper-V"</strong> (recommended)</li>
+      <li>Click <strong>OK</strong> and wait for installation to complete</li>
+      <li>Restart your computer when prompted</li>
+    </ul>
+
+    <h3>1c. Start Docker Desktop</h3>
+    <ul class="checklist">
+      <li>After restart, Docker Desktop should start automatically</li>
+      <li>Accept the license agreement</li>
+      <li>Wait for the Docker Engine to start (the whale icon in the system tray will stop animating)</li>
+      <li>You can skip the sign-in / tutorial steps</li>
+    </ul>
+
+    <h3>1d. Verify Docker is Working</h3>
+    <p>Open <strong>PowerShell</strong> (search for "PowerShell" in the Start menu) and run:</p>
+    <pre><code>docker --version
+docker compose version</code></pre>
+    <p>You should see version numbers. If you get an error, Docker Desktop may still be starting up — wait a minute and try again.</p>
+
+    <div class="callout callout-warning">
+      <span class="callout-icon">⚠️</span>
+      <div><strong>Windows Home users:</strong> You need WSL 2 installed. If the Docker installer asks you to install it, follow the prompts. You may need to run <code>wsl --install</code> in PowerShell (as Administrator) first.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- STEP 2: Configure Environment                          -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="step">
+  <div class="step-header">
+    <div class="step-number">2</div>
+    <div class="step-title">Configure Environment</div>
+  </div>
+  <div class="step-body">
+    <span class="time-badge">~2 minutes</span>
+
+    <h3>2a. Open the Project Directory</h3>
+    <p>Open PowerShell and navigate to the project:</p>
+    <pre><code>cd D:\growthzone</code></pre>
+
+    <h3>2b. Create the .env File</h3>
+    <p>Copy the example configuration:</p>
+    <pre><code>Copy-Item .env.example .env</code></pre>
+
+    <h3>2c. Edit the .env File</h3>
+    <p>Open <code>.env</code> in Notepad or any text editor:</p>
+    <pre><code>notepad .env</code></pre>
+
+    <p>For local development, the dev overlay (<code>docker-compose.dev.yml</code>) provides safe defaults for passwords and secrets. But you should review these key values:</p>
+
+    <table>
+      <tr><th>Variable</th><th>Dev Default</th><th>Notes</th></tr>
+      <tr><td><code>POSTGRES_PASSWORD</code></td><td>mxsuite_dev</td><td><strong>Required</strong> in production (no default)</td></tr>
+      <tr><td><code>JWT_SECRET</code></td><td>(long dev string)</td><td><strong>Required</strong> in production (no default)</td></tr>
+      <tr><td><code>MXSUITE_ADMIN_EMAIL</code></td><td>admin@mxsuite.com</td><td>Your admin login email</td></tr>
+      <tr><td><code>MXSUITE_ADMIN_PASSWORD</code></td><td>Admin123!</td><td><strong>Required</strong> in production (no default)</td></tr>
+      <tr><td><code>FRONTEND_PORT</code></td><td>80</td><td>Change to 8088 if port 80 is in use</td></tr>
+    </table>
+
+    <div class="callout callout-warning">
+      <span class="callout-icon">&#9888;&#65039;</span>
+      <div><strong>Production mode</strong> (<code>.\deploy.ps1 -Prod</code>) has <strong>no default passwords</strong>. You must set <code>POSTGRES_PASSWORD</code>, <code>JWT_SECRET</code>, and <code>MXSUITE_ADMIN_PASSWORD</code> in your <code>.env</code> file or the services will fail to start.</div>
+    </div>
+
+    <div class="callout callout-info">
+      <span class="callout-icon">ℹ️</span>
+      <div>The bootstrap admin account is only created on the very first startup when the database is empty. Changing these values later has no effect — use the admin UI to manage users after that.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- STEP 3: Build & Deploy                                 -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="step">
+  <div class="step-header">
+    <div class="step-number">3</div>
+    <div class="step-title">Build and Start MXSuite</div>
+  </div>
+  <div class="step-body">
+    <span class="time-badge">~10-15 minutes (first time)</span>
+
+    <h3>Option A: Use the Deploy Script (Recommended)</h3>
+    <p>The deploy script handles everything automatically:</p>
+    <pre><code>cd D:\growthzone
+.\deploy.ps1</code></pre>
+
+    <div class="callout callout-warning">
+      <span class="callout-icon">⚠️</span>
+      <div>If you get a "scripts are disabled" error, run this first:<br>
+      <code>Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned</code></div>
+    </div>
+
+    <p>By default, <code>deploy.ps1</code> runs in <strong>development mode</strong>, which merges <code>docker-compose.yml</code> + <code>docker-compose.dev.yml</code>. This exposes database/Redis ports, enables Java remote debugging, and starts MailHog for email testing.</p>
+
+    <p>The script will:</p>
+    <ol>
+      <li>Verify Docker is running</li>
+      <li>Create <code>.env</code> from <code>.env.example</code> if it doesn't exist</li>
+      <li>Build Docker images (Java backend + all React frontends via pnpm)</li>
+      <li>Start all services (PostgreSQL, Redis, API, Frontend, MailHog)</li>
+      <li>Wait for health checks to pass</li>
+      <li>Print the access URLs (including MailHog and debug port)</li>
+    </ol>
+
+    <p>For production mode (no exposed ports, no debug, no MailHog):</p>
+    <pre><code>.\deploy.ps1 -Prod</code></pre>
+
+    <h3>Option B: Manual Docker Commands</h3>
+    <p>If you prefer running commands directly:</p>
+    <pre><code># Development mode (recommended for local)
+cd D:\growthzone
+docker compose -f docker-compose.yml -f docker-compose.dev.yml build
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+
+# Production mode (no dev services)
+docker compose build
+docker compose up -d
+
+# Watch the logs while it starts up
+docker compose logs -f</code></pre>
+
+    <h3>What Happens During First Build</h3>
+    <p>Docker will:</p>
+    <ol>
+      <li>Download base images (Java 21, Node 22, PostgreSQL 16, Redis 7, Nginx)</li>
+      <li>Build the API: install Maven parent POM → download Java dependencies → compile 56 source files → package JAR</li>
+      <li>Build 6 frontend apps: pnpm workspace install → TypeScript compile → Vite bundle (shared lib first, then MFEs in parallel)</li>
+      <li>Create production images with only the compiled artifacts</li>
+    </ol>
+
+    <div class="callout callout-info">
+      <span class="callout-icon">ℹ️</span>
+      <div>Subsequent builds are <strong>much faster</strong> (~1-2 minutes) because Docker caches the dependency download layers. Only changed source code triggers a rebuild.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- STEP 4: Verify                                         -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="step">
+  <div class="step-header">
+    <div class="step-number">4</div>
+    <div class="step-title">Verify It's Running</div>
+  </div>
+  <div class="step-body">
+    <span class="time-badge">~2 minutes</span>
+
+    <h3>4a. Check Service Status</h3>
+    <pre><code>.\deploy.ps1 -Status</code></pre>
+
+    <p>In dev mode, you should see 5 containers all in "Up (healthy)" state:</p>
+    <pre><code>NAME                STATUS
+mxsuite-postgres    Up (healthy)
+mxsuite-redis       Up (healthy)
+mxsuite-api         Up (healthy)
+mxsuite-frontend    Up (healthy)
+mxsuite-mailhog     Up</code></pre>
+
+    <h3>4b. Open the Application</h3>
+    <p>Open your browser and go to:</p>
+    <pre><code>http://localhost</code></pre>
+
+    <p>You should see the MXSuite login page.</p>
+
+    <h3>4c. Log In</h3>
+    <p>Use the credentials from your <code>.env</code> file:</p>
+    <table>
+      <tr><th>Field</th><th>Value</th></tr>
+      <tr><td>Email</td><td><code>admin@mxsuite.com</code> (or your MXSUITE_ADMIN_EMAIL)</td></tr>
+      <tr><td>Password</td><td><code>Admin123!</code> (or your MXSUITE_ADMIN_PASSWORD)</td></tr>
+    </table>
+
+    <h3>4d. Verify API Health</h3>
+    <p>In a new browser tab, check the API health endpoint:</p>
+    <pre><code>http://localhost/api/actuator/health</code></pre>
+    <p>You should see: <code>{"status":"UP"}</code></p>
+
+    <div class="callout callout-success">
+      <span class="callout-icon">✅</span>
+      <div>If you see the dashboard after logging in, congratulations — MXSuite is fully operational!</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- STEP 5: Daily Operations                               -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="step">
+  <div class="step-header">
+    <div class="step-number">5</div>
+    <div class="step-title">Daily Operations</div>
+  </div>
+  <div class="step-body">
+
+    <h3>Starting MXSuite (after a reboot)</h3>
+    <ol>
+      <li>Make sure Docker Desktop is running (check the whale icon in system tray)</li>
+      <li>Open PowerShell and run:</li>
+    </ol>
+    <pre><code>cd D:\growthzone
+.\deploy.ps1</code></pre>
+    <p>If images are already built, services start in ~5 seconds.</p>
+
+    <h3>Stopping MXSuite</h3>
+    <pre><code>.\deploy.ps1 -Down</code></pre>
+    <p>Your data is preserved in Docker volumes. It will be there when you start again.</p>
+
+    <h3>Viewing Logs</h3>
+    <pre><code># All services
+.\deploy.ps1 -Logs
+
+# Just the API
+docker compose -f docker-compose.yml -f docker-compose.dev.yml logs -f mxsuite-api
+
+# Just the frontend
+docker compose -f docker-compose.yml -f docker-compose.dev.yml logs -f mxsuite-frontend</code></pre>
+
+    <h3>Rebuilding After Code Changes</h3>
+    <pre><code># Quick rebuild (uses cache)
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+
+# Full rebuild (no cache)
+.\deploy.ps1 -Rebuild</code></pre>
+
+    <h3>Testing Emails</h3>
+    <p>In dev mode, all outgoing emails are caught by <strong>MailHog</strong> — no emails are actually sent. Open the MailHog UI to view them:</p>
+    <pre><code>http://localhost:8025</code></pre>
+    <p>This captures invitation emails, password reset emails, and any other notifications.</p>
+
+    <h3>Remote Debugging (Java)</h3>
+    <p>In dev mode, the API exposes JDWP on port <strong>5005</strong>. Connect your IDE's remote debugger to <code>localhost:5005</code>.</p>
+
+    <h3>Resetting Everything (Fresh Start)</h3>
+    <div class="callout callout-danger">
+      <span class="callout-icon">&#9888;&#65039;</span>
+      <div>This <strong>deletes all data</strong> — database, uploaded files, Redis cache. Use only when you want a completely fresh start.</div>
+    </div>
+    <pre><code>.\deploy.ps1 -Reset</code></pre>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- STEP 6: Connecting Database Tools                      -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="step">
+  <div class="step-header">
+    <div class="step-number">6</div>
+    <div class="step-title">Connecting External Tools</div>
+  </div>
+  <div class="step-body">
+
+    <h3>PostgreSQL (DBeaver, pgAdmin, DataGrip, etc.)</h3>
+    <table>
+      <tr><th>Setting</th><th>Value</th></tr>
+      <tr><td>Host</td><td><code>localhost</code></td></tr>
+      <tr><td>Port</td><td><code>5432</code></td></tr>
+      <tr><td>Database</td><td><code>mxsuite</code></td></tr>
+      <tr><td>Username</td><td><code>mxsuite</code></td></tr>
+      <tr><td>Password</td><td>(from .env <code>POSTGRES_PASSWORD</code>)</td></tr>
+    </table>
+
+    <h3>Redis (RedisInsight, redis-cli)</h3>
+    <table>
+      <tr><th>Setting</th><th>Value</th></tr>
+      <tr><td>Host</td><td><code>localhost</code></td></tr>
+      <tr><td>Port</td><td><code>6379</code></td></tr>
+      <tr><td>Password</td><td>(none)</td></tr>
+    </table>
+
+    <h3>API / Swagger UI</h3>
+    <p>Open in browser: <code>http://localhost/swagger-ui/index.html</code></p>
+    <p>Log in first via the application to get a JWT token, then use the "Authorize" button in Swagger UI.</p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- TROUBLESHOOTING                                        -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="step">
+  <div class="step-header">
+    <div class="step-number">7</div>
+    <div class="step-title">Troubleshooting</div>
+  </div>
+  <div class="step-body">
+
+    <h3>Port 80 is already in use</h3>
+    <p>Another application (IIS, Apache, Skype) is using port 80. Either stop that service, or change the port:</p>
+    <ol>
+      <li>Edit <code>.env</code> and set <code>FRONTEND_PORT=8088</code></li>
+      <li>Restart: <code>.\deploy.ps1</code></li>
+      <li>Access at <code>http://localhost:8088</code></li>
+    </ol>
+
+    <h3>Port 5432 is already in use</h3>
+    <p>You may have a local PostgreSQL installation. Either stop it, or change the port:</p>
+    <ol>
+      <li>Edit <code>.env</code> and set <code>POSTGRES_PORT_HOST=5433</code></li>
+      <li>Restart: <code>.\deploy.ps1</code></li>
+    </ol>
+
+    <h3>Build fails with "out of memory"</h3>
+    <p>Docker Desktop may need more RAM. Open Docker Desktop &rarr; Settings &rarr; Resources:</p>
+    <ul>
+      <li>Set Memory to at least <strong>4 GB</strong> (6 GB recommended)</li>
+      <li>Set CPUs to at least <strong>2</strong></li>
+    </ul>
+
+    <h3>Build fails with pnpm/npm errors</h3>
+    <p>Try a full clean rebuild:</p>
+    <pre><code>.\deploy.ps1 -Rebuild</code></pre>
+    <p>If you see <code>ERR_PNPM_FROZEN_LOCKFILE</code>, ensure <code>pnpm-lock.yaml</code> exists in the project root. Generate it by running <code>pnpm install</code> locally (requires Node.js + pnpm installed on your machine).</p>
+
+    <h3>API container keeps restarting</h3>
+    <p>Check the logs for the specific error:</p>
+    <pre><code>.\deploy.ps1 -Logs</code></pre>
+    <p>Common causes:</p>
+    <ul>
+      <li><strong>"Connection refused" to postgres</strong> — PostgreSQL isn't ready yet. Wait 30 seconds and check again. The API has a health check with start period of 60 seconds.</li>
+      <li><strong>"Flyway migration failed"</strong> — Database schema issue. Try <code>.\deploy.ps1 -Reset</code> for a fresh start.</li>
+      <li><strong>"JWT secret" error</strong> — Your JWT_SECRET in .env may be too short. Use at least 32 characters.</li>
+    </ul>
+
+    <h3>Frontend shows "Failed to fetch remote" errors</h3>
+    <p>The micro-frontend assets may not have built correctly. Rebuild the frontend image:</p>
+    <pre><code>.\deploy.ps1 -Rebuild</code></pre>
+
+    <h3>Cannot log in (401 Unauthorized)</h3>
+    <ul>
+      <li>If this is the first startup, the admin account is created from <code>.env</code> values. Check <code>MXSUITE_ADMIN_EMAIL</code> and <code>MXSUITE_ADMIN_PASSWORD</code>.</li>
+      <li>If you changed the password in .env <em>after</em> the first startup, the change has no effect. Use the password reset flow or connect to the database directly.</li>
+    </ul>
+
+    <h3>Docker Desktop won't start</h3>
+    <ul>
+      <li><strong>Windows Home:</strong> Ensure WSL 2 is installed: <code>wsl --install</code> (in Admin PowerShell)</li>
+      <li><strong>Windows Pro:</strong> Ensure Hyper-V is enabled in Windows Features</li>
+      <li>Check that virtualization is enabled in BIOS/UEFI</li>
+    </ul>
+
+    <h3>Everything is broken — fresh start</h3>
+    <pre><code># Nuclear reset via deploy script
+.\deploy.ps1 -Reset
+
+# Or manually:
+docker compose down -v
+docker rmi mxsuite-api mxsuite-frontend 2>$null
+.\deploy.ps1 -Rebuild</code></pre>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- PROJECT STRUCTURE REFERENCE                            -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="step">
+  <div class="step-header">
+    <div class="step-title">Appendix A: Project Structure</div>
+  </div>
+  <div class="step-body">
+    <pre><code>D:\growthzone\
+├── .env.example                 ← Template config (copy to .env)
+├── .env                         ← YOUR config (never commit!)
+├── docker-compose.yml           ← Production base compose
+├── docker-compose.dev.yml       ← Dev overlay (ports, debug, MailHog)
+├── Dockerfile.api               ← Builds the Java backend
+├── Dockerfile.frontend          ← Builds all React frontends (pnpm)
+├── deploy.ps1                   ← PowerShell deploy script
+├── package.json                 ← Root monorepo scripts
+├── pnpm-workspace.yaml          ← pnpm workspace config
+├── .npmrc                       ← pnpm settings
+│
+├── mxsuite-parent/              ← Maven parent POM (version management)
+├── mxsuite-api/                 ← Spring Boot backend (Java 21)
+│   ├── src/main/java/           ← Java source code
+│   ├── src/main/resources/      ← Config, Flyway migrations
+│   └── pom.xml
+│
+├── mxsuite-shell/               ← React host app (port 80 in Docker)
+├── mxsuite-admin/               ← Admin micro-frontend
+├── mxsuite-workspaces/          ← Workspaces micro-frontend
+├── mxsuite-planner/             ← Planner micro-frontend
+├── mxsuite-chat/                ← Chat micro-frontend
+├── mxsuite-shared/              ← Shared React library (API client, types, hooks)
+│
+└── mxsuite-docs/                ← Documentation</code></pre>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- QUICK REFERENCE CARD                                   -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="step">
+  <div class="step-header">
+    <div class="step-title">Appendix B: Quick Reference Card</div>
+  </div>
+  <div class="step-body">
+    <h3>Deploy Script (Recommended)</h3>
+    <table>
+      <tr><th>Command</th><th>What It Does</th></tr>
+      <tr><td><code>.\deploy.ps1</code></td><td>Build and start (dev mode — MailHog, debug port, exposed DB/Redis)</td></tr>
+      <tr><td><code>.\deploy.ps1 -Prod</code></td><td>Build and start (production mode — no dev services)</td></tr>
+      <tr><td><code>.\deploy.ps1 -Down</code></td><td>Stop all services</td></tr>
+      <tr><td><code>.\deploy.ps1 -Rebuild</code></td><td>Force rebuild all images (no cache)</td></tr>
+      <tr><td><code>.\deploy.ps1 -Logs</code></td><td>Tail logs from all services</td></tr>
+      <tr><td><code>.\deploy.ps1 -Status</code></td><td>Show service status and resource usage</td></tr>
+      <tr><td><code>.\deploy.ps1 -Reset</code></td><td>Delete all data and rebuild from scratch</td></tr>
+    </table>
+
+    <h3>Direct Docker Commands</h3>
+    <table>
+      <tr><th>Action</th><th>Command</th></tr>
+      <tr><td>Shell into API container</td><td><code>docker exec -it mxsuite-api sh</code></td></tr>
+      <tr><td>Shell into DB</td><td><code>docker exec -it mxsuite-postgres psql -U mxsuite</code></td></tr>
+      <tr><td>Open application</td><td><code>http://localhost</code></td></tr>
+      <tr><td>Swagger UI</td><td><code>http://localhost/swagger-ui/index.html</code></td></tr>
+      <tr><td>MailHog (dev only)</td><td><code>http://localhost:8025</code></td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  MXSuite v0.3.0 &bull; Local Deployment Guide &bull; Authored by Joseph M. Vogel &bull; July 2026
+</div>
+
+</div>
+</body>
+</html>

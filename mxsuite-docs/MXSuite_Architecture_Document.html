@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MXSuite Platform — Architecture Document</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', sans-serif; color: #1a1a2e; line-height: 1.7; background: #fff; }
+
+  .cover { background: linear-gradient(135deg, #0a1628 0%, #1e3a5f 50%, #2d5a8e 100%);
+    color: #fff; padding: 120px 60px; text-align: center; page-break-after: always; min-height: 100vh;
+    display: flex; flex-direction: column; justify-content: center; }
+  .cover h1 { font-size: 48px; font-weight: 700; margin-bottom: 12px; letter-spacing: -1px; }
+  .cover .subtitle { font-size: 22px; font-weight: 300; opacity: 0.9; margin-bottom: 40px; }
+  .cover .meta { font-size: 14px; opacity: 0.7; }
+  .cover .version { display: inline-block; background: rgba(255,255,255,0.15); padding: 6px 20px;
+    border-radius: 20px; font-size: 13px; margin-top: 20px; }
+
+  .container { max-width: 900px; margin: 0 auto; padding: 60px 40px; }
+
+  h2 { font-size: 28px; font-weight: 700; color: #1e3a5f; margin-top: 60px; margin-bottom: 20px;
+    padding-bottom: 10px; border-bottom: 3px solid #1e3a5f; }
+  h3 { font-size: 20px; font-weight: 600; color: #2d5a8e; margin-top: 36px; margin-bottom: 12px; }
+  h4 { font-size: 16px; font-weight: 600; margin-top: 24px; margin-bottom: 8px; }
+
+  p { margin-bottom: 14px; }
+  ul, ol { margin-left: 24px; margin-bottom: 16px; }
+  li { margin-bottom: 6px; }
+
+  table { width: 100%; border-collapse: collapse; margin: 16px 0 24px; }
+  th { background: #1e3a5f; color: #fff; padding: 10px 14px; text-align: left; font-weight: 600; font-size: 13px; }
+  td { padding: 10px 14px; border-bottom: 1px solid #e8e8e8; font-size: 14px; }
+  tr:nth-child(even) { background: #f8f9fa; }
+
+  .box { background: #f0f5ff; border-left: 4px solid #1e3a5f; padding: 16px 20px; margin: 20px 0;
+    border-radius: 0 8px 8px 0; }
+  .box.warning { background: #fff7e6; border-color: #faad14; }
+  .box.success { background: #f6ffed; border-color: #52c41a; }
+
+  .diagram { background: #f8f9fa; border: 1px solid #e8e8e8; border-radius: 8px; padding: 24px;
+    margin: 24px 0; font-family: 'Courier New', monospace; font-size: 13px; line-height: 1.5;
+    white-space: pre; overflow-x: auto; }
+
+  .tag { display: inline-block; padding: 2px 10px; border-radius: 4px; font-size: 12px;
+    font-weight: 600; margin-right: 6px; }
+  .tag.blue { background: #e6f0ff; color: #1e3a5f; }
+  .tag.green { background: #f6ffed; color: #389e0d; }
+  .tag.orange { background: #fff7e6; color: #d48806; }
+
+  .toc { background: #fafafa; padding: 30px; border-radius: 8px; margin: 30px 0; }
+  .toc a { color: #1e3a5f; text-decoration: none; display: block; padding: 4px 0; }
+  .toc a:hover { text-decoration: underline; }
+
+  @media print {
+    .cover { page-break-after: always; }
+    h2 { page-break-before: always; }
+    .diagram { font-size: 11px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- COVER PAGE -->
+<div class="cover">
+  <h1>MXSuite Platform</h1>
+  <div class="subtitle">Data Onboarding &amp; Integration Platform</div>
+  <p class="subtitle" style="font-size: 18px;">Architecture &amp; Technical Design Document</p>
+  <p class="meta">Prepared for GrowthZone MemberSuite</p>
+  <p class="meta">July 2026</p>
+  <p class="meta" style="margin-top: 30px; font-size: 16px; opacity: 0.85;">Authored by <strong>Joseph M. Vogel</strong></p>
+  <p class="meta" style="font-size: 13px;">Independent Contractor — Platform Architect</p>
+  <span class="version">Version 0.3.0 — Draft (Security Hardened + Invitations)</span>
+</div>
+
+<div class="container">
+
+<!-- TABLE OF CONTENTS -->
+<div class="toc">
+  <h3 style="margin-top: 0;">Table of Contents</h3>
+  <ol>
+    <li><a href="#exec">Executive Summary</a></li>
+    <li><a href="#problem">Problem Statement</a></li>
+    <li><a href="#solution">Proposed Solution</a></li>
+    <li><a href="#arch">System Architecture</a></li>
+    <li><a href="#domain">Domain Model</a></li>
+    <li><a href="#tenancy">Multi-Tenancy</a></li>
+    <li><a href="#auth">Authentication &amp; Authorization</a></li>
+    <li><a href="#plan">Plan Engine — ELT Pipeline</a></li>
+    <li><a href="#frontend">Frontend Architecture — Micro-Frontends</a></li>
+    <li><a href="#realtime">Real-Time Communication</a></li>
+    <li><a href="#ai">AI-Assisted Onboarding</a></li>
+    <li><a href="#observability">Observability &amp; Audit</a></li>
+    <li><a href="#deploy">Deployment &amp; Infrastructure</a></li>
+    <li><a href="#repos">Repository Structure</a></li>
+    <li><a href="#stack">Technology Stack</a></li>
+    <li><a href="#roadmap">Phased Delivery Roadmap</a></li>
+  </ol>
+</div>
+
+<!-- 1. EXECUTIVE SUMMARY -->
+<h2 id="exec">1. Executive Summary</h2>
+<p>MXSuite is a multi-tenant data onboarding platform designed to replace the current spreadsheet-based data migration process used by GrowthZone MemberSuite. Instead of generating Excel files for customers to manually fill in, MXSuite provides a web-based interface where customers can upload their data files, visually map fields to GrowthZone's canonical model, validate transformations via dry runs, and execute full data loads — all with complete audit trails and real-time collaboration.</p>
+
+<div class="box success">
+  <strong>Key Value Propositions:</strong>
+  <ul style="margin-top: 8px;">
+    <li><strong>ELT over ETL:</strong> Load raw data first, transform in the database with full SQL power, auditability, and repeatability</li>
+    <li><strong>Self-Service Onboarding:</strong> AI-assisted field mapping reduces GrowthZone staff involvement</li>
+    <li><strong>Platform Architecture:</strong> Extensible, Salesforce-like platform — not a single-purpose tool</li>
+    <li><strong>Complete Audit Trail:</strong> Every action is logged — who did what, when, and whether it was a customer or GrowthZone staff action</li>
+    <li><strong>Cloud-Agnostic:</strong> Docker/Kubernetes deployment runs anywhere</li>
+  </ul>
+</div>
+
+<!-- 2. PROBLEM STATEMENT -->
+<h2 id="problem">2. Problem Statement</h2>
+<p>The current GrowthZone onboarding process has several inefficiencies:</p>
+<ul>
+  <li><strong>Spreadsheet-based mapping:</strong> GrowthZone generates an Excel spreadsheet template, the customer fills it in, and GrowthZone processes it. This is error-prone, doesn't scale, and pushes transformation burden onto non-technical customers.</li>
+  <li><strong>ETL in-flight transformations:</strong> Data is transformed during transit, making it harder to debug, audit, and re-run when issues arise.</li>
+  <li><strong>No audit trail:</strong> Limited visibility into who made changes and when.</li>
+  <li><strong>Manual intervention:</strong> GrowthZone staff must heavily assist customers through the process.</li>
+  <li><strong>Cost:</strong> Current infrastructure uses Snowflake, which is expensive for this use case.</li>
+</ul>
+
+<!-- 3. PROPOSED SOLUTION -->
+<h2 id="solution">3. Proposed Solution</h2>
+<p>MXSuite replaces the spreadsheet workflow with a modern web platform:</p>
+
+<div class="diagram">
+┌─────────────────────────────────────────────────────────────────┐
+│                     CURRENT PROCESS                              │
+│                                                                  │
+│  Customer Data ──→ GrowthZone Excel ──→ Customer Fills ──→ ETL  │
+│       ↑                                        ↓                │
+│       └──── Manual, Error-Prone, No Audit ─────┘                │
+└─────────────────────────────────────────────────────────────────┘
+
+                         ▼  BECOMES  ▼
+
+┌─────────────────────────────────────────────────────────────────┐
+│                     MXSUITE PROCESS                              │
+│                                                                  │
+│  Customer Data ──→ Upload to MXSuite ──→ Visual Mapping UI      │
+│                                              ↓                   │
+│                    AI Suggests Mappings ──→ Dry Run ──→ Validate │
+│                                              ↓                   │
+│                         Full Run ──→ ELT into Target DB          │
+│                              ↓                                   │
+│                    Complete Audit Trail + Grafana Dashboard       │
+└─────────────────────────────────────────────────────────────────┘
+</div>
+
+<!-- 4. SYSTEM ARCHITECTURE -->
+<h2 id="arch">4. System Architecture</h2>
+
+<div class="diagram">
+┌─────────────────────────────────────────────────────────────────────┐
+│                        MXSUITE PLATFORM                              │
+│                                                                      │
+│  ┌──────────────────── FRONTEND (Micro-Frontends) ─────────────────┐ │
+│  │                                                                  │ │
+│  │  ┌─────────┐ ┌────────────┐ ┌──────────┐ ┌────────┐ ┌───────┐ │ │
+│  │  │  Shell   │ │   Admin    │ │Workspaces│ │Planner │ │ Chat  │ │ │
+│  │  │ (Host)   │ │ (Remote)   │ │ (Remote) │ │(Remote)│ │(Remote│ │ │
+│  │  │ Port 3000│ │ Port 3001  │ │Port 3002 │ │Prt 3003│ │Pt 3004│ │ │
+│  │  └─────────┘ └────────────┘ └──────────┘ └────────┘ └───────┘ │ │
+│  │         ↕ Module Federation (Vite + @originjs/vite-plugin)      │ │
+│  │  ┌──────────────────────────────────────────────────────────┐   │ │
+│  │  │              @mxsuite/shared (NPM Package)               │   │ │
+│  │  │    Types • API Client • Hooks • Theme • Components       │   │ │
+│  │  └──────────────────────────────────────────────────────────┘   │ │
+│  └──────────────────────────────────────────────────────────────────┘ │
+│                              ↕ REST API + WebSocket                   │
+│  ┌──────────────────── BACKEND ────────────────────────────────────┐  │
+│  │                                                                  │ │
+│  │  ┌────────────────────────────────────────────────────────┐     │ │
+│  │  │           Spring Boot 3.3 / Java 21                     │     │ │
+│  │  │                                                         │     │ │
+│  │  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌───────────┐ │     │ │
+│  │  │  │   Auth   │ │  CRUD    │ │  Plan    │ │  Audit    │ │     │ │
+│  │  │  │Controller│ │Controllers│ │ Engine   │ │ Service   │ │     │ │
+│  │  │  └──────────┘ └──────────┘ └──────────┘ └───────────┘ │     │ │
+│  │  │  ┌──────────┐ ┌──────────┐ ┌──────────┐              │     │ │
+│  │  │  │  JWT /   │ │ Tenant   │ │ WebSocket│              │     │ │
+│  │  │  │ Keycloak │ │ Filter   │ │  STOMP   │              │     │ │
+│  │  │  └──────────┘ └──────────┘ └──────────┘              │     │ │
+│  │  └────────────────────────────────────────────────────────┘     │ │
+│  └──────────────────────────────────────────────────────────────────┘ │
+│                              ↕                                        │
+│  ┌──────────────────── INFRASTRUCTURE ─────────────────────────────┐  │
+│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────────┐  │  │
+│  │  │PostgreSQL│ │  Redis   │ │ Keycloak │ │  OpenTelemetry   │  │  │
+│  │  │  16      │ │  7       │ │  25      │ │  Collector       │  │  │
+│  │  └──────────┘ └──────────┘ └──────────┘ └──────────────────┘  │  │
+│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────────┐  │  │
+│  │  │Prometheus│ │ Grafana  │ │  Loki    │ │     Tempo        │  │  │
+│  │  │  2.53    │ │  11      │ │  3.1     │ │     2.5          │  │  │
+│  │  └──────────┘ └──────────┘ └──────────┘ └──────────────────┘  │  │
+│  └──────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────┘
+</div>
+
+<!-- 5. DOMAIN MODEL -->
+<h2 id="domain">5. Domain Model</h2>
+
+<div class="diagram">
+  ┌──────────┐         ┌───────────┐         ┌─────────┐
+  │  Tenant  │ 1───* ──│   User    │         │Workspace│
+  │          │         │           │         │         │
+  │ name     │         │ email     │ *───1 ──│ name    │
+  │ slug     │         │ firstName │ (owner) │ desc    │
+  │ type     │         │ lastName  │         │ crossTen│
+  │ active   │         │ role      │         └────┬────┘
+  └────┬─────┘         │ active    │              │ *
+       │               └───────────┘              │
+       │ 1                                   ┌────┴────┐
+       │                                     │workspace│
+       ▼ *                                   │_projects│
+  ┌──────────┐                               └────┬────┘
+  │ Project  │ ◄─────────────────────────────────-┘
+  │          │ 1
+  │ name     │───* ──┌──────────┐
+  │ desc     │       │   Plan   │ 1───* ──┌──────────┐
+  │ owner    │       │          │         │ PlanRun  │
+  └────┬─────┘       │ name     │         │          │
+       │             │ status   │         │ runType  │
+       │ 1           │ version  │         │ status   │
+       ▼ *           │ def(JSON)│         │ records  │
+  ┌──────────┐       └──────────┘         │ errors   │
+  │  Asset   │                            └──────────┘
+  │          │
+  │ filename │       ┌──────────────┐
+  │ type     │       │ AuditEvent   │  (append-only)
+  │ size     │       │              │
+  │ path     │       │ actor, action│
+  └──────────┘       │ entity, state│
+                     │ timestamp    │
+                     └──────────────┘
+
+  ┌──────────────┐   ┌──────────────────┐
+  │ Invitation   │   │PasswordResetToken│
+  │              │   │                  │
+  │ email, token │   │ token, user      │
+  │ role, status │   │ expiresAt, used  │
+  │ tenant       │   │ single-use       │
+  │ expiresAt    │   └──────────────────┘
+  └──────────────┘
+</div>
+
+<h3>Entity Hierarchy</h3>
+<table>
+  <tr><th>Entity</th><th>Description</th><th>Key Relationships</th></tr>
+  <tr><td><strong>Tenant</strong></td><td>GrowthZone customer organization or the platform itself</td><td>Contains Users, Projects</td></tr>
+  <tr><td><strong>User</strong></td><td>A person in the system with a role</td><td>Belongs to Tenant, Owns Workspaces/Projects</td></tr>
+  <tr><td><strong>Workspace</strong></td><td>Organizational view/grouping of Projects</td><td>Contains Projects (many-to-many), has Access List</td></tr>
+  <tr><td><strong>Project</strong></td><td>Container for Plans and Assets</td><td>Belongs to Tenant, can appear in multiple Workspaces</td></tr>
+  <tr><td><strong>Plan</strong></td><td>JSON field mapping definition (source → target)</td><td>Belongs to one Project, has Runs</td></tr>
+  <tr><td><strong>PlanRun</strong></td><td>Execution instance of a Plan (dry or full)</td><td>Belongs to Plan, records results</td></tr>
+  <tr><td><strong>ProjectAsset</strong></td><td>Uploaded file (CSV, Excel, document)</td><td>Belongs to Project</td></tr>
+  <tr><td><strong>AuditEvent</strong></td><td>Immutable log of every action</td><td>References actor, entity, before/after state</td></tr>
+  <tr><td><strong>Invitation</strong></td><td>Email invitation to join a tenant</td><td>Belongs to Tenant, references invitedBy User. Status: PENDING → ACCEPTED / CANCELLED / EXPIRED</td></tr>
+  <tr><td><strong>PasswordResetToken</strong></td><td>Single-use token for password recovery</td><td>References User. Expires after 1 hour.</td></tr>
+</table>
+
+<h3>Common Fields (All Entities)</h3>
+<p>Every entity has: <code>id (UUID)</code>, <code>createdBy</code>, <code>createdAt</code>, <code>lastModifiedBy</code>, <code>lastModifiedAt</code>, <code>administratorId</code></p>
+
+<!-- 6. MULTI-TENANCY -->
+<h2 id="tenancy">6. Multi-Tenancy</h2>
+
+<div class="box">
+  <strong>Strategy:</strong> Shared PostgreSQL schema with <code>tenant_id</code> column discrimination and row-level security (RLS).
+</div>
+
+<h3>Tenant Types</h3>
+<table>
+  <tr><th>Type</th><th>Description</th><th>Capabilities</th></tr>
+  <tr><td><span class="tag blue">PLATFORM</span></td><td>MXSuite/GrowthZone — the super-tenant</td><td>Full control over all customer tenants, cross-tenant workspaces, user management</td></tr>
+  <tr><td><span class="tag green">CUSTOMER</span></td><td>GrowthZone customer organization</td><td>Manages own workspaces, projects, plans. Cannot see other tenants.</td></tr>
+</table>
+
+<h3>Data Isolation</h3>
+<ul>
+  <li>Every tenant-scoped query includes a <code>tenant_id</code> filter</li>
+  <li>The <code>TenantContext</code> (ThreadLocal) is set by the JWT authentication filter</li>
+  <li>Platform users can override the tenant context via <code>X-Tenant-Id</code> header</li>
+  <li>PostgreSQL Row-Level Security provides a database-level safety net</li>
+</ul>
+
+<!-- 7. AUTH -->
+<h2 id="auth">7. Authentication &amp; Authorization</h2>
+
+<h3>Dual Auth Mode</h3>
+<table>
+  <tr><th>Profile</th><th>Provider</th><th>Use Case</th></tr>
+  <tr><td><code>local</code></td><td>Built-in JWT (username/password in Postgres)</td><td>Demo, development, laptop deployments</td></tr>
+  <tr><td><code>keycloak</code></td><td>Keycloak OIDC</td><td>Production — SSO, MFA, social login</td></tr>
+</table>
+
+<h3>Role Hierarchy</h3>
+<table>
+  <tr><th>Role</th><th>Scope</th><th>Permissions</th></tr>
+  <tr><td><span class="tag blue">PLATFORM_ADMIN</span></td><td>Global</td><td>Full platform control. Manage tenants, users, system config.</td></tr>
+  <tr><td><span class="tag blue">PLATFORM_SUPPORT</span></td><td>Assigned Tenants</td><td>Full control over assigned customer tenants. Can create cross-tenant workspaces.</td></tr>
+  <tr><td><span class="tag green">TENANT_ADMIN</span></td><td>Own Tenant</td><td>Manage users, workspaces, projects within their tenant.</td></tr>
+  <tr><td><span class="tag green">TENANT_USER</span></td><td>Own Tenant</td><td>Work within granted workspaces/projects. Create plans, run executions.</td></tr>
+</table>
+
+<h3>Permission Model</h3>
+<p>Each Workspace and Project has:</p>
+<ul>
+  <li><strong>Owner</strong> — creator by default, can be transferred</li>
+  <li><strong>Access List</strong> — explicit grants with level: <span class="tag green">VIEWER</span> <span class="tag orange">EDITOR</span> <span class="tag blue">ADMIN</span></li>
+</ul>
+
+<h3>OIDC / SSO Ready</h3>
+<p>The architecture is designed for future identity provider integration. The <code>spring-boot-starter-oauth2-resource-server</code> dependency is already included. To add Okta, WSO2, or any OIDC provider:</p>
+<ul>
+  <li>Create a new Spring profile (e.g., <code>okta</code>, <code>wso2</code>)</li>
+  <li>Configure <code>spring.security.oauth2.resourceserver.jwt.issuer-uri</code></li>
+  <li>The JWT filter auto-switches based on active profile</li>
+  <li>No code changes required — configuration only</li>
+</ul>
+
+<h3>User Invitation System</h3>
+<p>Users are onboarded through an email invitation workflow:</p>
+<div class="diagram">
+  Admin sends invite ──→ Email with token link ──→ User clicks link
+       │                                              │
+       │                                              ▼
+       │                                   Accept form (name + password)
+       │                                              │
+       │                                              ▼
+       │                                   User account created
+       │                                              │
+       └── Can: Resend / Cancel                       ▼
+                                           User can now log in
+</div>
+<ul>
+  <li><strong>Invitation tokens</strong> expire after 7 days</li>
+  <li><strong>TENANT_ADMIN</strong> can invite TENANT_USER or TENANT_ADMIN roles</li>
+  <li><strong>PLATFORM_ADMIN/SUPPORT</strong> can invite any role</li>
+  <li>Duplicate checks prevent inviting existing users or re-sending pending invites</li>
+  <li>Admins can resend (new token, extended expiry) or cancel invitations</li>
+</ul>
+
+<h3>Password Recovery</h3>
+<ul>
+  <li>User requests reset via email — always returns success (prevents email enumeration)</li>
+  <li>Reset tokens expire after 1 hour, single-use</li>
+  <li>All reset events are logged with client IP for forensic analysis</li>
+</ul>
+
+<h3>Security Hardening</h3>
+<div class="box warning">
+  <strong>Breach-Hardened:</strong> GrowthZone has experienced data breaches in previous systems. MXSuite is built with defense-in-depth security at every layer.
+</div>
+<table>
+  <tr><th>Protection</th><th>Implementation</th></tr>
+  <tr><td><strong>Stack trace leakage</strong></td><td>Global exception handler — all errors return clean JSON, never internal details</td></tr>
+  <tr><td><strong>Password exposure</strong></td><td><code>@JsonIgnore</code> on password hash — never serialized to API responses</td></tr>
+  <tr><td><strong>Circular JSON</strong></td><td><code>@JsonIgnore</code> on all bidirectional JPA relationships</td></tr>
+  <tr><td><strong>Path traversal</strong></td><td>File upload filenames sanitized + resolved path validated against base directory</td></tr>
+  <tr><td><strong>SQL injection</strong></td><td>JPA parameterized queries only — no raw SQL concatenation</td></tr>
+  <tr><td><strong>Tenant isolation</strong></td><td>Every data query scoped by tenant_id from JWT context + PostgreSQL RLS</td></tr>
+  <tr><td><strong>Rate limiting</strong></td><td>Login: 5 attempts/IP/minute. API: 100 requests/IP/minute. Returns HTTP 429.</td></tr>
+  <tr><td><strong>Security headers</strong></td><td>X-Content-Type-Options, X-Frame-Options: DENY, XSS-Protection, Referrer-Policy, Permissions-Policy</td></tr>
+  <tr><td><strong>Audit trail</strong></td><td>Every create/update/delete logged with actor, IP, trace ID, before/after state</td></tr>
+  <tr><td><strong>Authorization</strong></td><td>Method-level <code>@PreAuthorize</code> + tenant scoping on all endpoints</td></tr>
+  <tr><td><strong>Input validation</strong></td><td>Jakarta Bean Validation on all request DTOs — @Size, @Pattern, @Email, @NotBlank</td></tr>
+  <tr><td><strong>File upload validation</strong></td><td>Content-type whitelist, 50MB max, empty file rejection</td></tr>
+  <tr><td><strong>JWT token logging</strong></td><td>Expired, malformed, and invalid tokens logged at appropriate severity levels</td></tr>
+  <tr><td><strong>Internal path hiding</strong></td><td>Storage paths (@JsonIgnore on storagePath) never exposed to clients</td></tr>
+</table>
+
+<h3>Email Notification Service</h3>
+<p>MXSuite includes an async email service for:</p>
+<ul>
+  <li><strong>User invitations</strong> — Welcome email with accept link</li>
+  <li><strong>Password recovery</strong> — Reset link with 1-hour expiry</li>
+  <li><strong>Admin alerts</strong> — Critical system warnings (database issues, heap/memory problems, instance failures)</li>
+</ul>
+<p>Grafana alerting rules (Prometheus) can route critical alerts to the admin email endpoint for database, heap, connection pool, and instance-down events.</p>
+
+<!-- 8. PLAN ENGINE -->
+<h2 id="plan">8. Plan Engine — ELT Pipeline</h2>
+
+<h3>Plan Lifecycle</h3>
+<div class="diagram">
+  DRAFT ──→ PUBLISHED ──→ ARCHIVED
+    ↑           │
+    │           ├──→ Dry Run (validate, analyze, no side effects)
+    │           └──→ Full Run (execute transformation and load)
+    │
+    └── Edit field mappings, transformations, validation rules
+</div>
+
+<h3>Plan Definition (JSON)</h3>
+<p>Each plan stores its mapping definition as a JSONB column:</p>
+<div class="diagram">{
+  "sourceSchema": [
+    { "name": "member_name", "type": "string", "path": "member_name" },
+    { "name": "join_date", "type": "string", "path": "join_date" }
+  ],
+  "targetSchema": [
+    { "name": "fullName", "type": "string", "path": "contact.fullName" },
+    { "name": "memberSince", "type": "date", "path": "membership.startDate" }
+  ],
+  "mappings": [
+    {
+      "id": "m1",
+      "sourceField": "member_name",
+      "targetField": "fullName",
+      "transformation": "TRIM | TITLE_CASE"
+    },
+    {
+      "id": "m2",
+      "sourceField": "join_date",
+      "targetField": "memberSince",
+      "transformation": "DATE_PARSE('MM/dd/yyyy')"
+    }
+  ],
+  "validationRules": [
+    { "field": "fullName", "rule": "NOT_EMPTY", "message": "Name is required" },
+    { "field": "memberSince", "rule": "VALID_DATE", "message": "Invalid date format" }
+  ]
+}</div>
+
+<h3>Execution Flow</h3>
+<div class="diagram">
+  1. User submits Plan for execution (Dry Run or Full Run)
+  2. PlanRun record created with status QUEUED
+  3. Server picks up run, sets status to RUNNING
+  4. For each record in source data:
+     a. Apply field mappings
+     b. Execute transformation DSL
+     c. Validate against rules
+     d. On Dry Run: record result but don't commit
+     e. On Full Run: write to target database
+  5. Set status to COMPLETED or FAILED
+  6. Store result summary and errors as JSONB
+  7. Broadcast completion event via WebSocket
+</div>
+
+<!-- 9. FRONTEND -->
+<h2 id="frontend">9. Frontend Architecture — Micro-Frontends</h2>
+
+<div class="box">
+  <strong>Pattern:</strong> Module Federation via Vite (<code>@originjs/vite-plugin-federation</code>). The Shell app loads remote modules at runtime. Each module is independently buildable and deployable.
+</div>
+
+<h3>Module Map</h3>
+<table>
+  <tr><th>Module</th><th>Port</th><th>Repo</th><th>Responsibility</th></tr>
+  <tr><td><strong>Shell</strong> (Host)</td><td>3000</td><td>mxsuite-shell</td><td>Auth, layout, navigation, routing, WebSocket, Module Federation host</td></tr>
+  <tr><td><strong>Admin</strong></td><td>3001</td><td>mxsuite-admin</td><td>Tenant CRUD, user management, platform assignments, activity log</td></tr>
+  <tr><td><strong>Workspaces</strong></td><td>3002</td><td>mxsuite-workspaces</td><td>Workspace management, project CRUD, file uploads</td></tr>
+  <tr><td><strong>Planner</strong></td><td>3003</td><td>mxsuite-planner</td><td>Plan builder, visual field mapping UI, dry/full run execution, run history</td></tr>
+  <tr><td><strong>Chat</strong></td><td>3004</td><td>mxsuite-chat</td><td>1:1 messaging, group chat, AI assistant (RAG), platform support takeover</td></tr>
+  <tr><td><strong>Shared</strong></td><td>—</td><td>mxsuite-shared</td><td>NPM package: types, API client, hooks, theme, shared components</td></tr>
+</table>
+
+<h3>UI Framework</h3>
+<p><strong>Ant Design 5</strong> — enterprise-grade React component library. Professional dark-blue theme (#1e3a5f) with consistent styling across all modules.</p>
+
+<!-- 10. REAL-TIME -->
+<h2 id="realtime">10. Real-Time Communication</h2>
+
+<h3>Technology</h3>
+<ul>
+  <li><strong>Server:</strong> Spring WebSocket + STOMP protocol</li>
+  <li><strong>Broker:</strong> Redis Pub/Sub (scalable across K8s pods)</li>
+  <li><strong>Client:</strong> SockJS + STOMP.js</li>
+</ul>
+
+<h3>Channel Architecture</h3>
+<table>
+  <tr><th>Channel</th><th>Purpose</th></tr>
+  <tr><td><code>/topic/system</code></td><td>System-wide broadcasts (maintenance, announcements)</td></tr>
+  <tr><td><code>/topic/tenant/{id}/events</code></td><td>Tenant-scoped events (plan status changes, activity)</td></tr>
+  <tr><td><code>/topic/chat/{roomId}</code></td><td>Chat room messages</td></tr>
+  <tr><td><code>/user/queue/notifications</code></td><td>User-specific notifications</td></tr>
+</table>
+
+<!-- 11. AI -->
+<h2 id="ai">11. AI-Assisted Onboarding</h2>
+
+<div class="box warning">
+  <strong>Phase 2+:</strong> AI features will be integrated after the core platform is stable.
+</div>
+
+<h3>Planned AI Capabilities</h3>
+<ul>
+  <li><strong>Schema Inference:</strong> Auto-detect column types and structure from uploaded CSV/Excel files</li>
+  <li><strong>Auto-Mapping Suggestions:</strong> AI analyzes source field names and suggests target field mappings based on semantic similarity</li>
+  <li><strong>RAG Chatbot:</strong> Answer questions about the platform, data formats, and onboarding process using a knowledge base</li>
+  <li><strong>Agent Takeover:</strong> Platform support staff can seamlessly take over an AI chat session to assist customers directly</li>
+</ul>
+
+<!-- 12. OBSERVABILITY -->
+<h2 id="observability">12. Observability &amp; Audit</h2>
+
+<p>MXSuite includes a production-grade observability stack that provides a <strong>single pane of glass</strong> for monitoring all backend instances, even when horizontally scaled. Every metric, log, and trace is correlated by trace ID, allowing operators to jump from a Grafana dashboard alert directly to the relevant log lines and distributed trace.</p>
+
+<h3>Observability Architecture</h3>
+<div class="diagram">
+┌──────────────────────────────────────────────────────────────────────┐
+│                    MXSUITE OBSERVABILITY STACK                        │
+│                                                                       │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                  │
+│  │ mxsuite-api │  │ mxsuite-api │  │ mxsuite-api │  (N instances)   │
+│  │  instance 1  │  │  instance 2  │  │  instance N  │                │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘                │
+│         │  /actuator/prometheus       OTLP gRPC                      │
+│         ▼                              ▼                              │
+│  ┌─────────────┐              ┌─────────────────┐                    │
+│  │ Prometheus  │              │ OTEL Collector   │                    │
+│  │ (scrapes    │              │ (receives traces │                    │
+│  │  metrics)   │              │  logs, metrics)  │                    │
+│  └──────┬──────┘              └───┬───────┬──────┘                   │
+│         │                        │       │                            │
+│         │    ┌───────────────────┘       │                            │
+│         │    │                           │                            │
+│         ▼    ▼                           ▼                            │
+│  ┌────────────────┐            ┌─────────────────┐                   │
+│  │    Grafana     │◄───────────│   Tempo (traces) │                   │
+│  │  (dashboards,  │            └─────────────────┘                   │
+│  │   alerts,      │            ┌─────────────────┐                   │
+│  │   single pane  │◄───────────│   Loki (logs)    │                   │
+│  │   of glass)    │            └─────────────────┘                   │
+│  └────────────────┘                                                  │
+│                                                                       │
+│  Cross-linking: Trace ID → Logs → Metrics → Dashboards               │
+└──────────────────────────────────────────────────────────────────────┘
+</div>
+
+<h3>Metrics Pipeline</h3>
+<p>MXSuite uses <strong>Micrometer</strong> with the Prometheus registry to expose application metrics via the <code>/actuator/prometheus</code> endpoint. Prometheus scrapes all API instances every 10 seconds, providing a unified time-series database for Grafana.</p>
+
+<h4>Exposed Metric Categories</h4>
+<table>
+  <tr><th>Category</th><th>Examples</th><th>Purpose</th></tr>
+  <tr><td><strong>JVM</strong></td><td>Heap used/max, GC pause duration, GC collection count, threads live/peak/daemon, classes loaded</td><td>Monitor JVM health per instance</td></tr>
+  <tr><td><strong>HTTP</strong></td><td>Request rate, response time percentiles (P50/P75/P95/P99), error rate by status code</td><td>API performance and SLA tracking</td></tr>
+  <tr><td><strong>HikariCP</strong></td><td>Active/idle/pending connections, connection acquire time, pool utilization</td><td>Database connection pool health</td></tr>
+  <tr><td><strong>Tomcat</strong></td><td>Active threads, current/max connections, request processing time</td><td>Web server capacity planning</td></tr>
+  <tr><td><strong>System</strong></td><td>CPU usage, available processors, file descriptors, disk space</td><td>Host-level resource monitoring</td></tr>
+  <tr><td><strong>Custom Business</strong></td><td>Plan runs started/completed/failed, records processed, file uploads, WebSocket connections, audit events</td><td>Business KPI tracking</td></tr>
+</table>
+
+<h4>Custom Business Metrics (Micrometer)</h4>
+<table>
+  <tr><th>Metric</th><th>Type</th><th>Description</th></tr>
+  <tr><td><code>plan.runs.started</code></td><td>Counter</td><td>Total plan runs initiated</td></tr>
+  <tr><td><code>plan.runs.completed</code></td><td>Counter</td><td>Successfully completed runs</td></tr>
+  <tr><td><code>plan.runs.failed</code></td><td>Counter</td><td>Failed runs</td></tr>
+  <tr><td><code>plan.runs.duration</code></td><td>Timer</td><td>Execution duration (P50, P75, P95, P99)</td></tr>
+  <tr><td><code>plan.runs.active</code></td><td>Gauge</td><td>Currently executing runs</td></tr>
+  <tr><td><code>plan.records.processed</code></td><td>Counter</td><td>Total records processed across all runs</td></tr>
+  <tr><td><code>plan.records.failed</code></td><td>Counter</td><td>Records that failed validation/transformation</td></tr>
+  <tr><td><code>files.uploads</code></td><td>Counter</td><td>File uploads by type</td></tr>
+  <tr><td><code>websocket.connections.active</code></td><td>Gauge</td><td>Current WebSocket connections</td></tr>
+  <tr><td><code>audit.events</code></td><td>Counter</td><td>Audit events by action type</td></tr>
+</table>
+
+<h4>HTTP SLO Buckets</h4>
+<p>Response time histograms are configured with SLO buckets at <code>100ms, 250ms, 500ms, 1s, 2s, 5s</code> for meaningful percentile calculations and SLA reporting.</p>
+
+<h3>Logging Pipeline</h3>
+<p>Structured logging with automatic trace correlation ensures every log line can be linked back to a distributed trace.</p>
+
+<div class="diagram">
+Log Pattern (Console + File):
+%d{ISO8601} [%thread] %-5level %logger{36} traceId=%X{trace_id} spanId=%X{span_id} - %msg%n
+
+Profile-based routing:
+  local       → Console appender + Rolling file (100MB, 30-day retention, 3GB cap)
+  docker/k8s  → Console appender + OTEL appender (ships to Collector → Loki)
+</div>
+
+<h4>Log → Trace Correlation</h4>
+<p>Every log line includes the OpenTelemetry <code>trace_id</code> and <code>span_id</code>. Grafana's Loki datasource is configured with a <strong>derived field</strong> that turns trace IDs into clickable links to Tempo, enabling instant navigation from a log line to the full distributed trace.</p>
+
+<h3>Distributed Tracing</h3>
+<p>OpenTelemetry auto-instrumentation captures traces across HTTP requests, database calls, and Redis operations. Traces are exported via OTLP to the OTEL Collector, which forwards them to Tempo.</p>
+
+<h4>Trace → Metric Correlation</h4>
+<p>Tempo's metrics generator produces <strong>span metrics</strong> and <strong>service graphs</strong>, written back to Prometheus via remote write. This enables:</p>
+<ul>
+  <li><strong>Service Map:</strong> Visual graph of service dependencies with request rates and error percentages</li>
+  <li><strong>Span Metrics:</strong> Auto-generated latency histograms and throughput counters from trace data</li>
+  <li><strong>Exemplars:</strong> Direct links from Prometheus metric data points to individual traces</li>
+</ul>
+
+<h3>Pre-Built Grafana Dashboards</h3>
+<p>MXSuite ships with <strong>four auto-provisioned Grafana dashboards</strong>, loaded via file-based provisioning (no manual setup required):</p>
+
+<table>
+  <tr><th>Dashboard</th><th>Panels</th><th>Use Case</th></tr>
+  <tr>
+    <td><strong>JVM Metrics</strong></td>
+    <td>Heap/Non-Heap memory, Heap Usage % gauge, Live/Daemon/Peak threads, GC pause duration + rate, Classes loaded, CPU usage. Template variable for instance selection.</td>
+    <td>Deep-dive into individual JVM health. Select any instance from the dropdown.</td>
+  </tr>
+  <tr>
+    <td><strong>Spring Boot</strong></td>
+    <td>Request rate, Response time percentiles (P50/P75/P95/P99), Error rate, Requests by status code (pie chart), Top endpoints by latency, HikariCP pool, Tomcat threads, Active WebSocket connections, Uptime, Log event rate.</td>
+    <td>Overall application performance and resource utilization.</td>
+  </tr>
+  <tr>
+    <td><strong>Plan Execution</strong></td>
+    <td>Runs started/completed/failed (stat panels), Active runs gauge, Success rate gauge, Avg duration P95, Records processed rate, Runs over time, Records processed vs failed, File uploads, Audit events rate.</td>
+    <td>Business-level monitoring — are plans running successfully? How fast?</td>
+  </tr>
+  <tr>
+    <td><strong>Infrastructure</strong></td>
+    <td>API instances status (healthy count), Total request rate, Total error rate with thresholds, Per-instance CPU/Heap/Request rate/Threads, HikariCP pool all instances, Disk space gauge.</td>
+    <td>Horizontal scaling visibility — see all instances side-by-side in a single pane of glass.</td>
+  </tr>
+</table>
+
+<h3>Alerting Rules</h3>
+<p>Prometheus is configured with production-ready alert rules:</p>
+
+<table>
+  <tr><th>Alert</th><th>Condition</th><th>Severity</th></tr>
+  <tr><td><strong>HighErrorRate</strong></td><td>HTTP 5xx error rate &gt; 5% for 5 minutes</td><td><span class="tag orange">Warning</span></td></tr>
+  <tr><td><strong>HighApiLatency</strong></td><td>P95 response time &gt; 2 seconds for 10 minutes</td><td><span class="tag orange">Warning</span></td></tr>
+  <tr><td><strong>JvmHeapHigh</strong></td><td>Heap usage &gt; 85% for 10 minutes</td><td><span class="tag orange">Warning</span></td></tr>
+  <tr><td><strong>JvmHeapCritical</strong></td><td>Heap usage &gt; 95% for 5 minutes</td><td><span class="tag blue">Critical</span></td></tr>
+  <tr><td><strong>HikariPoolExhausted</strong></td><td>Active connections &gt; 90% of max for 5 minutes</td><td><span class="tag blue">Critical</span></td></tr>
+  <tr><td><strong>PlanRunFailed</strong></td><td>Any plan run failure in last 5 minutes</td><td><span class="tag orange">Warning</span></td></tr>
+  <tr><td><strong>InstanceDown</strong></td><td>API instance unreachable for 1 minute</td><td><span class="tag blue">Critical</span></td></tr>
+  <tr><td><strong>HighThreadCount</strong></td><td>Live threads &gt; 500 for 10 minutes</td><td><span class="tag orange">Warning</span></td></tr>
+</table>
+
+<h3>Horizontal Scaling — Single Pane of Glass</h3>
+<p>All observability components are designed for multi-instance awareness:</p>
+<ul>
+  <li><strong>Prometheus</strong> scrapes all API instances via Docker DNS or Kubernetes service discovery. Every metric includes an <code>instance</code> label.</li>
+  <li><strong>Infrastructure dashboard</strong> shows all instances side-by-side: CPU, heap, request rate, thread count, HikariCP pools per instance.</li>
+  <li><strong>Stat panels</strong> aggregate across instances using <code>sum()</code> and <code>count(up)</code> for total request rate, healthy instance count, and overall error rate.</li>
+  <li><strong>Loki</strong> aggregates logs from all instances with the <code>service_name</code> label, queryable by instance.</li>
+  <li><strong>Tempo</strong> captures distributed traces across instances, showing the full request path through load-balanced services.</li>
+  <li><strong>Redis Pub/Sub</strong> ensures WebSocket events reach all instances, so the WebSocket connection gauge reflects the true global count.</li>
+</ul>
+
+<div class="box success">
+  <strong>Kubernetes-Ready:</strong> The Prometheus scrape config includes a commented Kubernetes service discovery block. When deployed to K8s, simply enable the <code>kubernetes_sd_configs</code> section — Prometheus will automatically discover and scrape all pods with the <code>mxsuite-api</code> label.
+</div>
+
+<h3>Audit Trail</h3>
+<ul>
+  <li>Append-only <code>audit_events</code> table — never modified or deleted</li>
+  <li>Captures: actor, action, entity, before/after state (JSONB), trace ID, IP address</li>
+  <li>Distinguishes platform actions (GrowthZone staff) vs. tenant actions (customer)</li>
+  <li>Queryable by tenant, entity, actor, date range, platform-only filter</li>
+  <li>Trace ID in audit events links each audit record back to the full distributed trace in Tempo</li>
+  <li>Custom <code>audit.events</code> Micrometer counter tracks audit event rates on the Plan Execution dashboard</li>
+</ul>
+
+<!-- 13. DEPLOYMENT -->
+<h2 id="deploy">13. Deployment &amp; Infrastructure</h2>
+
+<div class="box">
+  <strong>Companion Documents:</strong>
+  <ul style="margin-top: 8px; margin-bottom: 0;">
+    <li><strong>Deployment &amp; Operations Guide</strong> — Detailed deployment instructions, environment variables, backup/recovery, SSL, monitoring</li>
+    <li><strong>User Guide</strong> — End-user documentation for non-technical users</li>
+    <li><strong>OpenAPI Specification</strong> — Complete API reference (also available at <code>/swagger-ui/index.html</code> for platform users)</li>
+  </ul>
+</div>
+
+<h3>Delivery Model</h3>
+<p>MXSuite is delivered as a set of Docker containers with a <strong>mounted <code>.env</code> file</strong> as the single source of configuration. All data persists outside the containers via bind-mounted host directories.</p>
+
+<h3>Data Persistence</h3>
+<table>
+  <tr><th>Data</th><th>Container Path</th><th>Host Mount (.env variable)</th></tr>
+  <tr><td>PostgreSQL database</td><td><code>/var/lib/postgresql/data</code></td><td><code>POSTGRES_DATA_PATH</code></td></tr>
+  <tr><td>Redis (AOF)</td><td><code>/data</code></td><td><code>REDIS_DATA_PATH</code></td></tr>
+  <tr><td>Uploaded files</td><td><code>/data/files</code></td><td><code>FILE_STORAGE_PATH</code></td></tr>
+</table>
+
+<h3>Bootstrap Sequence</h3>
+<p>On first startup, MXSuite automatically initializes itself:</p>
+<ol>
+  <li><strong>Flyway</strong> runs all migrations (V1 schema → V2 dev seed → V3 invitations/reset) and creates the database schema</li>
+  <li><strong>DataInitializer</strong> checks if a PLATFORM_ADMIN user exists. If not, creates one from <code>MXSUITE_ADMIN_EMAIL</code> and <code>MXSUITE_ADMIN_PASSWORD</code> in the <code>.env</code> file</li>
+  <li>The system is immediately usable — log in as the platform admin and start creating tenants</li>
+</ol>
+
+<h3>Container Strategy</h3>
+<div class="diagram">
+  Docker Compose (development)
+  ├── postgres:16-alpine          (primary database — persistent volume)
+  ├── redis:7-alpine              (pub/sub, cache — AOF persistence)
+  ├── keycloak:25                 (optional profile — production auth)
+  ├── otel-collector:0.108        (receives OTLP traces, logs, metrics)
+  ├── prometheus:2.53             (scrapes /actuator/prometheus, alerting)
+  ├── grafana:11.2                (4 pre-provisioned dashboards)
+  ├── loki:3.1                    (log aggregation with trace correlation)
+  ├── tempo:2.5                   (distributed trace storage)
+  ├── mxsuite-api                 (Spring Boot — can run multiple instances)
+  └── mxsuite-api-2               (commented — uncomment for horizontal scaling test)
+
+  Kubernetes (production)
+  ├── Deployments: api (HPA), shell, admin, workspaces, planner, chat
+  ├── StatefulSets: postgres, redis
+  ├── DaemonSets: otel-collector (per-node)
+  ├── Ingress: nginx controller with path-based routing
+  ├── ConfigMaps / Secrets for environment configuration
+  ├── HPA for auto-scaling API pods
+  ├── Prometheus (kube-prometheus-stack or standalone)
+  └── Grafana + Loki + Tempo (observability namespace)
+</div>
+
+<h3>Environment Configuration</h3>
+<ul>
+  <li><strong>Development:</strong> <code>.env</code> file (Docker Compose native support)</li>
+  <li><strong>Production:</strong> Kubernetes Secrets / Vault / AWS Secrets Manager</li>
+  <li>Application reads environment variables with sensible defaults</li>
+  <li><code>.env.example</code> provided as template — <code>.env</code> is gitignored</li>
+</ul>
+
+<!-- 14. REPOS -->
+<h2 id="repos">14. Repository Structure</h2>
+
+<table>
+  <tr><th>Repository</th><th>Tech</th><th>Description</th></tr>
+  <tr><td><code>mxsuite-api</code></td><td>Java 21, Spring Boot 3.3</td><td>Backend REST API, WebSocket, Plan engine</td></tr>
+  <tr><td><code>mxsuite-shell</code></td><td>React 18, Vite, Ant Design</td><td>Host app — auth, layout, Module Federation host</td></tr>
+  <tr><td><code>mxsuite-shared</code></td><td>React, TypeScript</td><td>Shared library — types, API client, hooks, theme</td></tr>
+  <tr><td><code>mxsuite-admin</code></td><td>React 18, Vite</td><td>Admin module — tenants, users, invitations, activity log</td></tr>
+  <tr><td><code>mxsuite-workspaces</code></td><td>React 18, Vite</td><td>Workspaces module — projects, file uploads</td></tr>
+  <tr><td><code>mxsuite-planner</code></td><td>React 18, Vite</td><td>Planner module — plan builder, mapping UI, runs</td></tr>
+  <tr><td><code>mxsuite-chat</code></td><td>React 18, Vite</td><td>Chat module — messaging, AI assistant</td></tr>
+</table>
+
+<!-- 15. TECH STACK -->
+<h2 id="stack">15. Technology Stack</h2>
+
+<h3>Backend</h3>
+<table>
+  <tr><th>Technology</th><th>Version</th><th>Purpose</th></tr>
+  <tr><td>Java</td><td>21 (LTS)</td><td>Language — virtual threads for high concurrency</td></tr>
+  <tr><td>Spring Boot</td><td>3.3</td><td>Framework — web, security, data, WebSocket</td></tr>
+  <tr><td>PostgreSQL</td><td>16</td><td>Primary database — JSONB, RLS, full-text search</td></tr>
+  <tr><td>Redis</td><td>7</td><td>Pub/Sub, caching, session store</td></tr>
+  <tr><td>Flyway</td><td>Latest</td><td>Database migrations</td></tr>
+  <tr><td>Keycloak</td><td>25</td><td>Identity provider (production)</td></tr>
+  <tr><td>Spring Mail</td><td>3.3</td><td>Email service — invitations, password recovery, admin alerts</td></tr>
+  <tr><td>Springdoc OpenAPI</td><td>2.6</td><td>Swagger UI — API documentation (platform users only)</td></tr>
+  <tr><td>Apache POI</td><td>5.3</td><td>Excel/CSV file processing</td></tr>
+</table>
+
+<h3>Frontend</h3>
+<table>
+  <tr><th>Technology</th><th>Version</th><th>Purpose</th></tr>
+  <tr><td>React</td><td>18</td><td>UI framework</td></tr>
+  <tr><td>TypeScript</td><td>5.5</td><td>Type safety</td></tr>
+  <tr><td>Vite</td><td>5.4</td><td>Build tool</td></tr>
+  <tr><td>Ant Design</td><td>5</td><td>Component library</td></tr>
+  <tr><td>Module Federation</td><td>—</td><td>Micro-frontend runtime loading</td></tr>
+  <tr><td>STOMP.js + SockJS</td><td>—</td><td>WebSocket client</td></tr>
+</table>
+
+<h3>Observability</h3>
+<table>
+  <tr><th>Technology</th><th>Version</th><th>Purpose</th></tr>
+  <tr><td>OpenTelemetry</td><td>—</td><td>Distributed tracing SDK + OTLP exporter + log correlation</td></tr>
+  <tr><td>Micrometer</td><td>—</td><td>Application metrics abstraction (Prometheus registry + custom business metrics)</td></tr>
+  <tr><td>Prometheus</td><td>2.53</td><td>Time-series database — scrapes metrics from all API instances, alerting rules</td></tr>
+  <tr><td>Grafana</td><td>11.2</td><td>Single pane of glass — 4 auto-provisioned dashboards, cross-linked datasources</td></tr>
+  <tr><td>Loki</td><td>3.1</td><td>Log aggregation with trace ID derived fields for Tempo correlation</td></tr>
+  <tr><td>Tempo</td><td>2.5</td><td>Distributed trace storage — span metrics, service graphs, exemplars</td></tr>
+  <tr><td>OTEL Collector</td><td>0.108</td><td>Telemetry pipeline — receives OTLP, routes to Tempo/Loki/Prometheus</td></tr>
+</table>
+
+<!-- 16. ROADMAP -->
+<h2 id="roadmap">16. Phased Delivery Roadmap</h2>
+
+<table>
+  <tr><th>Phase</th><th>Scope</th><th>Deliverables</th></tr>
+  <tr>
+    <td><span class="tag green">Phase 1</span><br>Foundation</td>
+    <td>Core platform infrastructure</td>
+    <td>
+      • <strong>✓ Done:</strong> Multi-tenant backend with JWT auth<br>
+      • <strong>✓ Done:</strong> Entity hierarchy (Tenant → Workspace → Project → Plan → PlanRun → Asset)<br>
+      • <strong>✓ Done:</strong> CRUD APIs for all entities with full input validation<br>
+      • <strong>✓ Done:</strong> Permission model (owner + access list + tenant scoping)<br>
+      • <strong>✓ Done:</strong> Audit event logging with IP capture<br>
+      • <strong>✓ Done:</strong> Security hardening — 53 issues resolved (see Section 7)<br>
+      • <strong>✓ Done:</strong> Rate limiting (login + API)<br>
+      • <strong>✓ Done:</strong> Global exception handler — no stack trace leakage<br>
+      • <strong>✓ Done:</strong> User invitation system with email workflow<br>
+      • <strong>✓ Done:</strong> Password recovery with anti-enumeration<br>
+      • <strong>✓ Done:</strong> Email notification service (async)<br>
+      • <strong>✓ Done:</strong> File upload with path traversal prevention + content-type whitelist<br>
+      • <strong>✓ Done:</strong> Plan state machine (DRAFT → PUBLISHED → ARCHIVED)<br>
+      • <strong>✓ Done:</strong> OIDC/SSO readiness (spring-boot-starter-oauth2-resource-server)<br>
+      • <strong>✓ Done:</strong> React shell with Ant Design scaffolded<br>
+      • <strong>✓ Done:</strong> All 7 repos scaffolded and compiling<br>
+      • <strong>✓ Done:</strong> Docker Compose for local dev<br>
+      • Remaining: Admin UI screens (tenant CRUD, user management, invitation management)<br>
+      • Remaining: OpenAPI viewer (PLATFORM users only)
+    </td>
+  </tr>
+  <tr>
+    <td><span class="tag orange">Phase 2</span><br>Core Product</td>
+    <td>Plan builder and execution</td>
+    <td>
+      • File upload and schema discovery<br>
+      • Visual mapping UI (source → target)<br>
+      • Plan definition JSON schema + DSL<br>
+      • Plan execution engine (dry run / full run)<br>
+      • Run history with analysis<br>
+      • Workspaces and projects UI
+    </td>
+  </tr>
+  <tr>
+    <td><span class="tag blue">Phase 3</span><br>Real-Time &amp; AI</td>
+    <td>Communication and intelligence</td>
+    <td>
+      • WebSocket event infrastructure<br>
+      • Chat system (1:1, group)<br>
+      • AI chatbot with RAG<br>
+      • Agent takeover (support joins chat)<br>
+      • Auto-mapping suggestions
+    </td>
+  </tr>
+  <tr>
+    <td><span class="tag blue">Phase 4</span><br>Observability</td>
+    <td>Monitoring and operations</td>
+    <td>
+      • <strong>✓ Done:</strong> OpenTelemetry tracing + log correlation<br>
+      • <strong>✓ Done:</strong> Prometheus metrics pipeline (JVM, HTTP, HikariCP, Tomcat, custom business metrics)<br>
+      • <strong>✓ Done:</strong> 4 Grafana dashboards (JVM, Spring Boot, Plan Execution, Infrastructure)<br>
+      • <strong>✓ Done:</strong> 8 alerting rules (error rate, latency, heap, pool, instance down)<br>
+      • <strong>✓ Done:</strong> Loki log aggregation + Tempo distributed tracing<br>
+      • <strong>✓ Done:</strong> Horizontal scaling — single pane of glass<br>
+      • Remaining: Alertmanager notifications (Slack/email), production K8s manifests
+    </td>
+  </tr>
+</table>
+
+<div class="box" style="margin-top: 40px;">
+  <strong>Current Status &amp; Next Steps:</strong>
+  <ol style="margin-top: 8px;">
+    <li><strong>✓ Complete:</strong> Phase 1 backend — all APIs, security hardening, invitations, password recovery, email service, observability</li>
+    <li><strong>In Progress:</strong> Admin UI screens — tenant CRUD, user management, invitation management</li>
+    <li><strong>In Progress:</strong> OpenAPI viewer (restricted to PLATFORM users)</li>
+    <li><strong>Pending:</strong> Obtain GrowthZone's canonical data model / API documentation</li>
+    <li><strong>Pending:</strong> Obtain a sample of the Excel spreadsheet currently used</li>
+    <li><strong>Pending:</strong> Confirm authentication strategy (local vs. Keycloak/Okta/WSO2)</li>
+    <li><strong>Pending:</strong> Phase 2 — Plan builder UI, visual field mapping, execution engine</li>
+  </ol>
+</div>
+
+<hr style="margin: 60px 0 20px; border: none; border-top: 2px solid #1e3a5f;">
+<p style="text-align: center; color: #999; font-size: 13px;">
+  MXSuite Platform — Architecture Document v0.3.0<br>
+  Authored by Joseph M. Vogel — Independent Contractor<br>
+  Confidential — Prepared for GrowthZone MemberSuite — July 2026
+</p>
+
+</div>
+</body>
+</html>

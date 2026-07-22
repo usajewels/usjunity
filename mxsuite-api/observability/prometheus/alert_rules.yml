@@ -1,0 +1,81 @@
+groups:
+  - name: mxsuite-api-alerts
+    rules:
+      # High error rate
+      - alert: HighErrorRate
+        expr: rate(http_server_requests_seconds_count{status=~"5.."}[5m]) / rate(http_server_requests_seconds_count[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High API error rate (> 5%)"
+          description: "Error rate is {{ $value | humanizePercentage }} on {{ $labels.instance }}"
+
+      # High API latency
+      - alert: HighApiLatency
+        expr: histogram_quantile(0.95, rate(http_server_requests_seconds_bucket[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "API P95 latency > 2 seconds"
+          description: "P95 latency is {{ $value }}s on {{ $labels.instance }}"
+
+      # JVM heap high
+      - alert: JvmHeapHigh
+        expr: jvm_memory_used_bytes{area="heap"} / jvm_memory_max_bytes{area="heap"} > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "JVM heap usage > 85%"
+          description: "Heap usage is {{ $value | humanizePercentage }} on {{ $labels.instance }}"
+
+      # JVM heap critical
+      - alert: JvmHeapCritical
+        expr: jvm_memory_used_bytes{area="heap"} / jvm_memory_max_bytes{area="heap"} > 0.95
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "JVM heap usage > 95% — OOM risk"
+          description: "Heap usage is {{ $value | humanizePercentage }} on {{ $labels.instance }}"
+
+      # DB connection pool exhaustion
+      - alert: HikariPoolExhausted
+        expr: hikaricp_connections_active / hikaricp_connections_max > 0.9
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Hikari connection pool > 90% utilized"
+          description: "{{ $value | humanizePercentage }} of connections in use"
+
+      # Plan run failed
+      - alert: PlanRunFailed
+        expr: increase(mxsuite_plan_runs_failed_total[5m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "Plan run failed"
+          description: "{{ $value }} plan run(s) failed in the last 5 minutes"
+
+      # Instance down
+      - alert: InstanceDown
+        expr: up{job="mxsuite-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "MXSuite API instance is down"
+          description: "{{ $labels.instance }} has been down for over 1 minute"
+
+      # Too many active threads
+      - alert: HighThreadCount
+        expr: jvm_threads_live_threads > 500
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High JVM thread count (> 500)"
+          description: "{{ $value }} live threads on {{ $labels.instance }}"

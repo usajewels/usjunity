@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MXSuite Platform — Deployment &amp; Operations Guide</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; color: #1a1a2e; line-height: 1.7; background: #fff; }
+        .cover { background: linear-gradient(135deg, #0a1628 0%, #1e3a5f 50%, #2d5a8e 100%); color: #fff; padding: 120px 60px; text-align: center; page-break-after: always; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; }
+        .cover h1 { font-size: 48px; font-weight: 700; margin-bottom: 12px; letter-spacing: -1px; }
+        .cover .subtitle { font-size: 22px; font-weight: 300; opacity: 0.9; margin-bottom: 40px; }
+        .cover .meta { font-size: 14px; opacity: 0.7; }
+        .cover .version { display: inline-block; background: rgba(255,255,255,0.15); padding: 6px 20px; border-radius: 20px; font-size: 13px; margin-top: 20px; }
+        .container { max-width: 900px; margin: 0 auto; padding: 60px 40px; }
+        h2 { font-size: 28px; font-weight: 700; color: #1e3a5f; margin-top: 60px; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 3px solid #1e3a5f; }
+        h3 { font-size: 20px; font-weight: 600; color: #2d5a8e; margin-top: 36px; margin-bottom: 12px; }
+        h4 { font-size: 16px; font-weight: 600; margin-top: 24px; margin-bottom: 8px; }
+        p { margin-bottom: 14px; }
+        ul, ol { margin-left: 24px; margin-bottom: 16px; }
+        li { margin-bottom: 6px; }
+        table { width: 100%; border-collapse: collapse; margin: 16px 0 24px; }
+        th { background: #1e3a5f; color: #fff; padding: 10px 14px; text-align: left; font-weight: 600; font-size: 13px; }
+        td { padding: 10px 14px; border-bottom: 1px solid #e8e8e8; font-size: 14px; }
+        tr:nth-child(even) { background: #f8f9fa; }
+        .box { background: #f0f5ff; border-left: 4px solid #1e3a5f; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0; }
+        .box.warning { background: #fff7e6; border-color: #faad14; }
+        .box.success { background: #f6ffed; border-color: #52c41a; }
+        .diagram { background: #f8f9fa; border: 1px solid #e8e8e8; border-radius: 8px; padding: 24px; margin: 24px 0; font-family: 'Courier New', monospace; font-size: 13px; line-height: 1.5; white-space: pre; overflow-x: auto; }
+        .tag { display: inline-block; padding: 2px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; margin-right: 6px; }
+        .tag.blue { background: #e6f0ff; color: #1e3a5f; }
+        .tag.green { background: #f6ffed; color: #389e0d; }
+        .tag.orange { background: #fff7e6; color: #d48806; }
+        .toc { background: #fafafa; padding: 30px; border-radius: 8px; margin: 30px 0; }
+        .toc a { color: #1e3a5f; text-decoration: none; display: block; padding: 4px 0; }
+        .toc a:hover { text-decoration: underline; }
+        @media print { .cover { page-break-after: always; } h2 { page-break-before: always; } .diagram { font-size: 11px; } }
+    </style>
+</head>
+<body>
+
+<!-- ============================================================ -->
+<!-- COVER PAGE                                                    -->
+<!-- ============================================================ -->
+<div class="cover">
+    <h1>MXSuite Platform</h1>
+    <div class="subtitle">Deployment &amp; Operations Guide</div>
+    <div class="meta">
+        Joseph M. Vogel<br>
+        Independent Contractor &mdash; Platform Architect<br><br>
+        July 2026
+    </div>
+    <div class="version">Version 1.0.0</div>
+</div>
+
+<!-- ============================================================ -->
+<!-- DOCUMENT BODY                                                 -->
+<!-- ============================================================ -->
+<div class="container">
+
+    <!-- TABLE OF CONTENTS -->
+    <h2 style="margin-top:0;">Table of Contents</h2>
+    <div class="toc">
+        <a href="#prerequisites"><strong>1.</strong> Prerequisites</a>
+        <a href="#quick-start"><strong>2.</strong> Quick Start (Development)</a>
+        <a href="#production-deployment"><strong>3.</strong> Production Deployment</a>
+        <a href="#env-reference"><strong>4.</strong> Environment Variables Reference</a>
+        <a href="#database-management"><strong>5.</strong> Database Management</a>
+        <a href="#bootstrap"><strong>6.</strong> Bootstrap &amp; First Login</a>
+        <a href="#ssl-tls"><strong>7.</strong> SSL/TLS &amp; Reverse Proxy</a>
+        <a href="#horizontal-scaling"><strong>8.</strong> Horizontal Scaling</a>
+        <a href="#monitoring"><strong>9.</strong> Monitoring &amp; Alerting</a>
+        <a href="#backup-recovery"><strong>10.</strong> Backup &amp; Recovery</a>
+        <a href="#troubleshooting"><strong>11.</strong> Troubleshooting</a>
+        <a href="#security-checklist"><strong>12.</strong> Security Checklist for Production</a>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- 1. PREREQUISITES                                              -->
+    <!-- ============================================================ -->
+    <h2 id="prerequisites">1. Prerequisites</h2>
+
+    <h3>Hardware Requirements</h3>
+    <table>
+        <tr><th>Resource</th><th>Development</th><th>Production (minimum)</th><th>Production (recommended)</th></tr>
+        <tr><td>CPU</td><td>2 cores</td><td>4 cores</td><td>8+ cores</td></tr>
+        <tr><td>RAM</td><td>4 GB</td><td>8 GB</td><td>16+ GB</td></tr>
+        <tr><td>Disk</td><td>20 GB SSD</td><td>100 GB SSD</td><td>500+ GB NVMe SSD</td></tr>
+        <tr><td>Network</td><td>Any</td><td>100 Mbps</td><td>1 Gbps</td></tr>
+    </table>
+    <p>Production disk sizing depends heavily on file-storage usage (member documents, logos, etc.). Plan for growth and monitor the <code>FILE_STORAGE_PATH</code> volume.</p>
+
+    <h3>Software Requirements</h3>
+    <table>
+        <tr><th>Software</th><th>Version</th><th>Notes</th></tr>
+        <tr><td>Docker Engine</td><td>24.0+</td><td>Required for all environments</td></tr>
+        <tr><td>Docker Compose</td><td>2.20+</td><td>V2 plugin (<code>docker compose</code>, not <code>docker-compose</code>)</td></tr>
+        <tr><td>Java (JDK)</td><td>21 (Temurin)</td><td>Development only &mdash; not needed in production</td></tr>
+        <tr><td>Git</td><td>2.40+</td><td>Development only</td></tr>
+        <tr><td>Operating System</td><td>Linux (Ubuntu 22.04+ / RHEL 9+)</td><td>Production; macOS / Windows for dev</td></tr>
+    </table>
+
+    <div class="box">
+        <strong>Note:</strong> In production, the entire platform runs inside Docker containers. Java is only required on the host if you are building the project from source during development.
+    </div>
+
+    <h3>Network &amp; Ports</h3>
+    <p>The following ports must be available on the host. In production, only port 443 (nginx) should be exposed to the public internet; all other ports remain internal.</p>
+    <table>
+        <tr><th>Port</th><th>Service</th><th>Expose Publicly?</th></tr>
+        <tr><td>8080</td><td>MXSuite API (Spring Boot)</td><td>No &mdash; behind reverse proxy</td></tr>
+        <tr><td>5432</td><td>PostgreSQL</td><td>No</td></tr>
+        <tr><td>6379</td><td>Redis</td><td>No</td></tr>
+        <tr><td>3000</td><td>MXSuite Shell (React front-end)</td><td>No &mdash; behind reverse proxy</td></tr>
+        <tr><td>3001</td><td>MXSuite Admin (React admin panel)</td><td>No &mdash; behind reverse proxy</td></tr>
+        <tr><td>3002&ndash;3004</td><td>Reserved micro-frontends</td><td>No</td></tr>
+        <tr><td>9090</td><td>Prometheus</td><td>No</td></tr>
+        <tr><td>3100</td><td>Grafana</td><td>No (or restricted VPN)</td></tr>
+        <tr><td>3200</td><td>Loki (log aggregation)</td><td>No</td></tr>
+    </table>
+
+
+    <!-- ============================================================ -->
+    <!-- 2. QUICK START (DEVELOPMENT)                                  -->
+    <!-- ============================================================ -->
+    <h2 id="quick-start">2. Quick Start (Development)</h2>
+
+    <p>Get a fully functional local environment running in under five minutes.</p>
+
+    <h3>Step 1 &mdash; Clone the Repository</h3>
+    <div class="diagram">git clone https://github.com/your-org/mxsuite-api.git
+cd mxsuite-api</div>
+
+    <h3>Step 2 &mdash; Create Your Local Environment File</h3>
+    <div class="diagram">cp .env.example .env</div>
+    <p>Open <code>.env</code> and review the defaults. For local development the defaults are sufficient, but you may want to set <code>MXSUITE_ADMIN_EMAIL</code> and <code>MXSUITE_ADMIN_PASSWORD</code> to your preferred credentials.</p>
+
+    <h3>Step 3 &mdash; Start All Services</h3>
+    <div class="diagram">docker compose up -d</div>
+    <p>This single command starts PostgreSQL, Redis, the MXSuite API, the Shell front-end, the Admin panel, Prometheus, and Grafana. On first startup:</p>
+    <ol>
+        <li><strong>Flyway</strong> runs all migration scripts and auto-creates the database schema.</li>
+        <li><strong>DataInitializer</strong> detects an empty database, creates the <em>platform</em> tenant, and provisions the platform admin user using the credentials from <code>.env</code>.</li>
+        <li>Prometheus begins scraping metrics from <code>/actuator/prometheus</code>.</li>
+        <li>Grafana provisions its four pre-built dashboards automatically.</li>
+    </ol>
+
+    <h3>Step 4 &mdash; Verify</h3>
+    <table>
+        <tr><th>Service</th><th>URL</th><th>Notes</th></tr>
+        <tr><td>MXSuite API</td><td><code>http://localhost:8080</code></td><td>REST + WebSocket</td></tr>
+        <tr><td>Shell (Member Portal)</td><td><code>http://localhost:3000</code></td><td>React SPA</td></tr>
+        <tr><td>Admin Panel</td><td><code>http://localhost:3001</code></td><td>React SPA</td></tr>
+        <tr><td>Grafana</td><td><code>http://localhost:3100</code></td><td>Default login: admin / admin</td></tr>
+        <tr><td>Prometheus</td><td><code>http://localhost:9090</code></td><td>Metrics query UI</td></tr>
+        <tr><td>Health Check</td><td><code>http://localhost:8080/actuator/health</code></td><td>Should return <code>{"status":"UP"}</code></td></tr>
+    </table>
+
+    <div class="box success">
+        <strong>Success:</strong> If <code>/actuator/health</code> returns <code>{"status":"UP"}</code> and you can log in to the Shell at port 3000 with your admin credentials, your development environment is fully operational.
+    </div>
+
+
+    <!-- ============================================================ -->
+    <!-- 3. PRODUCTION DEPLOYMENT                                      -->
+    <!-- ============================================================ -->
+    <h2 id="production-deployment">3. Production Deployment</h2>
+
+    <h3>Deployment Model</h3>
+    <p>MXSuite is delivered as a set of Docker images. The customer (or ops team) receives pre-built container images and a <code>docker-compose.yml</code> file. The <strong>.env file is the single source of all configuration</strong> &mdash; it is mounted into the containers at runtime via a Docker Compose volume. No application code needs to be modified for production.</p>
+
+    <div class="diagram">Production Host
+├── /opt/mxsuite/
+│   ├── docker-compose.yml        &lt;-- delivered with release
+│   ├── .env                      &lt;-- customer-specific config
+│   ├── prometheus/
+│   │   └── prometheus.yml        &lt;-- delivered with release
+│   └── grafana/
+│       └── provisioning/         &lt;-- delivered with release
+│
+├── /data/mxsuite/postgres/       &lt;-- POSTGRES_DATA_PATH (bind mount)
+├── /data/mxsuite/redis/          &lt;-- REDIS_DATA_PATH (bind mount)
+└── /data/mxsuite/files/          &lt;-- FILE_STORAGE_PATH (bind mount)</div>
+
+    <h3>The .env File &mdash; Single Source of Configuration</h3>
+    <p>Every runtime setting &mdash; database credentials, JWT secrets, SMTP configuration, storage paths, and feature flags &mdash; lives in a single <code>.env</code> file. This file is <strong>never baked into the Docker image</strong>. Instead, it is mounted at deploy time, making the same image deployable across staging, UAT, and production with zero rebuilds.</p>
+
+    <div class="box warning">
+        <strong>Warning:</strong> The <code>.env</code> file contains secrets (database passwords, JWT signing keys, SMTP credentials). Protect it with strict file permissions: <code>chmod 600 .env</code> and <code>chown root:root .env</code>.
+    </div>
+
+    <h3>Example Production .env</h3>
+    <div class="diagram"># ── Database ──────────────────────────────────────────────
+POSTGRES_HOST=mxsuite-db
+POSTGRES_PORT=5432
+POSTGRES_DB=mxsuite
+POSTGRES_USER=mxsuite_prod
+POSTGRES_PASSWORD=&lt;STRONG-RANDOM-PASSWORD-HERE&gt;
+
+# ── Redis ─────────────────────────────────────────────────
+REDIS_HOST=mxsuite-redis
+REDIS_PORT=6379
+
+# ── Auth / JWT ────────────────────────────────────────────
+JWT_SECRET=&lt;BASE64-ENCODED-256-BIT-SECRET&gt;
+JWT_EXPIRATION_MS=3600000
+JWT_REFRESH_EXPIRATION_MS=86400000
+
+# ── Bootstrap Admin ───────────────────────────────────────
+MXSUITE_ADMIN_EMAIL=admin@customer.org
+MXSUITE_ADMIN_PASSWORD=&lt;INITIAL-ADMIN-PASSWORD&gt;
+
+# ── Email / SMTP ──────────────────────────────────────────
+SMTP_HOST=smtp.customer.org
+SMTP_PORT=587
+SMTP_USERNAME=mxsuite@customer.org
+SMTP_PASSWORD=&lt;SMTP-PASSWORD&gt;
+SMTP_FROM=noreply@customer.org
+SMTP_STARTTLS=true
+
+# ── Storage ───────────────────────────────────────────────
+FILE_STORAGE_PATH=/data/files
+
+# ── Docker Volume Bind Mounts (host paths) ────────────────
+POSTGRES_DATA_PATH=/data/mxsuite/postgres
+REDIS_DATA_PATH=/data/mxsuite/redis
+FILE_STORAGE_HOST_PATH=/data/mxsuite/files
+
+# ── Observability ─────────────────────────────────────────
+GRAFANA_ADMIN_PASSWORD=&lt;GRAFANA-PASSWORD&gt;
+PROMETHEUS_RETENTION=30d
+
+# ── Application ───────────────────────────────────────────
+SPRING_PROFILES_ACTIVE=prod
+CORS_ALLOWED_ORIGINS=https://app.customer.org,https://admin.customer.org
+SERVER_PORT=8080</div>
+
+    <h3>Starting the Platform</h3>
+    <div class="diagram"># Create data directories
+sudo mkdir -p /data/mxsuite/{postgres,redis,files}
+sudo chown -R 1000:1000 /data/mxsuite
+
+# Start all services
+docker compose --env-file /opt/mxsuite/.env up -d</div>
+
+    <p>The <code>--env-file</code> flag tells Docker Compose to read all variables from the specified file and inject them into the container environment and into variable interpolation within <code>docker-compose.yml</code>.</p>
+
+    <h3>Named Volumes vs. Bind Mounts</h3>
+    <table>
+        <tr><th>Strategy</th><th>Used In</th><th>How It Works</th><th>Pros / Cons</th></tr>
+        <tr>
+            <td><span class="tag blue">Named Volumes</span></td>
+            <td>Development</td>
+            <td>Docker manages volumes internally (e.g., <code>mxsuite_pgdata</code>)</td>
+            <td>Simple setup; data lives inside Docker's storage directory; harder to back up directly</td>
+        </tr>
+        <tr>
+            <td><span class="tag green">Bind Mounts</span></td>
+            <td>Production</td>
+            <td>Containers mount host directories (e.g., <code>/data/mxsuite/postgres</code>)</td>
+            <td>Full control over storage location; easy to back up with standard tools; requires host directory setup</td>
+        </tr>
+    </table>
+
+    <p>In the production <code>docker-compose.yml</code>, bind mounts are configured using the <code>POSTGRES_DATA_PATH</code>, <code>REDIS_DATA_PATH</code>, and <code>FILE_STORAGE_HOST_PATH</code> variables from <code>.env</code>:</p>
+    <div class="diagram">services:
+  mxsuite-db:
+    image: postgres:16-alpine
+    volumes:
+      - ${POSTGRES_DATA_PATH}:/var/lib/postgresql/data
+
+  mxsuite-redis:
+    image: redis:7-alpine
+    volumes:
+      - ${REDIS_DATA_PATH}:/data
+
+  mxsuite-api:
+    image: mxsuite/api:latest
+    volumes:
+      - ${FILE_STORAGE_HOST_PATH}:/data/files</div>
+
+
+    <!-- ============================================================ -->
+    <!-- 4. ENVIRONMENT VARIABLES REFERENCE                            -->
+    <!-- ============================================================ -->
+    <h2 id="env-reference">4. Environment Variables Reference</h2>
+
+    <p>Complete reference of every environment variable recognized by the MXSuite platform. Variables marked <span class="tag orange">Required</span> must be set before first startup; variables with defaults can be omitted in development.</p>
+
+    <h3>Database</h3>
+    <table>
+        <tr><th>Variable</th><th>Default</th><th>Description</th><th>Required</th></tr>
+        <tr><td><code>POSTGRES_HOST</code></td><td><code>mxsuite-db</code></td><td>PostgreSQL hostname (Docker service name)</td><td>No</td></tr>
+        <tr><td><code>POSTGRES_PORT</code></td><td><code>5432</code></td><td>PostgreSQL port</td><td>No</td></tr>
+        <tr><td><code>POSTGRES_DB</code></td><td><code>mxsuite</code></td><td>Database name</td><td>No</td></tr>
+        <tr><td><code>POSTGRES_USER</code></td><td><code>mxsuite</code></td><td>Database user</td><td>No</td></tr>
+        <tr><td><code>POSTGRES_PASSWORD</code></td><td><code>mxsuite_dev</code></td><td>Database password</td><td><span class="tag orange">Required</span> in prod</td></tr>
+        <tr><td><code>POSTGRES_DATA_PATH</code></td><td><em>named volume</em></td><td>Host path for PostgreSQL data bind mount</td><td><span class="tag orange">Required</span> in prod</td></tr>
+    </table>
+
+    <h3>Redis</h3>
+    <table>
+        <tr><th>Variable</th><th>Default</th><th>Description</th><th>Required</th></tr>
+        <tr><td><code>REDIS_HOST</code></td><td><code>mxsuite-redis</code></td><td>Redis hostname (Docker service name)</td><td>No</td></tr>
+        <tr><td><code>REDIS_PORT</code></td><td><code>6379</code></td><td>Redis port</td><td>No</td></tr>
+        <tr><td><code>REDIS_DATA_PATH</code></td><td><em>named volume</em></td><td>Host path for Redis data bind mount</td><td><span class="tag orange">Required</span> in prod</td></tr>
+    </table>
+
+    <h3>Auth &amp; JWT</h3>
+    <table>
+        <tr><th>Variable</th><th>Default</th><th>Description</th><th>Required</th></tr>
+        <tr><td><code>JWT_SECRET</code></td><td><code>dev-secret-...</code></td><td>HMAC-SHA256 signing key (Base64, 256+ bits)</td><td><span class="tag orange">Required</span> in prod</td></tr>
+        <tr><td><code>JWT_EXPIRATION_MS</code></td><td><code>3600000</code></td><td>Access token lifetime (ms) &mdash; default 1 hour</td><td>No</td></tr>
+        <tr><td><code>JWT_REFRESH_EXPIRATION_MS</code></td><td><code>86400000</code></td><td>Refresh token lifetime (ms) &mdash; default 24 hours</td><td>No</td></tr>
+    </table>
+
+    <h3>Email / SMTP</h3>
+    <table>
+        <tr><th>Variable</th><th>Default</th><th>Description</th><th>Required</th></tr>
+        <tr><td><code>SMTP_HOST</code></td><td><code>localhost</code></td><td>SMTP server hostname</td><td><span class="tag orange">Required</span> in prod</td></tr>
+        <tr><td><code>SMTP_PORT</code></td><td><code>587</code></td><td>SMTP server port</td><td>No</td></tr>
+        <tr><td><code>SMTP_USERNAME</code></td><td><em>none</em></td><td>SMTP authentication username</td><td><span class="tag orange">Required</span> in prod</td></tr>
+        <tr><td><code>SMTP_PASSWORD</code></td><td><em>none</em></td><td>SMTP authentication password</td><td><span class="tag orange">Required</span> in prod</td></tr>
+        <tr><td><code>SMTP_FROM</code></td><td><code>noreply@mxsuite.local</code></td><td>Default "From" address for outbound emails</td><td>No</td></tr>
+        <tr><td><code>SMTP_STARTTLS</code></td><td><code>true</code></td><td>Enable STARTTLS encryption</td><td>No</td></tr>
+    </table>
+
+    <h3>Bootstrap Admin</h3>
+    <table>
+        <tr><th>Variable</th><th>Default</th><th>Description</th><th>Required</th></tr>
+        <tr><td><code>MXSUITE_ADMIN_EMAIL</code></td><td><code>admin@mxsuite.local</code></td><td>Email for the initial platform admin user</td><td>Recommended</td></tr>
+        <tr><td><code>MXSUITE_ADMIN_PASSWORD</code></td><td><em>none</em></td><td>Password for the initial platform admin. If unset, a warning is logged at startup.</td><td>Recommended</td></tr>
+    </table>
+
+    <h3>Storage</h3>
+    <table>
+        <tr><th>Variable</th><th>Default</th><th>Description</th><th>Required</th></tr>
+        <tr><td><code>FILE_STORAGE_PATH</code></td><td><code>/data/files</code></td><td>In-container path where uploaded files are stored</td><td>No</td></tr>
+        <tr><td><code>FILE_STORAGE_HOST_PATH</code></td><td><em>named volume</em></td><td>Host path for file storage bind mount</td><td><span class="tag orange">Required</span> in prod</td></tr>
+    </table>
+
+    <h3>Observability</h3>
+    <table>
+        <tr><th>Variable</th><th>Default</th><th>Description</th><th>Required</th></tr>
+        <tr><td><code>GRAFANA_ADMIN_PASSWORD</code></td><td><code>admin</code></td><td>Grafana admin password</td><td><span class="tag orange">Required</span> in prod</td></tr>
+        <tr><td><code>PROMETHEUS_RETENTION</code></td><td><code>15d</code></td><td>How long Prometheus retains metrics data</td><td>No</td></tr>
+    </table>
+
+    <h3>Application</h3>
+    <table>
+        <tr><th>Variable</th><th>Default</th><th>Description</th><th>Required</th></tr>
+        <tr><td><code>SPRING_PROFILES_ACTIVE</code></td><td><code>dev</code></td><td>Spring profile (<code>dev</code>, <code>staging</code>, <code>prod</code>)</td><td>Recommended</td></tr>
+        <tr><td><code>CORS_ALLOWED_ORIGINS</code></td><td><code>http://localhost:3000,http://localhost:3001</code></td><td>Comma-separated list of allowed CORS origins</td><td><span class="tag orange">Required</span> in prod</td></tr>
+        <tr><td><code>SERVER_PORT</code></td><td><code>8080</code></td><td>Port the Spring Boot API listens on inside the container</td><td>No</td></tr>
+    </table>
+
+
+    <!-- ============================================================ -->
+    <!-- 5. DATABASE MANAGEMENT                                        -->
+    <!-- ============================================================ -->
+    <h2 id="database-management">5. Database Management</h2>
+
+    <h3>Flyway Migration Strategy</h3>
+    <p>MXSuite uses <strong>Flyway</strong> for versioned, repeatable database migrations. Migrations are embedded in the API container image and run automatically every time the application starts. This means the schema is always up to date &mdash; there is no separate "migration step" in the deployment process.</p>
+
+    <table>
+        <tr><th>Migration</th><th>Purpose</th><th>Details</th></tr>
+        <tr><td><code>V1__initial_schema.sql</code></td><td>Core schema</td><td>All tables, indexes, constraints, and enum types for the complete data model (tenants, users, members, events, invoices, etc.)</td></tr>
+        <tr><td><code>V2__dev_seed_data.sql</code></td><td>Development seed data</td><td>Sample tenants, users, and records for local development. Conditionally skipped in production via Flyway's <code>ignoreMigrationPatterns</code> or profile-specific config.</td></tr>
+        <tr><td><code>V3__invitations_and_reset.sql</code></td><td>Invitations &amp; password reset</td><td>Tables for invitation tokens, password reset tokens, and email verification flows.</td></tr>
+    </table>
+
+    <h3>Schema Auto-Creation</h3>
+    <p>On first startup against an empty database, Flyway detects that no <code>flyway_schema_history</code> table exists and runs all migrations from V1 onward. The schema is fully created without any manual SQL execution.</p>
+
+    <h3>Hibernate Validation Mode</h3>
+    <div class="box">
+        <strong>ddl-auto: validate</strong> &mdash; Hibernate is configured to <strong>validate</strong> the schema against JPA entity mappings at startup. It will never create, alter, or drop tables. If a mismatch is detected (e.g., a missing column), the application fails fast with a clear error. This ensures Flyway is the sole owner of schema changes.
+    </div>
+
+    <h3>Adding New Migrations</h3>
+    <ol>
+        <li>Create a new file in <code>src/main/resources/db/migration/</code> following the naming convention: <code>V{N}__{description}.sql</code> (two underscores after the version number).</li>
+        <li>Write idempotent SQL where possible (use <code>IF NOT EXISTS</code>, <code>IF EXISTS</code>).</li>
+        <li>Test locally by running <code>docker compose down -v &amp;&amp; docker compose up</code> (the <code>-v</code> flag removes volumes, simulating a fresh database).</li>
+        <li>Commit the migration file. It will be included in the next Docker image build.</li>
+    </ol>
+
+    <div class="box warning">
+        <strong>Warning:</strong> Never modify a migration that has already been applied. Flyway checksums each migration file and will refuse to start if a checksum changes. Always create a new migration file for schema changes.
+    </div>
+
+    <h3>Backup Strategy</h3>
+    <h4>Full Database Backup</h4>
+    <div class="diagram"># Backup to compressed file
+docker exec mxsuite-db pg_dump -U mxsuite -d mxsuite \
+  --format=custom --compress=9 \
+  --file=/tmp/mxsuite_backup_$(date +%Y%m%d_%H%M%S).dump
+
+# Copy from container to host
+docker cp mxsuite-db:/tmp/mxsuite_backup_*.dump /backups/postgres/</div>
+
+    <h4>Schema-Only Backup</h4>
+    <div class="diagram">docker exec mxsuite-db pg_dump -U mxsuite -d mxsuite \
+  --schema-only --file=/tmp/mxsuite_schema.sql</div>
+
+    <h4>Automated Daily Backup (cron)</h4>
+    <div class="diagram"># Add to crontab: crontab -e
+0 2 * * * /opt/mxsuite/scripts/backup.sh >> /var/log/mxsuite-backup.log 2>&amp;1</div>
+
+    <h3>Restore</h3>
+    <div class="diagram"># Stop the API to prevent writes during restore
+docker compose stop mxsuite-api
+
+# Restore from backup
+docker exec -i mxsuite-db pg_restore -U mxsuite -d mxsuite \
+  --clean --if-exists \
+  /tmp/mxsuite_backup_20260715_020000.dump
+
+# Restart the API
+docker compose start mxsuite-api</div>
+
+
+    <!-- ============================================================ -->
+    <!-- 6. BOOTSTRAP & FIRST LOGIN                                    -->
+    <!-- ============================================================ -->
+    <h2 id="bootstrap">6. Bootstrap &amp; First Login</h2>
+
+    <h3>How DataInitializer Works</h3>
+    <p>On every application startup, the <code>DataInitializer</code> component checks whether the database contains any tenants. If the database is empty (first startup), it performs the following actions automatically:</p>
+    <ol>
+        <li>Creates the <strong>platform tenant</strong> &mdash; a special system tenant with the slug <code>platform</code> that represents the MXSuite platform itself.</li>
+        <li>Creates the <strong>platform admin user</strong> using the email from <code>MXSUITE_ADMIN_EMAIL</code> and the password from <code>MXSUITE_ADMIN_PASSWORD</code>.</li>
+        <li>Assigns the <code>PLATFORM_ADMIN</code> role to this user, granting full system access.</li>
+    </ol>
+
+    <div class="box warning">
+        <strong>Warning:</strong> If <code>MXSUITE_ADMIN_PASSWORD</code> is not set in <code>.env</code>, the application will still start but will log a prominent warning:
+        <br><br>
+        <code>WARN [DataInitializer] No MXSUITE_ADMIN_PASSWORD set. Platform admin created without a password. Set the variable and restart, or use the password reset flow.</code>
+    </div>
+
+    <h3>Security: Change the Admin Password</h3>
+    <p>The initial admin password is stored in plain text in the <code>.env</code> file. After first login, <strong>change the password immediately</strong> through the Admin Panel, then remove <code>MXSUITE_ADMIN_PASSWORD</code> from the <code>.env</code> file. The DataInitializer only runs on an empty database, so removing the variable after bootstrap has no effect on the existing admin account.</p>
+
+    <h3>Step-by-Step: First Login to First User</h3>
+    <table>
+        <tr><th>Step</th><th>Action</th><th>Details</th></tr>
+        <tr><td>1</td><td><strong>Log in as Platform Admin</strong></td><td>Open <code>https://admin.customer.org</code> (or <code>http://localhost:3001</code> in dev). Enter the admin email and password from <code>.env</code>.</td></tr>
+        <tr><td>2</td><td><strong>Change your password</strong></td><td>Navigate to <em>Profile &rarr; Security</em> and set a strong password. Remove <code>MXSUITE_ADMIN_PASSWORD</code> from <code>.env</code>.</td></tr>
+        <tr><td>3</td><td><strong>Create the first customer tenant</strong></td><td>Go to <em>Platform Admin &rarr; Tenants &rarr; Create Tenant</em>. Enter the organization name, slug, and contact email. The tenant is created immediately.</td></tr>
+        <tr><td>4</td><td><strong>Invite the first tenant admin</strong></td><td>Switch context to the new tenant. Go to <em>Users &rarr; Invite User</em>. Enter the user's email and select the <code>TENANT_ADMIN</code> role. An invitation email is sent via SMTP.</td></tr>
+        <tr><td>5</td><td><strong>User accepts invitation</strong></td><td>The invited user clicks the link in their email, sets their password, and logs in. They can now manage the tenant, invite more users, and configure modules.</td></tr>
+    </table>
+
+    <div class="box success">
+        <strong>Tip:</strong> The invitation email contains a time-limited token. If it expires, the tenant admin can resend the invitation from the Admin Panel.
+    </div>
+
+
+    <!-- ============================================================ -->
+    <!-- 7. SSL/TLS & REVERSE PROXY                                    -->
+    <!-- ============================================================ -->
+    <h2 id="ssl-tls">7. SSL/TLS &amp; Reverse Proxy</h2>
+
+    <h3>Architecture</h3>
+    <p>In production, an <strong>nginx reverse proxy</strong> sits in front of the MXSuite services, handling SSL termination, HTTP/2, and request routing. The API and front-end containers only speak plain HTTP internally.</p>
+
+    <div class="diagram">Internet
+   │
+   ▼
+┌──────────────────────────────────┐
+│  nginx (port 443 / SSL)         │
+│  ┌────────────────────────────┐  │
+│  │ /api/*    → mxsuite-api   │  │  (port 8080)
+│  │ /ws/*     → mxsuite-api   │  │  (WebSocket upgrade)
+│  │ /admin/*  → mxsuite-admin │  │  (port 3001)
+│  │ /*        → mxsuite-shell │  │  (port 3000)
+│  └────────────────────────────┘  │
+└──────────────────────────────────┘</div>
+
+    <h3>Example nginx Configuration</h3>
+    <div class="diagram">upstream mxsuite_api {
+    server mxsuite-api:8080;
+    # Uncomment for horizontal scaling:
+    # server mxsuite-api-2:8080;
+}
+
+server {
+    listen 80;
+    server_name app.customer.org admin.customer.org;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name app.customer.org;
+
+    ssl_certificate     /etc/nginx/ssl/fullchain.pem;
+    ssl_certificate_key /etc/nginx/ssl/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+
+    # ── Proxy headers ──────────────────────────────
+    proxy_set_header Host              $host;
+    proxy_set_header X-Real-IP         $remote_addr;
+    proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+
+    # ── API ────────────────────────────────────────
+    location /api/ {
+        proxy_pass http://mxsuite_api;
+    }
+
+    # ── WebSocket ──────────────────────────────────
+    location /ws/ {
+        proxy_pass http://mxsuite_api;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade    $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 86400s;
+    }
+
+    # ── Actuator (restrict to internal) ────────────
+    location /actuator/ {
+        deny all;
+    }
+
+    # ── Shell front-end ────────────────────────────
+    location / {
+        proxy_pass http://mxsuite-shell:3000;
+    }
+}
+
+server {
+    listen 443 ssl http2;
+    server_name admin.customer.org;
+
+    ssl_certificate     /etc/nginx/ssl/fullchain.pem;
+    ssl_certificate_key /etc/nginx/ssl/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+
+    proxy_set_header Host              $host;
+    proxy_set_header X-Real-IP         $remote_addr;
+    proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+
+    location /api/ {
+        proxy_pass http://mxsuite_api;
+    }
+
+    location /ws/ {
+        proxy_pass http://mxsuite_api;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade    $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 86400s;
+    }
+
+    location / {
+        proxy_pass http://mxsuite-admin:3001;
+    }
+}</div>
+
+    <h3>Key Proxy Headers</h3>
+    <table>
+        <tr><th>Header</th><th>Purpose</th></tr>
+        <tr><td><code>X-Forwarded-For</code></td><td>Passes the client's real IP address to the API for audit logging and rate limiting.</td></tr>
+        <tr><td><code>X-Forwarded-Proto</code></td><td>Tells Spring Boot that the original request was HTTPS, ensuring generated URLs use the correct scheme.</td></tr>
+        <tr><td><code>X-Real-IP</code></td><td>Alternative single-value client IP header, used by some logging frameworks.</td></tr>
+        <tr><td><code>Upgrade</code> / <code>Connection</code></td><td>Required for WebSocket connections to be properly upgraded through the proxy.</td></tr>
+    </table>
+
+    <div class="box">
+        <strong>Let's Encrypt:</strong> For automated SSL certificate management, use <a href="https://certbot.eff.org/">Certbot</a> with the nginx plugin: <code>certbot --nginx -d app.customer.org -d admin.customer.org</code>
+    </div>
+
+
+    <!-- ============================================================ -->
+    <!-- 8. HORIZONTAL SCALING                                         -->
+    <!-- ============================================================ -->
+    <h2 id="horizontal-scaling">8. Horizontal Scaling</h2>
+
+    <h3>Overview</h3>
+    <p>MXSuite is designed to scale horizontally. The API service is stateless (session state lives in Redis, file storage is on a shared mount), so you can run multiple instances behind a load balancer with no application changes.</p>
+
+    <h3>Adding a Second API Instance</h3>
+    <p>The <code>docker-compose.yml</code> includes a pre-configured but commented-out second API instance. To enable it:</p>
+    <div class="diagram"># In docker-compose.yml, uncomment the mxsuite-api-2 service:
+
+  mxsuite-api-2:
+    image: mxsuite/api:latest
+    env_file: .env
+    environment:
+      - SERVER_PORT=8080
+    depends_on:
+      mxsuite-db:
+        condition: service_healthy
+      mxsuite-redis:
+        condition: service_healthy
+    volumes:
+      - ${FILE_STORAGE_HOST_PATH}:/data/files
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3</div>
+
+    <p>Then update the nginx upstream to include both instances:</p>
+    <div class="diagram">upstream mxsuite_api {
+    server mxsuite-api:8080;
+    server mxsuite-api-2:8080;
+}</div>
+
+    <p>Restart the stack:</p>
+    <div class="diagram">docker compose --env-file /opt/mxsuite/.env up -d</div>
+
+    <h3>Redis Pub/Sub for WebSocket Events</h3>
+    <p>When a user performs an action (e.g., creating a member record), the API publishes a WebSocket event. In a multi-instance deployment, the event must reach <em>all</em> connected clients, regardless of which API instance they are connected to. MXSuite uses <strong>Redis Pub/Sub</strong> as the broadcast channel:</p>
+
+    <div class="diagram">┌───────────────────┐     Redis Pub/Sub     ┌───────────────────┐
+│  mxsuite-api-1    │ ◄──────────────────── │  mxsuite-api-2    │
+│  (WebSocket users  │ ────────────────────► │  (WebSocket users  │
+│   connected here)  │                       │   connected here)  │
+└───────────────────┘                       └───────────────────┘
+         ▲                                           ▲
+         │                                           │
+    ┌─────────┐                                 ┌─────────┐
+    │ Client A│                                 │ Client B│
+    └─────────┘                                 └─────────┘</div>
+
+    <p>This is fully automatic. No configuration is needed beyond ensuring all API instances connect to the same Redis instance.</p>
+
+    <h3>Prometheus Auto-Discovery</h3>
+    <p>The Prometheus configuration uses Docker service discovery to automatically find all MXSuite API instances. When you add <code>mxsuite-api-2</code>, Prometheus detects it and begins scraping metrics from both instances without any configuration changes.</p>
+
+    <h3>Grafana Infrastructure Dashboard</h3>
+    <p>The pre-provisioned <strong>Infrastructure</strong> dashboard in Grafana is designed for multi-instance deployments. It includes a template variable for <code>instance</code>, allowing you to view metrics for individual instances or all instances side by side. Panels include per-instance CPU, memory, request rates, and error counts.</p>
+
+
+    <!-- ============================================================ -->
+    <!-- 9. MONITORING & ALERTING                                      -->
+    <!-- ============================================================ -->
+    <h2 id="monitoring">9. Monitoring &amp; Alerting</h2>
+
+    <h3>Grafana</h3>
+    <p>Grafana is available at <strong>port 3100</strong>. The default credentials are <code>admin</code> / <code>admin</code> (change the password on first login or set <code>GRAFANA_ADMIN_PASSWORD</code> in <code>.env</code>).</p>
+
+    <h4>Pre-Provisioned Dashboards</h4>
+    <table>
+        <tr><th>Dashboard</th><th>Purpose</th></tr>
+        <tr><td><strong>API Overview</strong></td><td>Request rates, latencies (p50/p95/p99), error rates, and active WebSocket connections across all endpoints.</td></tr>
+        <tr><td><strong>Infrastructure</strong></td><td>Per-instance JVM metrics (heap, GC, threads), container CPU/memory, and PostgreSQL connection pool utilization.</td></tr>
+        <tr><td><strong>Business Metrics</strong></td><td>Tenant count, member count, events created, invoices generated &mdash; domain-level KPIs for platform operators.</td></tr>
+        <tr><td><strong>Alerts &amp; SLOs</strong></td><td>Service-level objectives (availability, latency), active alert states, and recent alert history.</td></tr>
+    </table>
+
+    <p>Dashboards are provisioned from JSON files in <code>grafana/provisioning/dashboards/</code>. To customize, edit the JSON files and restart Grafana &mdash; or edit in the Grafana UI and export.</p>
+
+    <h3>Prometheus</h3>
+    <p>Prometheus is available at <strong>port 9090</strong>. It scrapes the MXSuite API's <code>/actuator/prometheus</code> endpoint every 15 seconds. The scrape configuration is in <code>prometheus/prometheus.yml</code>.</p>
+
+    <h3>Alert Rules</h3>
+    <table>
+        <tr><th>Alert Name</th><th>Condition</th><th>Severity</th><th>Description</th></tr>
+        <tr><td><code>HighErrorRate</code></td><td>5xx rate &gt; 5% for 5 min</td><td><span class="tag orange">Warning</span></td><td>Elevated server error rate indicates a potential application issue.</td></tr>
+        <tr><td><code>HighLatency</code></td><td>p95 latency &gt; 2s for 5 min</td><td><span class="tag orange">Warning</span></td><td>API response times exceeding SLO threshold.</td></tr>
+        <tr><td><code>DatabaseConnectionPoolExhausted</code></td><td>Active connections &gt; 90% of pool</td><td><span class="tag orange">Warning</span></td><td>Connection pool nearing capacity; may cause request queuing.</td></tr>
+        <tr><td><code>DiskSpaceLow</code></td><td>Free disk &lt; 10%</td><td><span class="tag orange">Warning</span></td><td>Host disk running low; file uploads may fail.</td></tr>
+        <tr><td><code>ServiceDown</code></td><td>Health check fails for 2 min</td><td><span class="tag green">Critical</span></td><td>MXSuite API instance is unreachable.</td></tr>
+        <tr><td><code>HighMemoryUsage</code></td><td>JVM heap &gt; 85% for 10 min</td><td><span class="tag orange">Warning</span></td><td>Sustained high memory usage; risk of OOM.</td></tr>
+        <tr><td><code>FlywayMigrationFailed</code></td><td>Flyway migration error on startup</td><td><span class="tag green">Critical</span></td><td>Database migration failed; application will not start correctly.</td></tr>
+    </table>
+
+    <h3>Email Alerts via EmailService</h3>
+    <p>The MXSuite API includes an <code>EmailService.sendAdminAlert()</code> method that sends critical alerts directly via the configured SMTP server. This is used for application-level alerts (e.g., failed payment processing, tenant provisioning errors) that are detected in Java code rather than through metrics.</p>
+
+    <h3>Configuring Grafana SMTP Alerting</h3>
+    <p>To have Grafana send alert notifications via email, configure SMTP in the Grafana container environment:</p>
+    <div class="diagram"># Add to docker-compose.yml under the grafana service:
+environment:
+  - GF_SMTP_ENABLED=true
+  - GF_SMTP_HOST=${SMTP_HOST}:${SMTP_PORT}
+  - GF_SMTP_USER=${SMTP_USERNAME}
+  - GF_SMTP_PASSWORD=${SMTP_PASSWORD}
+  - GF_SMTP_FROM_ADDRESS=grafana@customer.org</div>
+
+    <p>Then in the Grafana UI, create a <strong>Contact Point</strong> of type "Email" and add the recipient addresses. Attach this contact point to your alert rules.</p>
+
+
+    <!-- ============================================================ -->
+    <!-- 10. BACKUP & RECOVERY                                         -->
+    <!-- ============================================================ -->
+    <h2 id="backup-recovery">10. Backup &amp; Recovery</h2>
+
+    <h3>Backup Components</h3>
+    <p>A complete MXSuite backup consists of three components:</p>
+    <table>
+        <tr><th>Component</th><th>Data</th><th>Method</th><th>Frequency</th></tr>
+        <tr><td>PostgreSQL</td><td>All application data (tenants, users, members, events, invoices, etc.)</td><td><code>pg_dump</code></td><td>Daily + before upgrades</td></tr>
+        <tr><td>File Storage</td><td>Uploaded documents, logos, attachments</td><td><code>rsync</code> or <code>cp</code></td><td>Daily</td></tr>
+        <tr><td>Redis</td><td>Session cache, WebSocket state (ephemeral, but convenient to preserve)</td><td>RDB snapshots (automatic)</td><td>Automatic (appendonly yes)</td></tr>
+    </table>
+
+    <h3>PostgreSQL Backup</h3>
+    <div class="diagram"># Full compressed backup
+docker exec mxsuite-db pg_dump \
+  -U ${POSTGRES_USER} \
+  -d ${POSTGRES_DB} \
+  --format=custom \
+  --compress=9 \
+  -f /tmp/mxsuite_$(date +%Y%m%d_%H%M%S).dump
+
+# Copy to backup location
+docker cp mxsuite-db:/tmp/mxsuite_*.dump /backups/postgres/
+
+# Verify backup integrity
+docker exec mxsuite-db pg_restore \
+  --list /tmp/mxsuite_*.dump > /dev/null && echo "Backup valid"</div>
+
+    <h3>File Storage Backup</h3>
+    <div class="diagram"># Sync file storage to backup location (incremental)
+rsync -avz --delete \
+  /data/mxsuite/files/ \
+  /backups/files/
+
+# Or simple copy
+cp -a /data/mxsuite/files/ /backups/files-$(date +%Y%m%d)/</div>
+
+    <h3>Redis Backup</h3>
+    <p>Redis is configured with <code>appendonly yes</code> in the Docker Compose setup, meaning every write is persisted to the append-only file (AOF). Redis also takes periodic RDB snapshots. Both files are stored in the <code>REDIS_DATA_PATH</code> bind mount.</p>
+    <div class="diagram"># Copy Redis data directory
+cp -a /data/mxsuite/redis/ /backups/redis-$(date +%Y%m%d)/</div>
+
+    <h3>Full Recovery Procedure</h3>
+    <p>Follow these steps to recover MXSuite from a complete backup:</p>
+
+    <ol>
+        <li>
+            <strong>Stop the stack</strong>
+            <div class="diagram">docker compose --env-file /opt/mxsuite/.env down</div>
+        </li>
+        <li>
+            <strong>Restore PostgreSQL data</strong>
+            <div class="diagram"># Start only the database
+docker compose --env-file /opt/mxsuite/.env up -d mxsuite-db
+
+# Wait for PostgreSQL to be ready
+docker exec mxsuite-db pg_isready -U mxsuite
+
+# Drop and recreate the database
+docker exec mxsuite-db psql -U mxsuite -c "DROP DATABASE IF EXISTS mxsuite;"
+docker exec mxsuite-db psql -U mxsuite -c "CREATE DATABASE mxsuite OWNER mxsuite;"
+
+# Restore from backup
+docker cp /backups/postgres/mxsuite_20260715_020000.dump mxsuite-db:/tmp/
+docker exec mxsuite-db pg_restore \
+  -U mxsuite -d mxsuite \
+  --clean --if-exists \
+  /tmp/mxsuite_20260715_020000.dump</div>
+        </li>
+        <li>
+            <strong>Restore file storage</strong>
+            <div class="diagram">rsync -avz /backups/files/ /data/mxsuite/files/</div>
+        </li>
+        <li>
+            <strong>Restore Redis (optional)</strong>
+            <div class="diagram">cp -a /backups/redis-20260715/ /data/mxsuite/redis/</div>
+        </li>
+        <li>
+            <strong>Start the full stack</strong>
+            <div class="diagram">docker compose --env-file /opt/mxsuite/.env up -d</div>
+        </li>
+        <li>
+            <strong>Verify recovery</strong>
+            <div class="diagram"># Check health
+curl -s http://localhost:8080/actuator/health | jq .
+
+# Check database connectivity
+docker exec mxsuite-db psql -U mxsuite -d mxsuite \
+  -c "SELECT count(*) FROM tenants;"
+
+# Check application logs for errors
+docker logs --tail 50 mxsuite-api</div>
+        </li>
+    </ol>
+
+    <div class="box success">
+        <strong>Recovery verified:</strong> If <code>/actuator/health</code> returns <code>{"status":"UP"}</code> and the tenant count matches your expected data, the recovery is complete.
+    </div>
+
+
+    <!-- ============================================================ -->
+    <!-- 11. TROUBLESHOOTING                                           -->
+    <!-- ============================================================ -->
+    <h2 id="troubleshooting">11. Troubleshooting</h2>
+
+    <h3>Common Issues</h3>
+
+    <h4>Port Conflicts</h4>
+    <p><strong>Symptom:</strong> <code>Error: Bind for 0.0.0.0:5432 failed: port is already allocated</code></p>
+    <p><strong>Cause:</strong> Another process (often a locally installed PostgreSQL) is already using the port.</p>
+    <p><strong>Fix:</strong></p>
+    <div class="diagram"># Find what's using the port
+sudo lsof -i :5432
+
+# Either stop the conflicting service or change the port in .env
+# For example, map to a different host port in docker-compose.yml:
+#   ports:
+#     - "15432:5432"</div>
+
+    <h4>Flyway Migration Errors</h4>
+    <p><strong>Symptom:</strong> Application fails to start with <code>FlywayException: Validate failed: Migration checksum mismatch</code></p>
+    <p><strong>Cause:</strong> A previously applied migration file was modified.</p>
+    <p><strong>Fix:</strong> Never modify applied migrations. If you must fix a mistake, create a new migration. In development, you can reset the database:</p>
+    <div class="diagram"># DEVELOPMENT ONLY — destroys all data
+docker compose down -v
+docker compose up -d</div>
+
+    <h4>SMTP Connection Failed</h4>
+    <p><strong>Symptom:</strong> <code>MailSendException: Could not connect to SMTP host</code></p>
+    <p><strong>Cause:</strong> Incorrect SMTP settings, firewall blocking port 587, or missing credentials.</p>
+    <p><strong>Fix:</strong></p>
+    <div class="diagram"># Verify SMTP connectivity from inside the container
+docker exec mxsuite-api nc -zv ${SMTP_HOST} ${SMTP_PORT}
+
+# Check .env values
+grep SMTP .env
+
+# Common fixes:
+# - Ensure SMTP_STARTTLS=true for port 587
+# - Some providers require app-specific passwords
+# - Check firewall rules: sudo ufw allow out 587/tcp</div>
+
+    <h4>JWT Token Expired / Authentication Errors</h4>
+    <p><strong>Symptom:</strong> API returns <code>401 Unauthorized</code> with message <code>JWT token is expired</code></p>
+    <p><strong>Cause:</strong> The access token has expired (default: 1 hour).</p>
+    <p><strong>Fix:</strong> The front-end should automatically refresh tokens using the refresh token endpoint. If the refresh token has also expired (default: 24 hours), the user must log in again. If all users are affected simultaneously, check that <code>JWT_SECRET</code> has not changed between deployments.</p>
+
+    <h4>Container Fails Health Check</h4>
+    <p><strong>Symptom:</strong> <code>docker ps</code> shows <code>(unhealthy)</code> status for mxsuite-api.</p>
+    <p><strong>Fix:</strong></p>
+    <div class="diagram"># Check application logs
+docker logs --tail 100 mxsuite-api
+
+# Manually test health endpoint
+docker exec mxsuite-api curl -s http://localhost:8080/actuator/health
+
+# Common causes:
+# - Database not yet ready (check mxsuite-db health)
+# - Out of memory (check docker stats)
+# - Flyway migration failure (check logs for FlywayException)</div>
+
+    <h3>Log Locations</h3>
+    <table>
+        <tr><th>Service</th><th>Command</th><th>What to Look For</th></tr>
+        <tr><td>MXSuite API</td><td><code>docker logs mxsuite-api</code></td><td>Spring Boot startup, Flyway output, request errors, stack traces</td></tr>
+        <tr><td>PostgreSQL</td><td><code>docker logs mxsuite-db</code></td><td>Connection errors, slow queries, authentication failures</td></tr>
+        <tr><td>Redis</td><td><code>docker logs mxsuite-redis</code></td><td>Connection limits, memory warnings, persistence errors</td></tr>
+        <tr><td>nginx</td><td><code>docker logs mxsuite-nginx</code></td><td>4xx/5xx errors, upstream timeouts, SSL errors</td></tr>
+        <tr><td>Grafana</td><td><code>docker logs mxsuite-grafana</code></td><td>Dashboard provisioning errors, SMTP config issues</td></tr>
+    </table>
+
+    <h3>Health Check Endpoint</h3>
+    <p>The MXSuite API exposes a comprehensive health check at <code>/actuator/health</code>:</p>
+    <div class="diagram">curl -s http://localhost:8080/actuator/health | jq .
+
+# Response:
+{
+  "status": "UP",
+  "components": {
+    "db": { "status": "UP", "details": { "database": "PostgreSQL" } },
+    "redis": { "status": "UP" },
+    "diskSpace": { "status": "UP", "details": { "free": "85 GB" } },
+    "mail": { "status": "UP" }
+  }
+}</div>
+
+    <p>If any component reports <code>DOWN</code>, the overall status becomes <code>DOWN</code> and the HTTP response code changes to <code>503 Service Unavailable</code>.</p>
+
+
+    <!-- ============================================================ -->
+    <!-- 12. SECURITY CHECKLIST                                        -->
+    <!-- ============================================================ -->
+    <h2 id="security-checklist">12. Security Checklist for Production</h2>
+
+    <p>Complete every item on this checklist before exposing MXSuite to the internet.</p>
+
+    <table>
+        <tr><th>#</th><th>Action</th><th>How</th><th>Risk if Skipped</th></tr>
+        <tr>
+            <td>1</td>
+            <td><strong>Change JWT_SECRET</strong></td>
+            <td>Generate a cryptographically random 256+ bit key:
+                <div class="diagram" style="margin:8px 0 0 0;">openssl rand -base64 32</div>
+                Set in <code>.env</code> as <code>JWT_SECRET</code>.
+            </td>
+            <td>Attacker can forge authentication tokens and impersonate any user.</td>
+        </tr>
+        <tr>
+            <td>2</td>
+            <td><strong>Change POSTGRES_PASSWORD</strong></td>
+            <td>Generate a strong random password and set in <code>.env</code>. Restart the database and API.</td>
+            <td>Database compromise if an attacker gains network access to port 5432.</td>
+        </tr>
+        <tr>
+            <td>3</td>
+            <td><strong>Change Grafana admin password</strong></td>
+            <td>Set <code>GRAFANA_ADMIN_PASSWORD</code> in <code>.env</code> or change via Grafana UI on first login.</td>
+            <td>Unauthorized access to infrastructure metrics and alert configuration.</td>
+        </tr>
+        <tr>
+            <td>4</td>
+            <td><strong>Set proper CORS origins</strong></td>
+            <td>In <code>.env</code>, set <code>CORS_ALLOWED_ORIGINS</code> to your production domains only. Remove <code>localhost</code> entries.</td>
+            <td>Cross-origin attacks from unauthorized domains.</td>
+        </tr>
+        <tr>
+            <td>5</td>
+            <td><strong>Enable SSL/TLS</strong></td>
+            <td>Configure nginx with a valid SSL certificate (see <a href="#ssl-tls">Section 7</a>). Redirect all HTTP to HTTPS.</td>
+            <td>Credentials and data transmitted in plain text; susceptible to man-in-the-middle attacks.</td>
+        </tr>
+        <tr>
+            <td>6</td>
+            <td><strong>Set and then remove MXSUITE_ADMIN_PASSWORD</strong></td>
+            <td>Set <code>MXSUITE_ADMIN_PASSWORD</code> in <code>.env</code> for first startup. After first login and password change, remove the variable from <code>.env</code>.</td>
+            <td>Admin password stored in plain text on disk indefinitely.</td>
+        </tr>
+        <tr>
+            <td>7</td>
+            <td><strong>Configure firewall rules</strong></td>
+            <td>
+                <div class="diagram" style="margin:0;">## Only expose nginx (443) to the internet
+sudo ufw default deny incoming
+sudo ufw allow 22/tcp      # SSH
+sudo ufw allow 443/tcp     # HTTPS (nginx)
+sudo ufw enable
+
+## Block direct access to internal services:
+## 8080  (API)     — only reachable via nginx
+## 5432  (Postgres) — only reachable within Docker network
+## 6379  (Redis)    — only reachable within Docker network
+## 9090  (Prometheus) — only reachable within Docker network
+## 3100  (Grafana)  — access via VPN or SSH tunnel</div>
+            </td>
+            <td>Internal services (database, Redis, Prometheus) directly accessible from the internet.</td>
+        </tr>
+    </table>
+
+    <div class="box warning">
+        <strong>Critical:</strong> Items 1 and 2 (JWT_SECRET and POSTGRES_PASSWORD) are the most important. The default development values are well-known and provide zero security. Never deploy to production without changing them.
+    </div>
+
+    <h3>Additional Hardening</h3>
+    <ul>
+        <li><strong>Docker socket:</strong> Do not expose the Docker socket (<code>/var/run/docker.sock</code>) to any container. None of the MXSuite services require it.</li>
+        <li><strong>Non-root containers:</strong> The MXSuite API image runs as a non-root user by default. Do not override this with <code>user: root</code>.</li>
+        <li><strong>Network segmentation:</strong> The Docker Compose file defines internal networks. Only nginx should be on the <code>external</code> network; all other services communicate on the <code>internal</code> network.</li>
+        <li><strong>Log retention:</strong> Configure Docker log rotation to prevent disk exhaustion:</li>
+    </ul>
+    <div class="diagram"># /etc/docker/daemon.json
+{
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "50m",
+    "max-file": "5"
+  }
+}</div>
+
+    <ul>
+        <li><strong>Regular updates:</strong> Keep Docker, the host OS, and the base images updated. Subscribe to security advisories for PostgreSQL, Redis, and Java.</li>
+        <li><strong>Secrets management:</strong> For environments with strict compliance requirements, consider using Docker Secrets or HashiCorp Vault instead of <code>.env</code> files.</li>
+    </ul>
+
+    <div class="box success">
+        <strong>Production-ready:</strong> Once every item on this checklist is complete, your MXSuite deployment meets baseline security standards for a production SaaS platform.
+    </div>
+
+</div><!-- end .container -->
+
+</body>
+</html>

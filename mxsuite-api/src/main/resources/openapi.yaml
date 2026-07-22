@@ -1,0 +1,2741 @@
+openapi: 3.1.0
+info:
+  title: MXSuite API
+  description: |
+    MXSuite Data Onboarding Platform — REST API.
+
+    ## Authentication
+    All endpoints (except `/api/auth/login` and `/actuator/health`) require a Bearer JWT token
+    in the `Authorization` header.
+
+    Platform users (`PLATFORM_ADMIN`, `PLATFORM_SUPPORT`) may include an `X-Tenant-Id` header
+    to operate within a specific customer tenant's context.
+
+    ## Pagination
+    List endpoints accept Spring Data `Pageable` query parameters:
+    - `page` — zero-based page index (default `0`)
+    - `size` — page size (default `20`)
+    - `sort` — property,direction (e.g. `createdAt,desc`)
+
+    ## Multi-Tenancy
+    All tenant-scoped resources are automatically filtered by the tenant context
+    derived from the authenticated user's JWT token.
+  version: 0.1.0
+  contact:
+    name: MXSuite Platform Team
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Authentication
+    description: Login and token management
+  - name: Tenants
+    description: Tenant CRUD (Platform Admin/Support only)
+  - name: Users
+    description: User management (Platform Admin/Support only)
+  - name: Workspaces
+    description: Workspace management and sharing
+  - name: Projects
+    description: Project CRUD (tenant-scoped)
+  - name: Plans
+    description: Plan lifecycle — create, map, publish, execute
+  - name: Plan Runs
+    description: Plan execution history
+  - name: File Uploads
+    description: Project asset file management
+  - name: Audit
+    description: Immutable audit event log
+  - name: Profile
+    description: Self-service user profile management
+  - name: Invitations
+    description: User invitation workflow
+  - name: Onboarding
+    description: Data onboarding wizard (file upload, column mapping, submission)
+
+paths:
+  # ──────────────────────────────────────────────
+  # Authentication
+  # ──────────────────────────────────────────────
+  /api/auth/login:
+    post:
+      tags: [Authentication]
+      summary: Authenticate and obtain JWT token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              email: admin@mxsuite.com
+              password: admin123
+      responses:
+        '200':
+          description: Successful authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+              example:
+                token: eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhMWIyYzNkNC1lNWY2LTc4OTAtYWJjZC1lZjEyMzQ1Njc4OTAiLCJlbWFpbCI6ImFkbWluQG14c3VpdGUuY29tIiwicm9sZSI6IlBMQVRGT1JNX0FETUlOIiwidGVuYW50SWQiOiIxMTExMTExMS0xMTExLTExMTEtMTExMS0xMTExMTExMTExMTEiLCJuYW1lIjoiUGxhdGZvcm0gQWRtaW4iLCJpYXQiOjE3MjEwMDAwMDAsImV4cCI6MTcyMTA4NjQwMH0.signature
+                user:
+                  id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                  email: admin@mxsuite.com
+                  firstName: Platform
+                  lastName: Admin
+                  role: PLATFORM_ADMIN
+                  tenantId: "11111111-1111-1111-1111-111111111111"
+                  avatarUrl: null
+                tenant:
+                  id: "11111111-1111-1111-1111-111111111111"
+                  name: MXSuite Platform
+                  slug: mxsuite-platform
+                  tenantType: PLATFORM
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: 401
+                message: Invalid email or password
+
+  # ──────────────────────────────────────────────
+  # Tenants
+  # ──────────────────────────────────────────────
+  /api/admin/tenants:
+    get:
+      tags: [Tenants]
+      summary: List all tenants
+      description: Returns paginated list of all tenants. Requires `PLATFORM_ADMIN` or `PLATFORM_SUPPORT` role.
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/size'
+        - $ref: '#/components/parameters/sort'
+      responses:
+        '200':
+          description: Paginated list of tenants
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageTenant'
+              example:
+                content:
+                  - id: "11111111-1111-1111-1111-111111111111"
+                    name: MXSuite Platform
+                    slug: mxsuite-platform
+                    tenantType: PLATFORM
+                    active: true
+                    createdAt: "2026-07-01T00:00:00Z"
+                    lastModifiedAt: "2026-07-01T00:00:00Z"
+                  - id: "22222222-2222-2222-2222-222222222222"
+                    name: Denver Chamber of Commerce
+                    slug: denver-chamber
+                    tenantType: CUSTOMER
+                    active: true
+                    createdAt: "2026-07-01T00:00:00Z"
+                    lastModifiedAt: "2026-07-01T00:00:00Z"
+                totalElements: 2
+                totalPages: 1
+                size: 20
+                number: 0
+        '403':
+          description: Insufficient privileges
+
+    post:
+      tags: [Tenants]
+      summary: Create a new customer tenant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTenantRequest'
+            example:
+              name: Austin Chamber of Commerce
+              slug: austin-chamber
+      responses:
+        '200':
+          description: Tenant created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+              example:
+                id: "33333333-3333-3333-3333-333333333333"
+                name: Austin Chamber of Commerce
+                slug: austin-chamber
+                tenantType: CUSTOMER
+                active: true
+                createdBy: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                createdAt: "2026-07-15T14:30:00Z"
+                lastModifiedBy: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                lastModifiedAt: "2026-07-15T14:30:00Z"
+        '400':
+          description: Slug already exists
+
+  /api/admin/tenants/with-owner:
+    post:
+      tags: [Tenants]
+      summary: Create tenant with owner user (atomic)
+      description: |
+        Atomically creates a new customer tenant and a TENANT_ADMIN user in a single transaction.
+        If either the slug or email already exists, the entire operation is rejected.
+        Requires `PLATFORM_ADMIN` role.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTenantWithOwnerRequest'
+            example:
+              name: Denver Chamber of Commerce
+              slug: denver-chamber
+              ownerEmail: admin@denverchamber.org
+              ownerFirstName: Denver
+              ownerLastName: Admin
+              ownerPassword: SecurePass123!
+      responses:
+        '201':
+          description: Tenant and owner created
+          content:
+            application/json:
+              example:
+                tenant:
+                  id: "33333333-3333-3333-3333-333333333333"
+                  name: Denver Chamber of Commerce
+                  slug: denver-chamber
+                  tenantType: CUSTOMER
+                  active: true
+                owner:
+                  id: "44444444-4444-4444-4444-444444444444"
+                  email: admin@denverchamber.org
+                  firstName: Denver
+                  lastName: Admin
+                  role: TENANT_ADMIN
+        '409':
+          description: Slug or email already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/admin/tenants/{id}:
+    get:
+      tags: [Tenants]
+      summary: Get tenant by ID
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          description: Tenant details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+              example:
+                id: "22222222-2222-2222-2222-222222222222"
+                name: Denver Chamber of Commerce
+                slug: denver-chamber
+                tenantType: CUSTOMER
+                active: true
+                createdAt: "2026-07-01T00:00:00Z"
+                lastModifiedAt: "2026-07-01T00:00:00Z"
+        '404':
+          description: Tenant not found
+
+    put:
+      tags: [Tenants]
+      summary: Update a tenant
+      parameters:
+        - $ref: '#/components/parameters/id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTenantRequest'
+            example:
+              name: Denver Metro Chamber of Commerce
+              active: true
+      responses:
+        '200':
+          description: Tenant updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+              example:
+                id: "22222222-2222-2222-2222-222222222222"
+                name: Denver Metro Chamber of Commerce
+                slug: denver-chamber
+                tenantType: CUSTOMER
+                active: true
+                createdAt: "2026-07-01T00:00:00Z"
+                lastModifiedAt: "2026-07-15T15:00:00Z"
+        '404':
+          description: Tenant not found
+
+  # ──────────────────────────────────────────────
+  # Users
+  # ──────────────────────────────────────────────
+  /api/admin/users:
+    get:
+      tags: [Users]
+      summary: List users
+      description: Returns all users, optionally filtered by tenant. Requires `PLATFORM_ADMIN` or `PLATFORM_SUPPORT` role.
+      parameters:
+        - name: tenantId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Filter users by tenant
+          example: "22222222-2222-2222-2222-222222222222"
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/size'
+        - $ref: '#/components/parameters/sort'
+      responses:
+        '200':
+          description: Paginated user list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageUser'
+              example:
+                content:
+                  - id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                    email: admin@mxsuite.com
+                    firstName: Platform
+                    lastName: Admin
+                    role: PLATFORM_ADMIN
+                    active: true
+                    avatarUrl: null
+                    tenant:
+                      id: "11111111-1111-1111-1111-111111111111"
+                      name: MXSuite Platform
+                      slug: mxsuite-platform
+                      tenantType: PLATFORM
+                    createdAt: "2026-07-01T00:00:00Z"
+                  - id: b2c3d4e5-f6a7-8901-bcde-f12345678901
+                    email: admin@denverchamber.org
+                    firstName: Denver
+                    lastName: Admin
+                    role: TENANT_ADMIN
+                    active: true
+                    avatarUrl: null
+                    tenant:
+                      id: "22222222-2222-2222-2222-222222222222"
+                      name: Denver Chamber of Commerce
+                      slug: denver-chamber
+                      tenantType: CUSTOMER
+                    createdAt: "2026-07-01T00:00:00Z"
+                totalElements: 2
+                totalPages: 1
+                size: 20
+                number: 0
+
+    post:
+      tags: [Users]
+      summary: Create a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+            example:
+              email: jane.doe@denverchamber.org
+              firstName: Jane
+              lastName: Doe
+              password: SecurePass123!
+              role: TENANT_USER
+              tenantId: "22222222-2222-2222-2222-222222222222"
+      responses:
+        '200':
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+              example:
+                id: c3d4e5f6-a7b8-9012-cdef-123456789012
+                email: jane.doe@denverchamber.org
+                firstName: Jane
+                lastName: Doe
+                role: TENANT_USER
+                active: true
+                avatarUrl: null
+                createdAt: "2026-07-15T14:30:00Z"
+        '400':
+          description: Email already in use or tenant not found
+          content:
+            application/json:
+              example: Email already in use
+
+  /api/admin/users/{id}:
+    get:
+      tags: [Users]
+      summary: Get user by ID
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          description: User details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+              example:
+                id: c3d4e5f6-a7b8-9012-cdef-123456789012
+                email: jane.doe@denverchamber.org
+                firstName: Jane
+                lastName: Doe
+                role: TENANT_USER
+                active: true
+                avatarUrl: null
+                createdAt: "2026-07-15T14:30:00Z"
+        '404':
+          description: User not found
+
+    put:
+      tags: [Users]
+      summary: Update a user
+      parameters:
+        - $ref: '#/components/parameters/id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+            example:
+              firstName: Jane
+              lastName: Smith
+              role: TENANT_ADMIN
+              active: true
+      responses:
+        '200':
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+              example:
+                id: c3d4e5f6-a7b8-9012-cdef-123456789012
+                email: jane.doe@denverchamber.org
+                firstName: Jane
+                lastName: Smith
+                role: TENANT_ADMIN
+                active: true
+                avatarUrl: null
+                lastModifiedAt: "2026-07-15T16:00:00Z"
+        '404':
+          description: User not found
+
+  # ──────────────────────────────────────────────
+  # Workspaces
+  # ──────────────────────────────────────────────
+  /api/workspaces:
+    get:
+      tags: [Workspaces]
+      summary: List accessible workspaces
+      description: |
+        Returns workspaces accessible to the authenticated user:
+        - **Tenant users:** workspaces they own or have been granted access to
+        - **Platform users:** their own workspaces, or if `X-Tenant-Id` is set, all workspaces for that tenant
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/size'
+        - $ref: '#/components/parameters/sort'
+      responses:
+        '200':
+          description: Paginated workspace list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageWorkspace'
+              example:
+                content:
+                  - id: w1111111-1111-1111-1111-111111111111
+                    name: Denver Data Migration
+                    description: Q3 member data onboarding for Denver Chamber
+                    crossTenant: false
+                    createdAt: "2026-07-10T09:00:00Z"
+                    owner:
+                      id: b2c3d4e5-f6a7-8901-bcde-f12345678901
+                      email: admin@denverchamber.org
+                      firstName: Denver
+                      lastName: Admin
+                  - id: w2222222-2222-2222-2222-222222222222
+                    name: Cross-Org Review
+                    description: Platform support workspace spanning multiple tenants
+                    crossTenant: true
+                    createdAt: "2026-07-12T10:00:00Z"
+                    owner:
+                      id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                      email: admin@mxsuite.com
+                      firstName: Platform
+                      lastName: Admin
+                totalElements: 2
+                totalPages: 1
+                size: 20
+                number: 0
+
+    post:
+      tags: [Workspaces]
+      summary: Create a workspace
+      description: |
+        Creates a new workspace owned by the authenticated user.
+        If the user is a platform user, the workspace is automatically flagged as `crossTenant`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkspaceRequest'
+            example:
+              name: Denver Data Migration
+              description: Q3 member data onboarding for Denver Chamber
+      responses:
+        '200':
+          description: Workspace created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+              example:
+                id: w1111111-1111-1111-1111-111111111111
+                name: Denver Data Migration
+                description: Q3 member data onboarding for Denver Chamber
+                crossTenant: false
+                createdBy: b2c3d4e5-f6a7-8901-bcde-f12345678901
+                createdAt: "2026-07-15T14:30:00Z"
+
+  /api/workspaces/{id}/share:
+    post:
+      tags: [Workspaces]
+      summary: Share workspace with a user
+      description: Grant a user access to the workspace at a specified level (VIEWER, EDITOR, ADMIN).
+      parameters:
+        - $ref: '#/components/parameters/id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ShareWorkspaceRequest'
+            example:
+              userId: c3d4e5f6-a7b8-9012-cdef-123456789012
+              accessLevel: EDITOR
+      responses:
+        '200':
+          description: Access granted
+        '400':
+          description: User not found
+          content:
+            application/json:
+              example: User not found
+        '404':
+          description: Workspace not found
+
+  /api/workspaces/{id}:
+    put:
+      tags: [Workspaces]
+      summary: Update a workspace
+      description: Update workspace name or description. Only workspace owner or platform users can update.
+      parameters:
+        - $ref: '#/components/parameters/id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWorkspaceRequest'
+            example:
+              name: Updated Workspace Name
+              description: New description
+      responses:
+        '200':
+          description: Workspace updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+        '403':
+          description: Not workspace owner
+        '404':
+          description: Workspace not found
+
+    delete:
+      tags: [Workspaces]
+      summary: Delete a workspace
+      description: Delete a workspace. Only workspace owner or platform admin can delete. Fails if workspace has projects.
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        '204':
+          description: Workspace deleted
+        '403':
+          description: Not workspace owner
+        '404':
+          description: Workspace not found
+        '409':
+          description: Workspace has projects — cannot delete
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ──────────────────────────────────────────────
+  # Projects
+  # ──────────────────────────────────────────────
+  /api/projects:
+    get:
+      tags: [Projects]
+      summary: List projects for current tenant
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/size'
+        - $ref: '#/components/parameters/sort'
+      responses:
+        '200':
+          description: Paginated project list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageProject'
+              example:
+                content:
+                  - id: p1111111-1111-1111-1111-111111111111
+                    name: Member Import 2026
+                    description: Annual member data import from legacy CRM
+                    createdAt: "2026-07-10T09:00:00Z"
+                    lastModifiedAt: "2026-07-14T16:30:00Z"
+                    owner:
+                      id: b2c3d4e5-f6a7-8901-bcde-f12345678901
+                      firstName: Denver
+                      lastName: Admin
+                totalElements: 1
+                totalPages: 1
+                size: 20
+                number: 0
+
+    post:
+      tags: [Projects]
+      summary: Create a project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProjectRequest'
+            example:
+              name: Member Import 2026
+              description: Annual member data import from legacy CRM
+      responses:
+        '200':
+          description: Project created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+              example:
+                id: p1111111-1111-1111-1111-111111111111
+                name: Member Import 2026
+                description: Annual member data import from legacy CRM
+                createdBy: b2c3d4e5-f6a7-8901-bcde-f12345678901
+                createdAt: "2026-07-15T14:30:00Z"
+
+  /api/projects/{id}:
+    get:
+      tags: [Projects]
+      summary: Get project by ID
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          description: Project details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+              example:
+                id: p1111111-1111-1111-1111-111111111111
+                name: Member Import 2026
+                description: Annual member data import from legacy CRM
+                createdAt: "2026-07-10T09:00:00Z"
+                lastModifiedAt: "2026-07-14T16:30:00Z"
+        '404':
+          description: Project not found
+
+    put:
+      tags: [Projects]
+      summary: Update a project
+      parameters:
+        - $ref: '#/components/parameters/id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProjectRequest'
+            example:
+              name: Member Import 2026 — Revised
+              description: Updated scope to include event data
+      responses:
+        '200':
+          description: Project updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+              example:
+                id: p1111111-1111-1111-1111-111111111111
+                name: Member Import 2026 — Revised
+                description: Updated scope to include event data
+                lastModifiedAt: "2026-07-15T16:00:00Z"
+        '404':
+          description: Project not found
+
+    delete:
+      tags: [Projects]
+      summary: Delete a project
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          description: Project deleted
+        '404':
+          description: Project not found
+
+  # ──────────────────────────────────────────────
+  # Plans
+  # ──────────────────────────────────────────────
+  /api/projects/{projectId}/plans:
+    get:
+      tags: [Plans]
+      summary: List plans for a project
+      parameters:
+        - $ref: '#/components/parameters/projectId'
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/size'
+        - $ref: '#/components/parameters/sort'
+      responses:
+        '200':
+          description: Paginated plan list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagePlan'
+              example:
+                content:
+                  - id: pl111111-1111-1111-1111-111111111111
+                    name: Contact Import Mapping
+                    description: Maps legacy CRM contacts to GrowthZone contact model
+                    status: DRAFT
+                    version: 3
+                    createdAt: "2026-07-11T10:00:00Z"
+                    lastModifiedAt: "2026-07-14T14:00:00Z"
+                  - id: pl222222-2222-2222-2222-222222222222
+                    name: Event Import Mapping
+                    description: Maps event registrations
+                    status: PUBLISHED
+                    version: 1
+                    createdAt: "2026-07-13T09:00:00Z"
+                    lastModifiedAt: "2026-07-13T11:00:00Z"
+                totalElements: 2
+                totalPages: 1
+                size: 20
+                number: 0
+
+    post:
+      tags: [Plans]
+      summary: Create a new plan
+      parameters:
+        - $ref: '#/components/parameters/projectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePlanRequest'
+            example:
+              name: Contact Import Mapping
+              description: Maps legacy CRM contacts to GrowthZone contact model
+      responses:
+        '200':
+          description: Plan created in DRAFT status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Plan'
+              example:
+                id: pl111111-1111-1111-1111-111111111111
+                name: Contact Import Mapping
+                description: Maps legacy CRM contacts to GrowthZone contact model
+                status: DRAFT
+                version: 1
+                definition: null
+                createdAt: "2026-07-15T14:30:00Z"
+        '404':
+          description: Project not found
+
+  /api/projects/{projectId}/plans/{planId}:
+    get:
+      tags: [Plans]
+      summary: Get plan by ID
+      parameters:
+        - $ref: '#/components/parameters/projectId'
+        - $ref: '#/components/parameters/planId'
+      responses:
+        '200':
+          description: Full plan with definition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Plan'
+              example:
+                id: pl111111-1111-1111-1111-111111111111
+                name: Contact Import Mapping
+                description: Maps legacy CRM contacts to GrowthZone contact model
+                status: DRAFT
+                version: 3
+                definition:
+                  sourceSchema:
+                    - name: member_name
+                      type: string
+                      path: member_name
+                    - name: join_date
+                      type: string
+                      path: join_date
+                    - name: email_addr
+                      type: string
+                      path: email_addr
+                  targetSchema:
+                    - name: fullName
+                      type: string
+                      path: contact.fullName
+                    - name: memberSince
+                      type: date
+                      path: membership.startDate
+                    - name: email
+                      type: string
+                      path: contact.email
+                  mappings:
+                    - id: m1
+                      sourceField: member_name
+                      targetField: fullName
+                      transformation: "TRIM | TITLE_CASE"
+                    - id: m2
+                      sourceField: join_date
+                      targetField: memberSince
+                      transformation: "DATE_PARSE('MM/dd/yyyy')"
+                    - id: m3
+                      sourceField: email_addr
+                      targetField: email
+                      transformation: "TRIM | LOWER_CASE"
+                  validationRules:
+                    - field: fullName
+                      rule: NOT_EMPTY
+                      message: Name is required
+                    - field: email
+                      rule: VALID_EMAIL
+                      message: Invalid email address
+                createdAt: "2026-07-11T10:00:00Z"
+                lastModifiedAt: "2026-07-14T14:00:00Z"
+        '404':
+          description: Plan not found
+
+  /api/projects/{projectId}/plans/{planId}/definition:
+    put:
+      tags: [Plans]
+      summary: Update plan field mapping definition
+      description: |
+        Replaces the plan's JSONB definition with a new mapping configuration.
+        Automatically increments the plan version.
+      parameters:
+        - $ref: '#/components/parameters/projectId'
+        - $ref: '#/components/parameters/planId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDefinitionRequest'
+            example:
+              definition:
+                sourceSchema:
+                  - name: member_name
+                    type: string
+                    path: member_name
+                  - name: join_date
+                    type: string
+                    path: join_date
+                targetSchema:
+                  - name: fullName
+                    type: string
+                    path: contact.fullName
+                  - name: memberSince
+                    type: date
+                    path: membership.startDate
+                mappings:
+                  - id: m1
+                    sourceField: member_name
+                    targetField: fullName
+                    transformation: "TRIM | TITLE_CASE"
+                  - id: m2
+                    sourceField: join_date
+                    targetField: memberSince
+                    transformation: "DATE_PARSE('MM/dd/yyyy')"
+                validationRules:
+                  - field: fullName
+                    rule: NOT_EMPTY
+                    message: Name is required
+      responses:
+        '200':
+          description: Definition updated, version incremented
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Plan'
+              example:
+                id: pl111111-1111-1111-1111-111111111111
+                name: Contact Import Mapping
+                status: DRAFT
+                version: 4
+                lastModifiedAt: "2026-07-15T15:30:00Z"
+        '404':
+          description: Plan not found
+
+  /api/projects/{projectId}/plans/{planId}/publish:
+    post:
+      tags: [Plans]
+      summary: Publish a plan
+      description: Transitions plan status from DRAFT to PUBLISHED. Published plans can be executed.
+      parameters:
+        - $ref: '#/components/parameters/projectId'
+        - $ref: '#/components/parameters/planId'
+      responses:
+        '200':
+          description: Plan published
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Plan'
+              example:
+                id: pl111111-1111-1111-1111-111111111111
+                name: Contact Import Mapping
+                status: PUBLISHED
+                version: 4
+                lastModifiedAt: "2026-07-15T16:00:00Z"
+        '404':
+          description: Plan not found
+
+  /api/projects/{projectId}/plans/{planId}/archive:
+    post:
+      tags: [Plans]
+      summary: Archive a plan
+      description: Transitions plan status to ARCHIVED. Archived plans cannot be executed.
+      parameters:
+        - $ref: '#/components/parameters/projectId'
+        - $ref: '#/components/parameters/planId'
+      responses:
+        '200':
+          description: Plan archived
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Plan'
+              example:
+                id: pl111111-1111-1111-1111-111111111111
+                name: Contact Import Mapping
+                status: ARCHIVED
+                version: 4
+                lastModifiedAt: "2026-07-15T17:00:00Z"
+        '404':
+          description: Plan not found
+
+  /api/projects/{projectId}/plans/{planId}/execute:
+    post:
+      tags: [Plans]
+      summary: Execute a plan (dry run or full run)
+      description: |
+        Creates a new `PlanRun` in `QUEUED` status.
+        - **DRY_RUN:** Validates and processes all records but does NOT commit to target database.
+        - **FULL_RUN:** Validates, transforms, and commits records to the target database.
+      parameters:
+        - $ref: '#/components/parameters/projectId'
+        - $ref: '#/components/parameters/planId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExecutePlanRequest'
+            example:
+              runType: DRY_RUN
+      responses:
+        '200':
+          description: Execution queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanRun'
+              example:
+                id: r1111111-1111-1111-1111-111111111111
+                runType: DRY_RUN
+                status: QUEUED
+                planVersion: 4
+                recordsProcessed: null
+                recordsSucceeded: null
+                recordsFailed: null
+                startedAt: null
+                completedAt: null
+                resultSummary: null
+                errors: null
+                createdAt: "2026-07-15T16:30:00Z"
+        '404':
+          description: Plan not found
+
+  /api/projects/{projectId}/plans/{planId}/runs:
+    get:
+      tags: [Plan Runs]
+      summary: List runs for a plan
+      parameters:
+        - $ref: '#/components/parameters/projectId'
+        - $ref: '#/components/parameters/planId'
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/size'
+        - $ref: '#/components/parameters/sort'
+      responses:
+        '200':
+          description: Paginated list of plan runs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagePlanRun'
+              example:
+                content:
+                  - id: r1111111-1111-1111-1111-111111111111
+                    runType: DRY_RUN
+                    status: COMPLETED
+                    planVersion: 4
+                    recordsProcessed: 1523
+                    recordsSucceeded: 1498
+                    recordsFailed: 25
+                    startedAt: "2026-07-15T16:30:05Z"
+                    completedAt: "2026-07-15T16:31:12Z"
+                    resultSummary:
+                      durationMs: 67000
+                      validationErrors: 18
+                      transformationErrors: 7
+                    errors:
+                      records:
+                        - row: 42
+                          field: email_addr
+                          error: "Invalid email format: 'not-an-email'"
+                        - row: 156
+                          field: join_date
+                          error: "Cannot parse date: '13/45/2025'"
+                    createdAt: "2026-07-15T16:30:00Z"
+                  - id: r2222222-2222-2222-2222-222222222222
+                    runType: FULL_RUN
+                    status: COMPLETED
+                    planVersion: 4
+                    recordsProcessed: 1523
+                    recordsSucceeded: 1523
+                    recordsFailed: 0
+                    startedAt: "2026-07-15T17:00:05Z"
+                    completedAt: "2026-07-15T17:01:45Z"
+                    resultSummary:
+                      durationMs: 100000
+                      validationErrors: 0
+                      transformationErrors: 0
+                    errors: null
+                    createdAt: "2026-07-15T17:00:00Z"
+                totalElements: 2
+                totalPages: 1
+                size: 20
+                number: 0
+
+  # ──────────────────────────────────────────────
+  # File Uploads
+  # ──────────────────────────────────────────────
+  /api/projects/{projectId}/assets:
+    get:
+      tags: [File Uploads]
+      summary: List project assets
+      parameters:
+        - $ref: '#/components/parameters/projectId'
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/size'
+      responses:
+        '200':
+          description: Paginated asset list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageProjectAsset'
+              example:
+                content:
+                  - id: f1111111-1111-1111-1111-111111111111
+                    filename: members_export_2026.csv
+                    contentType: text/csv
+                    fileSize: 245890
+                    assetType: DATA
+                    createdAt: "2026-07-12T09:30:00Z"
+                    uploadedBy:
+                      id: b2c3d4e5-f6a7-8901-bcde-f12345678901
+                      firstName: Denver
+                      lastName: Admin
+                  - id: f2222222-2222-2222-2222-222222222222
+                    filename: event_registrations.xlsx
+                    contentType: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+                    fileSize: 1048576
+                    assetType: DATA
+                    createdAt: "2026-07-13T11:00:00Z"
+                    uploadedBy:
+                      id: c3d4e5f6-a7b8-9012-cdef-123456789012
+                      firstName: Jane
+                      lastName: Doe
+                totalElements: 2
+                totalPages: 1
+                size: 20
+                number: 0
+
+  /api/projects/{projectId}/assets/upload:
+    post:
+      tags: [File Uploads]
+      summary: Upload a file to a project
+      description: |
+        Uploads a file and creates a `ProjectAsset` record. Files are stored
+        in a tenant/project-namespaced directory on the server.
+      parameters:
+        - $ref: '#/components/parameters/projectId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: The file to upload
+                assetType:
+                  type: string
+                  default: DATA
+                  description: Asset classification (e.g., DATA, DOCUMENT, TEMPLATE)
+                  enum: [DATA, DOCUMENT, TEMPLATE]
+      responses:
+        '200':
+          description: File uploaded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectAsset'
+              example:
+                id: f3333333-3333-3333-3333-333333333333
+                filename: contacts_q3.csv
+                contentType: text/csv
+                fileSize: 125430
+                storagePath: /data/files/22222222-2222-2222-2222-222222222222/p1111111-1111-1111-1111-111111111111/a8b9c0d1_contacts_q3.csv
+                assetType: DATA
+                createdAt: "2026-07-15T14:30:00Z"
+        '404':
+          description: Project not found
+
+  # ──────────────────────────────────────────────
+  # Audit
+  # ──────────────────────────────────────────────
+  /api/audit:
+    get:
+      tags: [Audit]
+      summary: List audit events for current tenant
+      parameters:
+        - name: platformOnly
+          in: query
+          required: false
+          schema:
+            type: boolean
+          description: Filter to only platform (GrowthZone staff) actions
+          example: true
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/size'
+        - $ref: '#/components/parameters/sort'
+      responses:
+        '200':
+          description: Paginated audit event list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageAuditEvent'
+              example:
+                content:
+                  - id: ae111111-1111-1111-1111-111111111111
+                    tenantId: "22222222-2222-2222-2222-222222222222"
+                    actorId: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                    actorName: Platform Admin
+                    actorRole: PLATFORM_ADMIN
+                    platformAction: true
+                    action: CREATE
+                    entityType: Project
+                    entityId: p1111111-1111-1111-1111-111111111111
+                    entityName: Member Import 2026
+                    beforeState: null
+                    afterState:
+                      name: Member Import 2026
+                      description: Annual member data import from legacy CRM
+                    metadata: null
+                    timestamp: "2026-07-10T09:00:00Z"
+                    ipAddress: "192.168.1.100"
+                    traceId: "4bf92f3577b34da6a3ce929d0e0e4736"
+                  - id: ae222222-2222-2222-2222-222222222222
+                    tenantId: "22222222-2222-2222-2222-222222222222"
+                    actorId: b2c3d4e5-f6a7-8901-bcde-f12345678901
+                    actorName: Denver Admin
+                    actorRole: TENANT_ADMIN
+                    platformAction: false
+                    action: EXECUTE_DRY_RUN
+                    entityType: PlanRun
+                    entityId: r1111111-1111-1111-1111-111111111111
+                    entityName: Contact Import Mapping
+                    beforeState: null
+                    afterState: null
+                    metadata: null
+                    timestamp: "2026-07-15T16:30:00Z"
+                    ipAddress: "10.0.0.52"
+                    traceId: "7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d"
+                totalElements: 2
+                totalPages: 1
+                size: 20
+                number: 0
+
+  /api/audit/entity/{entityType}/{entityId}:
+    get:
+      tags: [Audit]
+      summary: Get audit events for a specific entity
+      description: Returns the complete audit history for a given entity (e.g., all actions on a specific Plan).
+      parameters:
+        - name: entityType
+          in: path
+          required: true
+          schema:
+            type: string
+          example: Plan
+        - name: entityId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          example: pl111111-1111-1111-1111-111111111111
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/size'
+      responses:
+        '200':
+          description: Audit trail for the entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageAuditEvent'
+              example:
+                content:
+                  - id: ae333333-3333-3333-3333-333333333333
+                    actorName: Denver Admin
+                    actorRole: TENANT_ADMIN
+                    platformAction: false
+                    action: CREATE
+                    entityType: Plan
+                    entityId: pl111111-1111-1111-1111-111111111111
+                    entityName: Contact Import Mapping
+                    timestamp: "2026-07-11T10:00:00Z"
+                    traceId: "1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d"
+                  - id: ae444444-4444-4444-4444-444444444444
+                    actorName: Denver Admin
+                    actorRole: TENANT_ADMIN
+                    platformAction: false
+                    action: UPDATE_DEFINITION
+                    entityType: Plan
+                    entityId: pl111111-1111-1111-1111-111111111111
+                    entityName: Contact Import Mapping
+                    timestamp: "2026-07-14T14:00:00Z"
+                    traceId: "2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e"
+                  - id: ae555555-5555-5555-5555-555555555555
+                    actorName: Platform Admin
+                    actorRole: PLATFORM_ADMIN
+                    platformAction: true
+                    action: PUBLISH
+                    entityType: Plan
+                    entityId: pl111111-1111-1111-1111-111111111111
+                    entityName: Contact Import Mapping
+                    timestamp: "2026-07-15T16:00:00Z"
+                    traceId: "3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f"
+                totalElements: 3
+                totalPages: 1
+                size: 20
+                number: 0
+
+  # ──────────────────────────────────────────────
+  # Profile (Self-Service)
+  # ──────────────────────────────────────────────
+  /api/profile:
+    get:
+      tags: [Profile]
+      summary: Get current user's profile
+      description: Returns the authenticated user's full profile including computed fields.
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileResponse'
+
+    put:
+      tags: [Profile]
+      summary: Update current user's profile
+      description: Update own firstName, lastName, title, and bio.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProfileRequest'
+            example:
+              firstName: John
+              lastName: Smith
+              title: Director of Operations
+              bio: Managing data migration projects
+      responses:
+        '200':
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileResponse'
+
+  /api/profile/password:
+    put:
+      tags: [Profile]
+      summary: Change password
+      description: Change the authenticated user's password. Requires current password verification.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+            example:
+              currentPassword: oldPassword123
+              newPassword: newSecurePass456!
+      responses:
+        '200':
+          description: Password changed successfully
+        '400':
+          description: Current password is incorrect
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/profile/avatar:
+    post:
+      tags: [Profile]
+      summary: Upload profile avatar
+      description: Upload a profile picture (PNG, JPG, WEBP). Max 2MB.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Avatar uploaded
+          content:
+            application/json:
+              example:
+                avatarUrl: /api/profile/avatar/file
+
+  /api/profile/preferences:
+    get:
+      tags: [Profile]
+      summary: Get user preferences
+      description: Returns the authenticated user's preferences (theme, notifications, display settings).
+      responses:
+        '200':
+          description: Preferences object
+          content:
+            application/json:
+              example:
+                theme: light
+                compact: false
+                emailNotifications: true
+                inAppNotifications: true
+                weeklyDigest: false
+                dateFormat: MM/DD/YYYY
+
+    put:
+      tags: [Profile]
+      summary: Update user preferences
+      description: Replace all preferences with the provided object.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+            example:
+              theme: dark
+              compact: true
+              emailNotifications: true
+              inAppNotifications: true
+              weeklyDigest: false
+              dateFormat: DD/MM/YYYY
+      responses:
+        '200':
+          description: Preferences saved
+          content:
+            application/json:
+              example:
+                theme: dark
+                compact: true
+
+  # ──────────────────────────────────────────────
+  # Invitations
+  # ──────────────────────────────────────────────
+  /api/invitations:
+    get:
+      tags: [Invitations]
+      summary: List invitations
+      description: List all invitations for the current tenant. Requires TENANT_ADMIN or PLATFORM_ADMIN.
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/size'
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [PENDING, ACCEPTED, CANCELLED, EXPIRED]
+      responses:
+        '200':
+          description: Paginated list of invitations
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageInvitation'
+
+    post:
+      tags: [Invitations]
+      summary: Send an invitation
+      description: Invite a user to join the current tenant. Sends an email with an accept link.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateInvitationRequest'
+            example:
+              email: newuser@example.com
+              role: TENANT_USER
+      responses:
+        '201':
+          description: Invitation created and email sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invitation'
+        '409':
+          description: User already exists or pending invitation exists
+
+  /api/invitations/{id}/cancel:
+    post:
+      tags: [Invitations]
+      summary: Cancel a pending invitation
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          description: Invitation cancelled
+        '404':
+          description: Invitation not found
+
+  /api/invitations/{id}/resend:
+    post:
+      tags: [Invitations]
+      summary: Resend an invitation email
+      description: Resends the invitation email and extends the expiration.
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          description: Invitation resent
+        '404':
+          description: Invitation not found
+
+  /api/invitations/accept:
+    post:
+      tags: [Invitations]
+      summary: Accept an invitation
+      description: Accept an invitation using the token from the email. Creates a new user account.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AcceptInvitationRequest'
+            example:
+              token: abc123def456
+              firstName: Jane
+              lastName: Doe
+              password: SecurePass123!
+      responses:
+        '200':
+          description: Account created and invitation accepted
+        '400':
+          description: Token expired or invalid
+
+  # ──────────────────────────────────────────────
+  # Onboarding
+  # ──────────────────────────────────────────────
+  /api/onboarding:
+    get:
+      tags: [Onboarding]
+      summary: Get current onboarding
+      description: Returns the onboarding record for the current tenant.
+      responses:
+        '200':
+          description: Onboarding data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Onboarding'
+        '404':
+          description: No onboarding exists for this tenant
+
+    post:
+      tags: [Onboarding]
+      summary: Create a new onboarding
+      description: Creates a new onboarding record for the current tenant (step 0, status WELCOME).
+      responses:
+        '200':
+          description: Onboarding created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Onboarding'
+
+  /api/onboarding/{id}:
+    put:
+      tags: [Onboarding]
+      summary: Update onboarding step/status
+      description: Advance or retreat the onboarding wizard step.
+      parameters:
+        - $ref: '#/components/parameters/id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example:
+              currentStep: 2
+              status: MAPPING
+      responses:
+        '200':
+          description: Onboarding updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Onboarding'
+
+  /api/onboarding/{id}/upload:
+    post:
+      tags: [Onboarding]
+      summary: Upload data file
+      description: Upload a CSV or Excel file for onboarding. Parses headers and detects row count.
+      parameters:
+        - $ref: '#/components/parameters/id'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: File parsed successfully
+          content:
+            application/json:
+              example:
+                id: "55555555-5555-5555-5555-555555555555"
+                originalFilename: members.xlsx
+                rowCount: 1500
+                sourceColumns: [Name, Email, Phone, Address]
+                needsSheetSelection: false
+        '200 ':
+          description: Multi-sheet Excel — needs sheet selection
+          content:
+            application/json:
+              example:
+                needsSheetSelection: true
+                sheets:
+                  - index: 0
+                    name: Members
+                    rowCount: 1500
+                  - index: 1
+                    name: Companies
+                    rowCount: 320
+
+  /api/onboarding/{id}/select-sheet:
+    post:
+      tags: [Onboarding]
+      summary: Select Excel sheet
+      description: For multi-sheet Excel files, select which sheet to use.
+      parameters:
+        - $ref: '#/components/parameters/id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example:
+              sheetIndex: 0
+      responses:
+        '200':
+          description: Sheet selected and parsed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Onboarding'
+
+  /api/onboarding/{id}/preview:
+    get:
+      tags: [Onboarding]
+      summary: Preview uploaded data
+      description: Returns the first few rows of the uploaded file for preview.
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          description: Data preview
+          content:
+            application/json:
+              example:
+                headers: [Name, Email, Phone]
+                rows:
+                  - [John Smith, john@example.com, 555-0100]
+                  - [Jane Doe, jane@example.com, 555-0200]
+
+  /api/onboarding/{id}/mappings:
+    put:
+      tags: [Onboarding]
+      summary: Save column mappings
+      description: Save the source-to-target column mappings.
+      parameters:
+        - $ref: '#/components/parameters/id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example:
+              mappings:
+                - sourceField: Name
+                  targetField: fullName
+                  transformation: TRIM
+                - sourceField: Email
+                  targetField: emailAddress
+                  transformation: null
+      responses:
+        '200':
+          description: Mappings saved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Onboarding'
+
+  /api/onboarding/{id}/submit:
+    post:
+      tags: [Onboarding]
+      summary: Submit onboarding
+      description: Mark onboarding as submitted for GrowthZone review.
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          description: Onboarding submitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Onboarding'
+
+  /api/onboarding/{id}/reopen:
+    post:
+      tags: [Onboarding]
+      summary: Reopen submitted onboarding
+      description: Return a submitted onboarding to the mapping step for edits.
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          description: Onboarding reopened
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Onboarding'
+
+  /api/onboarding/{id}/reset:
+    delete:
+      tags: [Onboarding]
+      summary: Reset onboarding
+      description: Delete the onboarding and start over from scratch.
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        '204':
+          description: Onboarding reset
+
+# ══════════════════════════════════════════════
+# Components
+# ══════════════════════════════════════════════
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from POST /api/auth/login
+
+  parameters:
+    id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      example: "22222222-2222-2222-2222-222222222222"
+
+    projectId:
+      name: projectId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      example: p1111111-1111-1111-1111-111111111111
+
+    planId:
+      name: planId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      example: pl111111-1111-1111-1111-111111111111
+
+    page:
+      name: page
+      in: query
+      required: false
+      schema:
+        type: integer
+        default: 0
+        minimum: 0
+      description: Zero-based page index
+
+    size:
+      name: size
+      in: query
+      required: false
+      schema:
+        type: integer
+        default: 20
+        minimum: 1
+        maximum: 100
+      description: Page size
+
+    sort:
+      name: sort
+      in: query
+      required: false
+      schema:
+        type: string
+      description: "Sort property,direction (e.g. createdAt,desc)"
+      example: createdAt,desc
+
+  schemas:
+    # ── Auth ──
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: admin@mxsuite.com
+        password:
+          type: string
+          format: password
+          example: admin123
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: JWT Bearer token
+        user:
+          $ref: '#/components/schemas/UserDto'
+        tenant:
+          $ref: '#/components/schemas/TenantDto'
+
+    UserDto:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        firstName:
+          type: string
+        lastName:
+          type: string
+        role:
+          $ref: '#/components/schemas/UserRole'
+        tenantId:
+          type: string
+          format: uuid
+        avatarUrl:
+          type: string
+          nullable: true
+        title:
+          type: string
+          nullable: true
+        bio:
+          type: string
+          nullable: true
+
+    TenantDto:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        tenantType:
+          $ref: '#/components/schemas/TenantType'
+
+    ErrorResponse:
+      type: object
+      properties:
+        status:
+          type: integer
+        message:
+          type: string
+
+    # ── Tenant ──
+    Tenant:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        tenantType:
+          $ref: '#/components/schemas/TenantType'
+        active:
+          type: boolean
+        createdBy:
+          type: string
+          format: uuid
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        lastModifiedBy:
+          type: string
+          format: uuid
+          nullable: true
+        lastModifiedAt:
+          type: string
+          format: date-time
+
+    CreateTenantRequest:
+      type: object
+      required: [name, slug]
+      properties:
+        name:
+          type: string
+          example: Austin Chamber of Commerce
+        slug:
+          type: string
+          pattern: '^[a-z0-9-]+$'
+          example: austin-chamber
+
+    UpdateTenantRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+        active:
+          type: boolean
+          nullable: true
+
+    # ── User ──
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        firstName:
+          type: string
+        lastName:
+          type: string
+        role:
+          $ref: '#/components/schemas/UserRole'
+        active:
+          type: boolean
+        avatarUrl:
+          type: string
+          nullable: true
+        title:
+          type: string
+          nullable: true
+          description: Job title
+        bio:
+          type: string
+          nullable: true
+          description: Short biography (max 500 chars)
+        lastLoginAt:
+          type: string
+          format: date-time
+          nullable: true
+        preferences:
+          type: object
+          nullable: true
+          additionalProperties: true
+        tenant:
+          $ref: '#/components/schemas/Tenant'
+        createdAt:
+          type: string
+          format: date-time
+        lastModifiedAt:
+          type: string
+          format: date-time
+
+    CreateUserRequest:
+      type: object
+      required: [email, firstName, lastName, password, role, tenantId]
+      properties:
+        email:
+          type: string
+          format: email
+        firstName:
+          type: string
+        lastName:
+          type: string
+        password:
+          type: string
+          format: password
+          minLength: 8
+        role:
+          $ref: '#/components/schemas/UserRole'
+        tenantId:
+          type: string
+          format: uuid
+
+    UpdateUserRequest:
+      type: object
+      properties:
+        firstName:
+          type: string
+          nullable: true
+        lastName:
+          type: string
+          nullable: true
+        role:
+          $ref: '#/components/schemas/UserRole'
+          nullable: true
+        active:
+          type: boolean
+          nullable: true
+
+    # ── Workspace ──
+    Workspace:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        crossTenant:
+          type: boolean
+        owner:
+          $ref: '#/components/schemas/User'
+        tenant:
+          $ref: '#/components/schemas/Tenant'
+        accessList:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkspaceAccess'
+        projects:
+          type: array
+          items:
+            $ref: '#/components/schemas/Project'
+        createdBy:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        lastModifiedAt:
+          type: string
+          format: date-time
+
+    WorkspaceAccess:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user:
+          $ref: '#/components/schemas/User'
+        accessLevel:
+          $ref: '#/components/schemas/AccessLevel'
+
+    CreateWorkspaceRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+
+    ShareWorkspaceRequest:
+      type: object
+      required: [userId, accessLevel]
+      properties:
+        userId:
+          type: string
+          format: uuid
+        accessLevel:
+          $ref: '#/components/schemas/AccessLevel'
+
+    # ── Project ──
+    Project:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        owner:
+          $ref: '#/components/schemas/User'
+        tenant:
+          $ref: '#/components/schemas/Tenant'
+        createdBy:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        lastModifiedAt:
+          type: string
+          format: date-time
+
+    CreateProjectRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+
+    # ── Plan ──
+    Plan:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        status:
+          $ref: '#/components/schemas/PlanStatus'
+        version:
+          type: integer
+          minimum: 1
+        definition:
+          type: object
+          nullable: true
+          description: JSONB field mapping definition (sourceSchema, targetSchema, mappings, validationRules)
+          properties:
+            sourceSchema:
+              type: array
+              items:
+                $ref: '#/components/schemas/SchemaField'
+            targetSchema:
+              type: array
+              items:
+                $ref: '#/components/schemas/SchemaField'
+            mappings:
+              type: array
+              items:
+                $ref: '#/components/schemas/FieldMapping'
+            validationRules:
+              type: array
+              items:
+                $ref: '#/components/schemas/ValidationRule'
+        project:
+          $ref: '#/components/schemas/Project'
+        sourceAsset:
+          $ref: '#/components/schemas/ProjectAsset'
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        lastModifiedAt:
+          type: string
+          format: date-time
+
+    SchemaField:
+      type: object
+      properties:
+        name:
+          type: string
+          example: member_name
+        type:
+          type: string
+          example: string
+        path:
+          type: string
+          example: member_name
+
+    FieldMapping:
+      type: object
+      properties:
+        id:
+          type: string
+          example: m1
+        sourceField:
+          type: string
+          example: member_name
+        targetField:
+          type: string
+          example: fullName
+        transformation:
+          type: string
+          description: "Pipe-delimited transformation DSL"
+          example: "TRIM | TITLE_CASE"
+
+    ValidationRule:
+      type: object
+      properties:
+        field:
+          type: string
+          example: fullName
+        rule:
+          type: string
+          example: NOT_EMPTY
+        message:
+          type: string
+          example: Name is required
+
+    CreatePlanRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+
+    UpdateDefinitionRequest:
+      type: object
+      required: [definition]
+      properties:
+        definition:
+          type: object
+          description: Complete plan mapping definition
+
+    ExecutePlanRequest:
+      type: object
+      required: [runType]
+      properties:
+        runType:
+          $ref: '#/components/schemas/RunType'
+
+    # ── PlanRun ──
+    PlanRun:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        runType:
+          $ref: '#/components/schemas/RunType'
+        status:
+          $ref: '#/components/schemas/RunStatus'
+        planVersion:
+          type: integer
+        recordsProcessed:
+          type: integer
+          format: int64
+          nullable: true
+        recordsSucceeded:
+          type: integer
+          format: int64
+          nullable: true
+        recordsFailed:
+          type: integer
+          format: int64
+          nullable: true
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        resultSummary:
+          type: object
+          nullable: true
+          description: JSONB summary of execution results
+        errors:
+          type: object
+          nullable: true
+          description: JSONB error details (row-level failures)
+        triggeredBy:
+          $ref: '#/components/schemas/User'
+        plan:
+          $ref: '#/components/schemas/Plan'
+        createdAt:
+          type: string
+          format: date-time
+
+    # ── ProjectAsset ──
+    ProjectAsset:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        filename:
+          type: string
+        contentType:
+          type: string
+        fileSize:
+          type: integer
+          format: int64
+          description: File size in bytes
+        storagePath:
+          type: string
+          description: Server-side file path
+        assetType:
+          type: string
+          enum: [DATA, DOCUMENT, TEMPLATE]
+        uploadedBy:
+          $ref: '#/components/schemas/User'
+        project:
+          $ref: '#/components/schemas/Project'
+        createdAt:
+          type: string
+          format: date-time
+
+    # ── AuditEvent ──
+    AuditEvent:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        actorId:
+          type: string
+          format: uuid
+        actorName:
+          type: string
+        actorRole:
+          type: string
+        platformAction:
+          type: boolean
+          description: True if action was performed by a platform (GrowthZone) user
+        action:
+          type: string
+          description: "Action type (CREATE, UPDATE, DELETE, PUBLISH, ARCHIVE, EXECUTE_DRY_RUN, EXECUTE_FULL_RUN, UPLOAD, SHARE)"
+        entityType:
+          type: string
+          description: "Entity class name (Tenant, User, Project, Plan, PlanRun, Workspace, ProjectAsset)"
+        entityId:
+          type: string
+          format: uuid
+        entityName:
+          type: string
+          nullable: true
+        beforeState:
+          type: object
+          nullable: true
+          description: JSONB snapshot of entity state before change
+        afterState:
+          type: object
+          nullable: true
+          description: JSONB snapshot of entity state after change
+        metadata:
+          type: object
+          nullable: true
+        timestamp:
+          type: string
+          format: date-time
+        ipAddress:
+          type: string
+          nullable: true
+        traceId:
+          type: string
+          nullable: true
+          description: OpenTelemetry trace ID for distributed trace correlation
+
+    # ── Enums ──
+    TenantType:
+      type: string
+      enum: [PLATFORM, CUSTOMER]
+
+    UserRole:
+      type: string
+      enum: [PLATFORM_ADMIN, PLATFORM_SUPPORT, TENANT_ADMIN, TENANT_USER]
+
+    PlanStatus:
+      type: string
+      enum: [DRAFT, PUBLISHED, ARCHIVED]
+
+    RunType:
+      type: string
+      enum: [DRY_RUN, FULL_RUN]
+
+    RunStatus:
+      type: string
+      enum: [QUEUED, RUNNING, COMPLETED, FAILED]
+
+    AccessLevel:
+      type: string
+      enum: [VIEWER, EDITOR, ADMIN]
+
+    # ── Pagination Wrappers ──
+    PageTenant:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tenant'
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+        size:
+          type: integer
+        number:
+          type: integer
+
+    PageUser:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+        size:
+          type: integer
+        number:
+          type: integer
+
+    PageWorkspace:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/Workspace'
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+        size:
+          type: integer
+        number:
+          type: integer
+
+    PageProject:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/Project'
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+        size:
+          type: integer
+        number:
+          type: integer
+
+    PagePlan:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/Plan'
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+        size:
+          type: integer
+        number:
+          type: integer
+
+    PagePlanRun:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlanRun'
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+        size:
+          type: integer
+        number:
+          type: integer
+
+    PageProjectAsset:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectAsset'
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+        size:
+          type: integer
+        number:
+          type: integer
+
+    PageAuditEvent:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditEvent'
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+        size:
+          type: integer
+        number:
+          type: integer
+
+    PageInvitation:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/Invitation'
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+        size:
+          type: integer
+        number:
+          type: integer
+
+    # ── Tenant (new requests) ──
+    CreateTenantWithOwnerRequest:
+      type: object
+      required: [name, slug, ownerEmail, ownerFirstName, ownerLastName, ownerPassword]
+      properties:
+        name:
+          type: string
+          example: Denver Chamber of Commerce
+        slug:
+          type: string
+          pattern: '^[a-z0-9-]+$'
+          example: denver-chamber
+        ownerEmail:
+          type: string
+          format: email
+          example: admin@denverchamber.org
+        ownerFirstName:
+          type: string
+          example: Denver
+        ownerLastName:
+          type: string
+          example: Admin
+        ownerPassword:
+          type: string
+          format: password
+          minLength: 8
+          example: SecurePass123!
+
+    # ── Workspace (new requests) ──
+    UpdateWorkspaceRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+
+    # ── Profile ──
+    ProfileResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        firstName:
+          type: string
+        lastName:
+          type: string
+        title:
+          type: string
+          nullable: true
+        bio:
+          type: string
+          nullable: true
+        role:
+          $ref: '#/components/schemas/UserRole'
+        avatarUrl:
+          type: string
+          nullable: true
+        lastLoginAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        tenantName:
+          type: string
+
+    UpdateProfileRequest:
+      type: object
+      properties:
+        firstName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        lastName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        title:
+          type: string
+          maxLength: 100
+          nullable: true
+        bio:
+          type: string
+          maxLength: 500
+          nullable: true
+
+    ChangePasswordRequest:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword:
+          type: string
+          format: password
+          minLength: 8
+        newPassword:
+          type: string
+          format: password
+          minLength: 8
+
+    # ── Invitation ──
+    Invitation:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        role:
+          $ref: '#/components/schemas/UserRole'
+        status:
+          type: string
+          enum: [PENDING, ACCEPTED, CANCELLED, EXPIRED]
+        invitedBy:
+          type: string
+          format: uuid
+        invitedByName:
+          type: string
+        tenantId:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+
+    CreateInvitationRequest:
+      type: object
+      required: [email, role]
+      properties:
+        email:
+          type: string
+          format: email
+        role:
+          $ref: '#/components/schemas/UserRole'
+
+    AcceptInvitationRequest:
+      type: object
+      required: [token, firstName, lastName, password]
+      properties:
+        token:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        password:
+          type: string
+          format: password
+          minLength: 8
+
+    # ── Onboarding ──
+    Onboarding:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        currentStep:
+          type: integer
+          minimum: 0
+          maximum: 4
+        status:
+          type: string
+          enum: [WELCOME, UPLOAD, MAPPING, REVIEW, SUBMITTED, COMPLETED]
+        originalFilename:
+          type: string
+          nullable: true
+        rowCount:
+          type: integer
+          nullable: true
+        sourceColumns:
+          type: array
+          items:
+            type: string
+          nullable: true
+        sheetName:
+          type: string
+          nullable: true
+        mappings:
+          type: array
+          nullable: true
+          items:
+            type: object
+            properties:
+              sourceField:
+                type: string
+              targetField:
+                type: string
+              transformation:
+                type: string
+                nullable: true
+        lastModifiedByName:
+          type: string
+          nullable: true
+        lastModifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time

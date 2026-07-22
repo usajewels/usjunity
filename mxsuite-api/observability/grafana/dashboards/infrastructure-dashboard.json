@@ -1,0 +1,91 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "panels": [
+    {
+      "title": "API Instances Status",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 0 },
+      "targets": [
+        { "expr": "count(up{job=\"mxsuite-api\"} == 1)", "legendFormat": "Healthy" }
+      ],
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "green" } } }
+    },
+    {
+      "title": "Total Request Rate (all instances)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 0 },
+      "targets": [
+        { "expr": "sum(rate(http_server_requests_seconds_count{application=\"mxsuite-api\"}[5m]))", "legendFormat": "req/s" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps" } }
+    },
+    {
+      "title": "Total Error Rate",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 0 },
+      "targets": [
+        { "expr": "sum(rate(http_server_requests_seconds_count{application=\"mxsuite-api\", status=~\"5..\"}[5m])) / sum(rate(http_server_requests_seconds_count{application=\"mxsuite-api\"}[5m]))" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "thresholds": { "steps": [{"color":"green","value":null},{"color":"yellow","value":0.01},{"color":"red","value":0.05}] } } }
+    },
+    {
+      "title": "Per-Instance CPU",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [
+        { "expr": "process_cpu_usage{application=\"mxsuite-api\"}", "legendFormat": "{{instance}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percentunit" } }
+    },
+    {
+      "title": "Per-Instance Heap",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "targets": [
+        { "expr": "jvm_memory_used_bytes{area=\"heap\", application=\"mxsuite-api\"} / jvm_memory_max_bytes{area=\"heap\", application=\"mxsuite-api\"}", "legendFormat": "{{instance}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percentunit" } }
+    },
+    {
+      "title": "Per-Instance Request Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "targets": [
+        { "expr": "sum by (instance) (rate(http_server_requests_seconds_count{application=\"mxsuite-api\"}[5m]))", "legendFormat": "{{instance}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps" } }
+    },
+    {
+      "title": "Per-Instance Threads",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "targets": [
+        { "expr": "jvm_threads_live_threads{application=\"mxsuite-api\"}", "legendFormat": "{{instance}}" }
+      ]
+    },
+    {
+      "title": "Hikari Pool — All Instances",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "targets": [
+        { "expr": "hikaricp_connections_active{application=\"mxsuite-api\"}", "legendFormat": "Active - {{instance}}" },
+        { "expr": "hikaricp_connections_pending{application=\"mxsuite-api\"}", "legendFormat": "Pending - {{instance}}" }
+      ]
+    },
+    {
+      "title": "Disk Space",
+      "type": "gauge",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "targets": [
+        { "expr": "disk_free_bytes{application=\"mxsuite-api\"} / disk_total_bytes{application=\"mxsuite-api\"}", "legendFormat": "{{instance}} - {{path}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1, "thresholds": { "steps": [{"color":"red","value":null},{"color":"yellow","value":0.2},{"color":"green","value":0.5}] } } }
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["infrastructure", "mxsuite", "scaling"],
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "MXSuite — Infrastructure (All Instances)",
+  "uid": "mxsuite-infrastructure"
+}

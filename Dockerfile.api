@@ -1,0 +1,48 @@
+# ===========================================================
+# MXSuite API — Multi-stage Dockerfile
+# ===========================================================
+# Build context must be the growthzone/ root directory so
+# that both mxsuite-parent and mxsuite-api are accessible.
+# ===========================================================
+
+# ── Stage 1: Install parent POM ────────────────────────────
+FROM eclipse-temurin:21-jdk-alpine AS build
+RUN apk add --no-cache maven
+
+WORKDIR /parent
+COPY mxsuite-parent/pom.xml ./pom.xml
+RUN mvn install -N -q
+
+# ── Stage 2: Build API ─────────────────────────────────────
+WORKDIR /app
+COPY mxsuite-api/pom.xml ./pom.xml
+COPY mxsuite-api/.mvn .mvn
+COPY mxsuite-api/mvnw .
+RUN chmod +x mvnw
+
+# Download dependencies (cached layer)
+RUN mvn dependency:go-offline -B -q
+
+# Copy source and build
+COPY mxsuite-api/src src
+RUN mvn package -DskipTests -B -q
+
+# ── Stage 3: Production runtime ────────────────────────────
+FROM eclipse-temurin:21-jre-alpine
+
+# Create non-root user
+RUN addgroup -g 1001 -S mxsuite && \
+    adduser -S -D -H -u 1001 -s /sbin/nologin -G mxsuite mxsuite
+
+WORKDIR /app
+COPY --from=build /app/target/*.jar app.jar
+RUN chown mxsuite:mxsuite app.jar
+
+USER mxsuite
+EXPOSE 8080
+
+ENTRYPOINT ["java", \
+  "-XX:+UseContainerSupport", \
+  "-XX:MaxRAMPercentage=75.0", \
+  "-Djava.security.egd=file:/dev/./urandom", \
+  "-jar", "app.jar"]

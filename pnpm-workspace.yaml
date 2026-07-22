@@ -1,0 +1,10 @@
+packages:
+  - mxsuite-shell
+  - mxsuite-admin
+  - mxsuite-workspaces
+  - mxsuite-planner
+  - mxsuite-chat
+  - mxsuite-onboarding
+  - mxsuite-shared
+allowBuilds:
+  esbuild: true

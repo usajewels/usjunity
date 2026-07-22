@@ -1,0 +1,2 @@
+ALTER TABLE tenants ADD COLUMN brand_name VARCHAR(100) DEFAULT 'Growthzone';
+ALTER TABLE tenants ADD COLUMN logo_url VARCHAR(500);

@@ -1,0 +1,47 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - "alert_rules.yml"
+
+scrape_configs:
+  # MXSuite API - scrape all instances
+  - job_name: 'mxsuite-api'
+    metrics_path: '/actuator/prometheus'
+    scrape_interval: 10s
+    static_configs:
+      - targets: ['mxsuite-api:8080']
+        labels:
+          application: 'mxsuite-api'
+          environment: 'development'
+
+    # For Kubernetes: use service discovery instead
+    # kubernetes_sd_configs:
+    #   - role: pod
+    # relabel_configs:
+    #   - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+    #     action: keep
+    #     regex: true
+    #   - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+    #     action: replace
+    #     target_label: __metrics_path__
+    #   - source_labels: [__meta_kubernetes_namespace]
+    #     target_label: namespace
+    #   - source_labels: [__meta_kubernetes_pod_name]
+    #     target_label: pod
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Redis exporter (optional)
+  # - job_name: 'redis'
+  #   static_configs:
+  #     - targets: ['redis-exporter:9121']
+
+  # PostgreSQL exporter (optional)
+  # - job_name: 'postgres'
+  #   static_configs:
+  #     - targets: ['postgres-exporter:9187']

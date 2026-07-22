@@ -1,0 +1,41 @@
+{
+  "name": "mxsuite",
+  "version": "0.3.0",
+  "private": true,
+  "description": "MXSuite — Multi-tenant Data Onboarding Platform",
+  "author": "Joseph M. Vogel",
+  "scripts": {
+    "install:all": "pnpm install",
+    "dev:shared": "pnpm --filter @mxsuite/shared dev",
+    "dev:shell": "pnpm --filter @mxsuite/shell dev",
+    "dev:admin": "pnpm --filter @mxsuite/admin dev",
+    "dev:workspaces": "pnpm --filter @mxsuite/workspaces dev",
+    "dev:planner": "pnpm --filter @mxsuite/planner dev",
+    "dev:chat": "pnpm --filter @mxsuite/chat dev",
+    "dev:onboarding": "pnpm --filter @mxsuite/onboarding dev",
+    "preview:admin": "pnpm --filter @mxsuite/admin preview",
+    "preview:workspaces": "pnpm --filter @mxsuite/workspaces preview",
+    "preview:planner": "pnpm --filter @mxsuite/planner preview",
+    "preview:chat": "pnpm --filter @mxsuite/chat preview",
+    "preview:onboarding": "pnpm --filter @mxsuite/onboarding preview",
+    "preview:mfe": "concurrently -n admin,workspaces,planner,chat,onboarding \"pnpm run preview:admin\" \"pnpm run preview:workspaces\" \"pnpm run preview:planner\" \"pnpm run preview:chat\" \"pnpm run preview:onboarding\"",
+    "dev": "pnpm run build:shared && pnpm run build:mfe && concurrently -n api,mfe,shell -c blue,green,yellow \"cd mxsuite-api && mvn spring-boot:run -Dspring-boot.run.profiles=dev\" \"pnpm run preview:mfe\" \"wait-on tcp:8080 --timeout 120000 && pnpm run dev:shell\"",
+    "devlogin": "pnpm run build:shared && pnpm run build:mfe && concurrently -n api,mfe,shell -c blue,green,yellow \"cd mxsuite-api && mvn spring-boot:run -Dspring-boot.run.profiles=dev,devlogin\" \"pnpm run preview:mfe\" \"wait-on tcp:8080 --timeout 120000 && pnpm run dev:shell\"",
+    "build:shared": "pnpm --filter @mxsuite/shared build",
+    "build:admin": "pnpm run build:shared && pnpm --filter @mxsuite/admin build",
+    "build:workspaces": "pnpm run build:shared && pnpm --filter @mxsuite/workspaces build",
+    "build:planner": "pnpm run build:shared && pnpm --filter @mxsuite/planner build",
+    "build:chat": "pnpm run build:shared && pnpm --filter @mxsuite/chat build",
+    "build:onboarding": "pnpm run build:shared && pnpm --filter @mxsuite/onboarding build",
+    "build:shell": "pnpm run build:shared && pnpm --filter @mxsuite/shell build",
+    "build:mfe": "pnpm run build:shared && pnpm --filter @mxsuite/admin --filter @mxsuite/workspaces --filter @mxsuite/planner --filter @mxsuite/chat --filter @mxsuite/onboarding build",
+    "build:all": "pnpm run build:shared && pnpm run build:mfe && pnpm run build:shell",
+    "lint:all": "pnpm -r lint",
+    "typecheck:all": "pnpm -r --parallel exec tsc --noEmit",
+    "clean": "pnpm -r exec rm -rf dist node_modules && rm -rf node_modules"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.3",
+    "wait-on": "^9.0.10"
+  }
+}

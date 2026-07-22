@@ -1,0 +1,111 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "panels": [
+    {
+      "title": "Runs Started (Today)",
+      "type": "stat",
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 0 },
+      "targets": [
+        { "expr": "increase(mxsuite_plan_runs_started_total{application=\"mxsuite-api\"}[24h])", "legendFormat": "Started" }
+      ],
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "blue" } } }
+    },
+    {
+      "title": "Runs Completed",
+      "type": "stat",
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 0 },
+      "targets": [
+        { "expr": "increase(mxsuite_plan_runs_completed_total{application=\"mxsuite-api\"}[24h])", "legendFormat": "Completed" }
+      ],
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "green" } } }
+    },
+    {
+      "title": "Runs Failed",
+      "type": "stat",
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 0 },
+      "targets": [
+        { "expr": "increase(mxsuite_plan_runs_failed_total{application=\"mxsuite-api\"}[24h])", "legendFormat": "Failed" }
+      ],
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "red" } } }
+    },
+    {
+      "title": "Active Runs",
+      "type": "stat",
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 0 },
+      "targets": [
+        { "expr": "mxsuite_plan_runs_active{application=\"mxsuite-api\"}", "legendFormat": "Active" }
+      ],
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "orange" } } }
+    },
+    {
+      "title": "Run Success Rate",
+      "type": "gauge",
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 5 },
+      "targets": [
+        { "expr": "increase(mxsuite_plan_runs_completed_total[24h]) / (increase(mxsuite_plan_runs_completed_total[24h]) + increase(mxsuite_plan_runs_failed_total[24h]))" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1, "thresholds": { "steps": [{"color":"red","value":null},{"color":"yellow","value":0.8},{"color":"green","value":0.95}] } } }
+    },
+    {
+      "title": "Avg Run Duration (P95)",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 5 },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, rate(mxsuite_plan_runs_duration_seconds_bucket[1h]))", "legendFormat": "P95" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "title": "Records Processed Rate",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 5 },
+      "targets": [
+        { "expr": "rate(mxsuite_plan_records_processed_total{application=\"mxsuite-api\"}[5m])", "legendFormat": "Records/s" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" } }
+    },
+    {
+      "title": "Runs Over Time",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 11 },
+      "targets": [
+        { "expr": "rate(mxsuite_plan_runs_started_total{application=\"mxsuite-api\"}[5m])", "legendFormat": "Started" },
+        { "expr": "rate(mxsuite_plan_runs_completed_total{application=\"mxsuite-api\"}[5m])", "legendFormat": "Completed" },
+        { "expr": "rate(mxsuite_plan_runs_failed_total{application=\"mxsuite-api\"}[5m])", "legendFormat": "Failed" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" } }
+    },
+    {
+      "title": "Records Processed vs Failed",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 19 },
+      "targets": [
+        { "expr": "rate(mxsuite_plan_records_processed_total{application=\"mxsuite-api\"}[5m])", "legendFormat": "Processed" },
+        { "expr": "rate(mxsuite_plan_records_failed_total{application=\"mxsuite-api\"}[5m])", "legendFormat": "Failed" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" } }
+    },
+    {
+      "title": "File Uploads",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 19 },
+      "targets": [
+        { "expr": "rate(mxsuite_files_uploads_total{application=\"mxsuite-api\"}[5m])", "legendFormat": "Uploads/s" }
+      ]
+    },
+    {
+      "title": "Audit Events Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 27 },
+      "targets": [
+        { "expr": "rate(mxsuite_audit_events_total{application=\"mxsuite-api\"}[5m])", "legendFormat": "Events/s" }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["plan-execution", "mxsuite", "business"],
+  "time": { "from": "now-24h", "to": "now" },
+  "title": "MXSuite — Plan Execution",
+  "uid": "mxsuite-plan-execution"
+}

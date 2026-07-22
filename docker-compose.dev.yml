@@ -1,0 +1,93 @@
+# ===========================================================
+# MXSuite — Development Overlay
+# ===========================================================
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+#
+# Adds: exposed ports, dev defaults, debug settings,
+#        observability stack, MailHog for email testing.
+# ===========================================================
+
+services:
+  postgres:
+    ports:
+      - "${POSTGRES_PORT_HOST:-5432}:5432"
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mxsuite_dev}
+
+  redis:
+    ports:
+      - "${REDIS_PORT_HOST:-6379}:6379"
+
+  mxsuite-api:
+    environment:
+      SPRING_PROFILES_ACTIVE: docker,dev
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mxsuite_dev}
+      JWT_SECRET: ${JWT_SECRET:-mxsuite-dev-secret-key-change-in-production-must-be-at-least-256-bits}
+      MXSUITE_ADMIN_PASSWORD: ${MXSUITE_ADMIN_PASSWORD:-Admin123!}
+      # Java remote debug
+      JAVA_TOOL_OPTIONS: >-
+        -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005
+      # MailHog SMTP
+      SMTP_HOST: mailhog
+      SMTP_PORT: 1025
+      SMTP_AUTH: "false"
+      SMTP_STARTTLS: "false"
+    ports:
+      - "${API_PORT_HOST:-8080}:8080"
+      - "${DEBUG_PORT_HOST:-5005}:5005"
+
+  # =====================================================
+  # MailHog — Email testing (catches all outgoing mail)
+  # =====================================================
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: mxsuite-mailhog
+    ports:
+      - "${MAILHOG_SMTP_PORT:-1025}:1025"
+      - "${MAILHOG_UI_PORT:-8025}:8025"
+    restart: unless-stopped
+
+  # =====================================================
+  # Observability Stack (optional)
+  # =====================================================
+  # Uncomment to enable:
+
+  # otel-collector:
+  #   image: otel/opentelemetry-collector-contrib:0.108.0
+  #   container_name: mxsuite-otel
+  #   command: ["--config=/etc/otel-collector-config.yml"]
+  #   volumes:
+  #     - ./mxsuite-api/otel-collector-config.yml:/etc/otel-collector-config.yml
+  #   ports:
+  #     - "4317:4317"
+  #     - "4318:4318"
+
+  # prometheus:
+  #   image: prom/prometheus:v2.53.0
+  #   container_name: mxsuite-prometheus
+  #   command:
+  #     - "--config.file=/etc/prometheus/prometheus.yml"
+  #     - "--storage.tsdb.path=/prometheus"
+  #     - "--storage.tsdb.retention.time=15d"
+  #   volumes:
+  #     - ./mxsuite-api/observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+  #     - prometheus_data:/prometheus
+  #   ports:
+  #     - "9090:9090"
+
+  # grafana:
+  #   image: grafana/grafana:11.2.0
+  #   container_name: mxsuite-grafana
+  #   environment:
+  #     GF_SECURITY_ADMIN_USER: admin
+  #     GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+  #   ports:
+  #     - "3100:3000"
+  #   volumes:
+  #     - grafana_data:/var/lib/grafana
+  #     - ./mxsuite-api/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+  #     - ./mxsuite-api/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+
+# volumes:
+#   prometheus_data:
+#   grafana_data:

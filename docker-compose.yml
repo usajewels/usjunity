@@ -1,0 +1,116 @@
+# ===========================================================
+# MXSuite — Production Docker Compose (base)
+# ===========================================================
+# Production:  docker compose up -d
+# Development: docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+# ===========================================================
+
+services:
+  # =====================================================
+  # Infrastructure
+  # =====================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: mxsuite-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-mxsuite}
+      POSTGRES_USER: ${POSTGRES_USER:-mxsuite}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ${POSTGRES_DATA_PATH:-postgres_data}:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mxsuite}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: mxsuite-redis
+    volumes:
+      - ${REDIS_DATA_PATH:-redis_data}:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # =====================================================
+  # Backend API
+  # =====================================================
+  mxsuite-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: mxsuite-api
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-mxsuite}
+      POSTGRES_USER: ${POSTGRES_USER:-mxsuite}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET}
+      AUTH_MODE: ${AUTH_MODE:-local}
+      STORAGE_TYPE: local
+      STORAGE_LOCAL_PATH: /data/files
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_SERVICE_NAME: mxsuite-api
+      OTEL_METRICS_EXPORTER: ${OTEL_METRICS_EXPORTER:-none}
+      OTEL_LOGS_EXPORTER: ${OTEL_LOGS_EXPORTER:-none}
+      SMTP_HOST: ${SMTP_HOST:-localhost}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_AUTH: ${SMTP_AUTH:-false}
+      SMTP_STARTTLS: ${SMTP_STARTTLS:-false}
+      MXSUITE_EMAIL_FROM: ${MXSUITE_EMAIL_FROM:-noreply@mxsuite.com}
+      MXSUITE_BASE_URL: ${MXSUITE_BASE_URL:-http://localhost}
+      MXSUITE_ADMIN_EMAIL: ${MXSUITE_ADMIN_EMAIL:-admin@mxsuite.com}
+      MXSUITE_ADMIN_PASSWORD: ${MXSUITE_ADMIN_PASSWORD}
+      MXSUITE_ADMIN_FIRST_NAME: ${MXSUITE_ADMIN_FIRST_NAME:-Platform}
+      MXSUITE_ADMIN_LAST_NAME: ${MXSUITE_ADMIN_LAST_NAME:-Admin}
+    volumes:
+      - ${FILE_STORAGE_PATH:-file_storage}:/data/files
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:8080/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+  # =====================================================
+  # Frontend (Shell + All Micro-frontends)
+  # =====================================================
+  mxsuite-frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: mxsuite-frontend
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    depends_on:
+      mxsuite-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  file_storage:

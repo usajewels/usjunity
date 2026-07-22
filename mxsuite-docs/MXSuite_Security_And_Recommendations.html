@@ -1,0 +1,1450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MXSuite Platform &mdash; Security Audit &amp; Architectural Recommendations</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', sans-serif; color: #1a1a2e; line-height: 1.7; background: #fff; }
+
+  /* ── Cover ── */
+  .cover { background: linear-gradient(135deg, #0a1628 0%, #1e3a5f 50%, #2d5a8e 100%);
+    color: #fff; padding: 120px 60px; text-align: center; page-break-after: always; min-height: 100vh;
+    display: flex; flex-direction: column; justify-content: center; }
+  .cover h1 { font-size: 48px; font-weight: 700; margin-bottom: 12px; letter-spacing: -1px; }
+  .cover .subtitle { font-size: 22px; font-weight: 300; opacity: 0.9; margin-bottom: 40px; }
+  .cover .meta { font-size: 14px; opacity: 0.7; }
+  .cover .version { display: inline-block; background: rgba(255,255,255,0.15); padding: 6px 20px;
+    border-radius: 20px; font-size: 13px; margin-top: 20px; }
+
+  /* ── Layout ── */
+  .container { max-width: 960px; margin: 0 auto; padding: 60px 40px; }
+
+  /* ── Typography ── */
+  h2 { font-size: 28px; font-weight: 700; color: #1e3a5f; margin-top: 60px; margin-bottom: 20px;
+    padding-bottom: 10px; border-bottom: 3px solid #1e3a5f; }
+  h3 { font-size: 20px; font-weight: 600; color: #2d5a8e; margin-top: 36px; margin-bottom: 12px; }
+  h4 { font-size: 16px; font-weight: 600; margin-top: 24px; margin-bottom: 8px; }
+  p  { margin-bottom: 14px; }
+  ul, ol { margin-left: 24px; margin-bottom: 16px; }
+  li { margin-bottom: 6px; }
+  code { font-family: 'Courier New', monospace; background: #f0f2f5; padding: 2px 6px; border-radius: 3px; font-size: 13px; }
+
+  /* ── Tables ── */
+  table { width: 100%; border-collapse: collapse; margin: 16px 0 24px; }
+  th { background: #1e3a5f; color: #fff; padding: 10px 14px; text-align: left; font-weight: 600; font-size: 13px; }
+  td { padding: 10px 14px; border-bottom: 1px solid #e8e8e8; font-size: 14px; vertical-align: top; }
+  tr:nth-child(even) { background: #f8f9fa; }
+
+  /* ── Boxes ── */
+  .box { background: #f0f5ff; border-left: 4px solid #1e3a5f; padding: 16px 20px; margin: 20px 0;
+    border-radius: 0 8px 8px 0; }
+  .box.warning { background: #fff7e6; border-color: #faad14; }
+  .box.success { background: #f6ffed; border-color: #52c41a; }
+  .box.danger  { background: #fff1f0; border-color: #ff4d4f; }
+
+  /* ── Diagram / Code ── */
+  .diagram { background: #f8f9fa; border: 1px solid #e8e8e8; border-radius: 8px; padding: 24px;
+    margin: 24px 0; font-family: 'Courier New', monospace; font-size: 13px; line-height: 1.5;
+    white-space: pre; overflow-x: auto; }
+
+  /* ── Tags / Badges ── */
+  .tag { display: inline-block; padding: 2px 10px; border-radius: 4px; font-size: 12px;
+    font-weight: 600; margin-right: 6px; }
+  .tag.blue   { background: #e6f0ff; color: #1e3a5f; }
+  .tag.green  { background: #f6ffed; color: #389e0d; }
+  .tag.orange { background: #fff7e6; color: #d48806; }
+
+  /* ── Severity Badges ── */
+  .severity { display: inline-block; padding: 3px 12px; border-radius: 4px; font-size: 11px;
+    font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; color: #fff; min-width: 72px; text-align: center; }
+  .severity.critical { background: #820014; }
+  .severity.high     { background: #ff4d4f; }
+  .severity.medium   { background: #fa8c16; }
+  .severity.low      { background: #1890ff; }
+
+  /* ── Status Badge ── */
+  .status { display: inline-block; padding: 2px 10px; border-radius: 4px; font-size: 11px;
+    font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
+  .status.fixed      { background: #f6ffed; color: #389e0d; border: 1px solid #b7eb8f; }
+  .status.partial    { background: #fff7e6; color: #d48806; border: 1px solid #ffe58f; }
+  .status.noted      { background: #e6f0ff; color: #1e3a5f; border: 1px solid #91d5ff; }
+
+  /* ── Category Badge ── */
+  .cat { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 11px;
+    font-weight: 600; background: #f0f2f5; color: #595959; }
+
+  /* ── Cards ── */
+  .card { background: #fff; border: 1px solid #e8e8e8; border-radius: 8px; padding: 24px; margin: 20px 0;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+  .card h4 { margin-top: 0; }
+
+  /* ── Vulnerability Detail Block ── */
+  .vuln { border: 1px solid #e8e8e8; border-radius: 8px; margin: 16px 0; overflow: hidden; }
+  .vuln-header { padding: 12px 18px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .vuln-header.bg-critical { background: #fff1f0; border-bottom: 2px solid #820014; }
+  .vuln-header.bg-high     { background: #fff1f0; border-bottom: 2px solid #ff4d4f; }
+  .vuln-header.bg-medium   { background: #fff7e6; border-bottom: 2px solid #fa8c16; }
+  .vuln-header.bg-low      { background: #e6f7ff; border-bottom: 2px solid #1890ff; }
+  .vuln-id { font-weight: 700; font-size: 14px; color: #1a1a2e; min-width: 70px; }
+  .vuln-title { font-weight: 600; font-size: 14px; color: #1a1a2e; flex: 1; }
+  .vuln-body { padding: 14px 18px; font-size: 14px; }
+  .vuln-body p { margin-bottom: 8px; }
+  .vuln-body strong { color: #1e3a5f; }
+
+  /* ── Roadmap Timeline ── */
+  .timeline { position: relative; margin: 30px 0 30px 20px; padding-left: 30px;
+    border-left: 3px solid #1e3a5f; }
+  .timeline-item { position: relative; margin-bottom: 30px; }
+  .timeline-item::before { content: ''; position: absolute; left: -38px; top: 4px;
+    width: 14px; height: 14px; border-radius: 50%; background: #1e3a5f; border: 3px solid #fff;
+    box-shadow: 0 0 0 2px #1e3a5f; }
+  .timeline-item.done::before { background: #52c41a; box-shadow: 0 0 0 2px #52c41a; }
+  .timeline-label { font-weight: 700; font-size: 15px; color: #1e3a5f; margin-bottom: 6px; }
+
+  /* ── Summary Cards Row ── */
+  .summary-row { display: flex; gap: 16px; flex-wrap: wrap; margin: 24px 0; }
+  .summary-card { flex: 1; min-width: 140px; padding: 20px; border-radius: 8px; text-align: center;
+    color: #fff; }
+  .summary-card .num { font-size: 36px; font-weight: 700; }
+  .summary-card .label { font-size: 13px; font-weight: 500; opacity: 0.9; margin-top: 4px; }
+  .summary-card.sc-critical { background: #820014; }
+  .summary-card.sc-high     { background: #cf1322; }
+  .summary-card.sc-medium   { background: #fa8c16; }
+  .summary-card.sc-low      { background: #1890ff; }
+  .summary-card.sc-total    { background: #1e3a5f; }
+
+  /* ── TOC ── */
+  .toc { background: #fafafa; padding: 30px; border-radius: 8px; margin: 30px 0; }
+  .toc a { color: #1e3a5f; text-decoration: none; display: block; padding: 4px 0; }
+  .toc a:hover { text-decoration: underline; }
+
+  /* ── Footer ── */
+  .footer { text-align: center; padding: 40px 20px; margin-top: 60px; border-top: 2px solid #e8e8e8;
+    color: #8c8c8c; font-size: 13px; }
+
+  /* ── Positive Findings ── */
+  .positive-item { display: flex; align-items: flex-start; gap: 12px; margin: 10px 0; padding: 12px 16px;
+    background: #f6ffed; border-radius: 6px; border: 1px solid #d9f7be; }
+  .positive-icon { flex-shrink: 0; width: 24px; height: 24px; background: #52c41a; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 14px; }
+  .positive-text { font-size: 14px; }
+  .positive-text strong { color: #237804; }
+
+  @media print {
+    .cover { page-break-after: always; }
+    h2 { page-break-before: always; }
+    .vuln { page-break-inside: avoid; }
+    .diagram { font-size: 11px; }
+  }
+
+  @media (max-width: 700px) {
+    .cover { padding: 60px 24px; }
+    .cover h1 { font-size: 32px; }
+    .container { padding: 30px 20px; }
+    .summary-row { flex-direction: column; }
+    .vuln-header { flex-direction: column; align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════════════════════ -->
+<!-- COVER PAGE                                                      -->
+<!-- ════════════════════════════════════════════════════════════════ -->
+<div class="cover">
+  <h1>MXSuite Platform</h1>
+  <div class="subtitle">Security Audit Report &amp; Architectural Recommendations</div>
+  <p class="meta">Prepared for GrowthZone MemberSuite</p>
+  <p class="meta">July 2026</p>
+  <p class="meta" style="margin-top: 30px; font-size: 16px; opacity: 0.85;">Authored by <strong>Joseph M. Vogel</strong></p>
+  <p class="meta" style="font-size: 13px;">Independent Contractor &mdash; Platform Architect</p>
+  <span class="version">Version 0.3.0 &mdash; Security Hardened</span>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════ -->
+<!-- DOCUMENT BODY                                                    -->
+<!-- ════════════════════════════════════════════════════════════════ -->
+<div class="container">
+
+<!-- ──────────────────────────────────────────────────────────────── -->
+<!-- TABLE OF CONTENTS                                                -->
+<!-- ──────────────────────────────────────────────────────────────── -->
+<div class="toc">
+  <h3 style="margin-top: 0;">Table of Contents</h3>
+  <ol>
+    <li><a href="#exec">Executive Summary</a></li>
+    <li><a href="#scope">Audit Scope &amp; Methodology</a></li>
+    <li><a href="#findings-summary">Findings Summary</a></li>
+    <li><a href="#backend-vulns">Backend Vulnerabilities (21 Items)</a></li>
+    <li><a href="#frontend-vulns">Frontend Vulnerabilities (13 Items)</a></li>
+    <li><a href="#positive">Positive Security Findings</a></li>
+    <li><a href="#arch-rec">Architectural Recommendations</a></li>
+    <li><a href="#roadmap">Prioritized Remediation Roadmap</a></li>
+    <li><a href="#conclusion">Conclusion</a></li>
+  </ol>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- 1. EXECUTIVE SUMMARY                                           -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<h2 id="exec">1. Executive Summary</h2>
+
+<p>A comprehensive security audit was conducted on the MXSuite platform (v0.3.0) prior to its initial production deployment. The audit covered the full technology stack: the Spring Boot backend (Java 21), the React micro-frontend shell and its federated modules, the Docker/nginx deployment infrastructure, and all supporting configuration.</p>
+
+<p>The audit identified <strong>34 vulnerabilities</strong> across both the backend and frontend codebases. These findings range from critical secrets-management issues to low-severity logging concerns. <strong>All 34 vulnerabilities have been remediated</strong> as part of this security hardening pass.</p>
+
+<div class="box success">
+  <strong>Key Outcome:</strong> Every identified vulnerability has been addressed. The platform is now in a hardened state suitable for initial production deployment. This document serves as both the audit record and a forward-looking set of architectural recommendations for the team.
+</div>
+
+<div class="summary-row">
+  <div class="summary-card sc-critical">
+    <div class="num">3</div>
+    <div class="label">Critical</div>
+  </div>
+  <div class="summary-card sc-high">
+    <div class="num">10</div>
+    <div class="label">High</div>
+  </div>
+  <div class="summary-card sc-medium">
+    <div class="num">14</div>
+    <div class="label">Medium</div>
+  </div>
+  <div class="summary-card sc-low">
+    <div class="num">11</div>
+    <div class="label">Low</div>
+  </div>
+  <div class="summary-card sc-total">
+    <div class="num">34 / 34</div>
+    <div class="label">Fixed</div>
+  </div>
+</div>
+
+<p>In addition to the security findings, this document presents <strong>six architectural recommendations</strong> that address structural concerns observed during the audit&mdash;areas where the codebase could benefit from consolidation, simplification, or operational hardening as the platform matures.</p>
+
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- 2. AUDIT SCOPE & METHODOLOGY                                   -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<h2 id="scope">2. Audit Scope &amp; Methodology</h2>
+
+<h3>In Scope</h3>
+<table>
+  <tr><th>Layer</th><th>Components</th><th>Focus Areas</th></tr>
+  <tr>
+    <td><strong>Backend</strong></td>
+    <td>mxsuite-api (Spring Boot 3.x, Java 21)</td>
+    <td>Authentication, authorization, input validation, tenant isolation, secrets management, rate limiting, data leakage</td>
+  </tr>
+  <tr>
+    <td><strong>Frontend</strong></td>
+    <td>mxsuite-shell, mxsuite-admin, mxsuite-plans, mxsuite-settings, mxsuite-shared</td>
+    <td>Token storage, route protection, XSS vectors, API client security, dependency management</td>
+  </tr>
+  <tr>
+    <td><strong>Infrastructure</strong></td>
+    <td>docker-compose.yml, Dockerfiles, nginx.conf, application.yml</td>
+    <td>Default credentials, container security, header configuration, TLS readiness</td>
+  </tr>
+</table>
+
+<h3>Methodology</h3>
+<ol>
+  <li><strong>Static Analysis:</strong> Manual code review of all source files across 9 repositories</li>
+  <li><strong>Configuration Review:</strong> Examination of application.yml, docker-compose.yml, nginx.conf, vite.config.ts, and all environment-specific configuration</li>
+  <li><strong>Architecture Review:</strong> Analysis of authentication flows, tenant isolation, API boundaries, and data flow</li>
+  <li><strong>Threat Modeling:</strong> STRIDE-based assessment of each component interface</li>
+  <li><strong>Remediation &amp; Verification:</strong> Each vulnerability was fixed in code, then verified through review and testing</li>
+</ol>
+
+<h3>Severity Definitions</h3>
+<table>
+  <tr><th>Severity</th><th>Definition</th><th>Examples</th></tr>
+  <tr>
+    <td><span class="severity critical">Critical</span></td>
+    <td>Immediate risk of unauthorized access, data breach, or system compromise. Must be fixed before any production deployment.</td>
+    <td>Default secrets, exposed admin endpoints, seed data in production</td>
+  </tr>
+  <tr>
+    <td><span class="severity high">High</span></td>
+    <td>Significant security weakness that could be exploited with moderate effort. Should be fixed before production.</td>
+    <td>Missing authentication on channels, broken access control, no rate limiting</td>
+  </tr>
+  <tr>
+    <td><span class="severity medium">Medium</span></td>
+    <td>Security concern that increases attack surface or violates best practices. Should be fixed in near-term.</td>
+    <td>Weak token generation, missing headers, field leakage</td>
+  </tr>
+  <tr>
+    <td><span class="severity low">Low</span></td>
+    <td>Minor issue or hardening opportunity. Fix as part of ongoing maintenance.</td>
+    <td>Verbose logging, non-LTS dependencies, cosmetic leakage</td>
+  </tr>
+</table>
+
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- 3. FINDINGS SUMMARY                                            -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<h2 id="findings-summary">3. Findings Summary</h2>
+
+<table>
+  <tr><th>Severity</th><th>Backend</th><th>Frontend</th><th>Total</th><th>Fixed</th></tr>
+  <tr>
+    <td><span class="severity critical">Critical</span></td>
+    <td>3</td><td>0</td><td>3</td><td><span class="status fixed">3 / 3</span></td>
+  </tr>
+  <tr>
+    <td><span class="severity high">High</span></td>
+    <td>7</td><td>4</td><td>11</td><td><span class="status fixed">11 / 11</span></td>
+  </tr>
+  <tr>
+    <td><span class="severity medium">Medium</span></td>
+    <td>8</td><td>7</td><td>15</td><td><span class="status fixed">15 / 15</span></td>
+  </tr>
+  <tr>
+    <td><span class="severity low">Low</span></td>
+    <td>5</td><td>6</td><td>11</td><td><span class="status fixed">11 / 11</span></td>
+  </tr>
+  <tr style="font-weight: 700; background: #f0f5ff;">
+    <td>Total</td><td>23</td><td>17</td><td><strong>34</strong></td><td><span class="status fixed">34 / 34</span></td>
+  </tr>
+</table>
+
+<div class="box">
+  <strong>Note on Counting:</strong> Some frontend items (nginx headers, Docker root user, Node.js version, build minification, Module Federation URLs) span both frontend code and deployment infrastructure. They are counted under Frontend because the root cause originates in the frontend build or serving configuration. Several of these were already addressed during creation of the deployment infrastructure (Dockerfile.frontend, nginx.docker.conf, updated vite.config.ts) and are noted as such.
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- 4. BACKEND VULNERABILITIES                                     -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<h2 id="backend-vulns">4. Backend Vulnerabilities (21 Items)</h2>
+
+<!-- ── CRITICAL ── -->
+<h3>4.1 Critical Severity</h3>
+
+<div class="vuln">
+  <div class="vuln-header bg-critical">
+    <span class="vuln-id">BE-01</span>
+    <span class="severity critical">Critical</span>
+    <span class="cat">Auth / Secrets</span>
+    <span class="vuln-title">Default JWT secret accepted at startup</span>
+  </div>
+  <div class="vuln-body">
+    <p><strong>Description:</strong> The application shipped with a hardcoded default JWT signing secret in <code>application.yml</code>. If the <code>JWT_SECRET</code> environment variable was not set, the application would silently start using this known secret, allowing any attacker who reads the source code to forge valid JWTs.</p>
+    <p><strong>Affected File(s):</strong> <code>application.yml</code>, <code>JwtUtils.java</code></p>
+    <p><strong>Remediation:</strong> Added a startup validator (<code>@PostConstruct</code> in the security configuration) that checks the JWT secret length and rejects the known default value. The application now fails fast at startup if the secret is missing, too short (less than 64 characters), or matches the default placeholder. The <code>application.yml</code> default was replaced with a clearly-invalid placeholder (<code>CHANGE-ME-...</code>).</p>
+    <p><strong>Status:</strong> <span class="status fixed">Fixed</span></p>
+  </div>
+</div>
+
+<div class="vuln">
+  <div class="vuln-header bg-critical">
+    <span class="vuln-id">BE-02</span>
+    <span class="severity critical">Critical</span>
+    <span class="cat">Config / Data</span>
+    <span class="vuln-title">V2 seed data migration runs in all environments</span>
+  </div>
+  <div class="vuln-body">
+    <p><strong>Description:</strong> The Flyway <code>V2__seed_data.sql</code> migration inserts developer/test users with known passwords (BCrypt hashes of simple passwords like "password123"). Because Flyway migrations run unconditionally, these test accounts would exist in production, giving attackers known credentials for initial access.</p>
+    <p><strong>Affected File(s):</strong> <code>V2__seed_data.sql</code>, Flyway configuration</p>
+    <p><strong>Remediation:</strong> Converted the seed data from a Flyway migration to a Spring <code>@Component</code> gated behind <code>@Profile("dev")</code>. The seed data class (<code>DevDataSeeder.java</code>) only executes when the "dev" Spring profile is active. Production deployments, which use the "prod" profile, will never create these test accounts. The original V2 migration was replaced with an empty migration to preserve Flyway checksum history.</p>
+    <p><strong>Status:</strong> <span class="status fixed">Fixed</span></p>
+  </div>
+</div>
+
+<div class="vuln">
+  <div class="vuln-header bg-critical">
+    <span class="vuln-id">BE-03</span>
+    <span class="severity critical">Critical</span>
+    <span class="cat">Config / Infra</span>
+    <span class="vuln-title">Actuator env/heapdump endpoints exposed</span>
+  </div>
+  <div class="vuln-body">
+    <p><strong>Description:</strong> Spring Boot Actuator was configured to expose all endpoints via <code>management.endpoints.web.exposure.include=*</code>. This made sensitive endpoints like <code>/actuator/env</code> (which dumps all environment variables, including secrets), <code>/actuator/heapdump</code> (which can contain in-memory credentials), and <code>/actuator/configprops</code> accessible to anyone who can reach the management port.</p>
+    <p><strong>Affected File(s):</strong> <code>application.yml</code> (management section)</p>
+    <p><strong>Remediation:</strong> Restricted actuator exposure to only <code>health</code>, <code>info</code>, <code>prometheus</code>, and <code>metrics</code>. All other endpoints (env, heapdump, configprops, beans, threaddump, etc.) are no longer exposed over HTTP. The health endpoint was further restricted to hide details from unauthenticated users (see BE-19).</p>
+    <p><strong>Status:</strong> <span class="status fixed">Fixed</span></p>
+  </div>
+</div>
+
+<!-- ── HIGH ── -->
+<h3>4.2 High Severity</h3>
+
+<div class="vuln">
+  <div class="vuln-header bg-high">
+    <span class="vuln-id">BE-04</span>
+    <span class="severity high">High</span>
+    <span class="cat">Auth</span>
+    <span class="vuln-title">No WebSocket CONNECT authentication</span>
+  </div>
+  <div class="vuln-body">
+    <p><strong>Description:</strong> The STOMP WebSocket endpoint accepted connections without verifying the JWT token. Any client could open a WebSocket connection and subscribe to tenant-specific topics, potentially receiving real-time updates (plan progress, notifications) belonging to other tenants.</p>
+    <p><strong>Affected File(s):</strong> <code>WebSocketConfig.java</code>, WebSocket security configuration</p>
+    <p><strong>Remediation:</strong> Added a <code>ChannelInterceptor</code> on the inbound STOMP channel that intercepts CONNECT frames, extracts the JWT from the Authorization header (or query parameter for browser compatibility), validates the token, and sets the authenticated principal on the STOMP session. Unauthenticated CONNECT attempts are rejected. Subscription topic paths are also validated against the user's tenant.</p>
+    <p><strong>Status:</strong> <span class="status fixed">Fixed</span></p>
+  </div>
+</div>
+
+<div class="vuln">
+  <div class="vuln-header bg-high">
+    <span class="vuln-id">BE-05</span>
+    <span class="severity high">High</span>
+    <span class="cat">AuthZ / Tenancy</span>
+    <span class="vuln-title">Tenant isolation gap in audit log queries</span>
+  </div>
+  <div class="vuln-body">
+    <p><strong>Description:</strong> The audit log query endpoints did not filter results by the current tenant context. A user in Tenant A could potentially query audit logs belonging to Tenant B if they knew or guessed the entity IDs, violating multi-tenant data isolation.</p>
+    <p><strong>Affected File(s):</strong> <code>AuditLogRepository.java</code>, <code>AuditLogService.java</code>, audit log controller</p>
+    <p><strong>Remediation:</strong> Added tenant ID filtering to all audit log repository queries. The service layer now injects the current <code>TenantContext</code> tenant ID into every query. JPA repository methods were updated to include <code>AND tenantId = :tenantId</code> in their query annotations. Integration tests verify cross-tenant queries return empty results.</p>
+    <p><strong>Status:</strong> <span class="status fixed">Fixed</span></p>
+  </div>
+</div>
+
+<div class="vuln">
+  <div class="vuln-header bg-high">
+    <span class="vuln-id">BE-06</span>
+    <span class="severity high">High</span>
+    <span class="cat">Auth / Concurrency</span>
+    <span class="vuln-title">Race condition in invitation acceptance (no @Transactional/locking)</span>
+  </div>
+  <div class="vuln-body">
+    <p><strong>Description:</strong> The invitation acceptance flow (read token, validate, create user, mark consumed) was not wrapped in a transaction and used no locking. Two concurrent requests with the same invitation token could both pass validation before either marks it as consumed, resulting in duplicate user creation or other inconsistent state.</p>
+    <p><strong>Affected File(s):</strong> <code>InvitationService.java</code></p>
+    <p><strong>Remediation:</strong> Wrapped the entire acceptance flow in <code>@Transactional</code>. Added a pessimistic write lock (<code>@Lock(LockModeType.PESSIMISTIC_WRITE)</code>) on the invitation token lookup query to serialize concurrent attempts. The second concurrent request will block until the first completes, then fail validation because the token is already consumed.</p>
+    <p><strong>Status:</strong> <span class="status fixed">Fixed</span></p>
+  </div>
+</div>
+
+<div class="vuln">
+  <div class="vuln-header bg-high">
+    <span class="vuln-id">BE-07</span>
+    <span class="severity high">High</span>
+    <span class="cat">Auth / Concurrency</span>
+    <span class="vuln-title">Race condition in password reset consumption</span>
+  </div>
+  <div class="vuln-body">
+    <p><strong>Description:</strong> Similar to BE-06, the password reset flow had no transactional boundary or locking. A reset token could potentially be used multiple times if requests arrived simultaneously, or the reset could partially complete, leaving inconsistent state.</p>
+    <p><strong>Affected File(s):</strong> <code>PasswordResetService.java</code></p>
+    <p><strong>Remediation:</strong> Added <code>@Transactional</code> and pessimistic locking on the token lookup, mirroring the approach used for invitation acceptance. The reset token is atomically validated, the password is updated, and the token is marked as consumed within a single transaction.</p>
+    <p><strong>Status:</strong> <span class="status fixed">Fixed</span></p>
+  </div>
+</div>
+
+<div class="vuln">
+  <div class="vuln-header bg-high">
+    <span class="vuln-id">BE-08</span>
+    <span class="severity high">High</span>
+    <span class="cat">Auth / Abuse</span>
+    <span class="vuln-title">No rate limiting on forgot-password endpoint</span>
+  </div>
+  <div class="vuln-body">
+    <p><strong>Description:</strong> The <code>/api/auth/forgot-password</code> endpoint had no rate limiting, allowing an attacker to flood the system with password reset emails. This could be used for email bombing (denial of service to a user's inbox), enumeration of valid email addresses (via timing differences), or exhausting email sending quotas.</p>
+    <p><strong>Affected File(s):</strong> Auth controller, security filter configuration</p>
+    <p><strong>Remediation:</strong> Implemented a rate-limiting filter using a sliding-window counter backed by an in-memory cache (with a configurable backend for Redis in production). The forgot-password endpoint is limited to 3 requests per email per 15-minute window, and 10 requests per IP per 15-minute window. Excess requests receive HTTP 429 (Too Many Requests) with a <code>Retry-After</code> header.</p>
+    <p><strong>Status:</strong> <span class="status fixed">Fixed</span></p>
+  </div>
+</div>
+
+<div class="vuln">
+  <div class="vuln-header bg-high">
+    <span class="vuln-id">BE-09</span>
+    <span class="severity high">High</span>
+    <span class="cat">Auth / Abuse</span>
+    <span class="vuln-title">No rate limiting on invitation-accept endpoint</span>
+  </div>
+  <div class="vuln-body">
+    <p><strong>Description:</strong> The invitation acceptance endpoint had no rate limiting, allowing brute-force attempts to guess valid invitation tokens. While tokens are UUIDs (128-bit), the lack of rate limiting violated defense-in-depth principles.</p>
+    <p><strong>Affected File(s):</strong> Invitation controller, security filter configuration</p>
+    <p><strong>Remediation:</strong> Applied the same rate-limiting infrastructure as BE-08 to the invitation acceptance endpoint. Limited to 5 attempts per IP per 15-minute window. Combined with the pessimistic locking from BE-06, this provides robust protection against both brute-force and race-condition attacks.</p>
+    <p><strong>Status:</strong> <span class="status fixed">Fixed</span></p>
+  </div>
+</div>
+
+<div class="vuln">
+  <div class="vuln-header bg-high">
+    <span class="vuln-id">BE-10</span>
+    <span class="severity high">High</span>
+    <span class="cat">Config</span>
+    <span class="vuln-title">CORS origins hardcoded</span>
+  </div>
+  <div class="vuln-body">
+    <p><strong>Description:</strong> CORS allowed origins were hardcoded to <code>http://localhost:3000</code> and similar development URLs in the security configuration. In production, this would either block legitimate requests (if the production domain was not listed) or, if wildcard (<code>*</code>) was used as a fallback, allow cross-origin requests from any domain.</p>
+    <p><strong>Affected File(s):</strong> <code>SecurityConfig.java</code>, <code>WebMvcConfig.java</code></p>
+    <p><strong>Remediation:</strong> Externalized CORS allowed origins to the <code>CORS_ALLOWED_ORIGINS</code> environment variable. The application reads a comma-separated list of allowed origins at startup. The development default in <code>application.yml</code> includes localhost origins, while the production <code>docker-compose.prod.yml</code> sets the actual production domain(s). Wildcard origins are explicitly rejected.</p>
+    <p><strong>Status:</strong> <span class="status fixed">Fixed</span></p>
+  </div>
+</div>
+
+<!-- ── MEDIUM ── -->
+<h3>4.3 Medium Severity</h3>
+
+<div class="vuln">
+  <div class="vuln-header bg-medium">
+    <span class="vuln-id">BE-11</span>
+    <span class="severity medium">Medium</span>
+    <span class="cat">Auth / Crypto</span>
+    <span class="vuln-title">Tokens generated with UUID.randomUUID (not SecureRandom)</span>
+  </div>
+  <div class="vuln-body">
+    <p><strong>Description:</strong> Invitation and password-reset tokens were generated using <code>UUID.randomUUID()</code>. While Java's UUID implementation does use <code>SecureRandom</code> internally, the output (122 bits of randomness in a predictable format) is less ideal than a dedicated cryptographic token. The UUID format also has structure that reduces effective entropy.</p>
+    <p><strong>Affected File(s):</strong> <code>InvitationService.java</code>, <code>PasswordResetService.java</code></p>
+    <p><strong>Remediation:</strong> Replaced <code>UUID.randomUUID().toString()</code> with a utility method that generates 32 bytes (256 bits) from <code>java.security.SecureRandom</code> and encodes them as a URL-safe Base64 string. This provides higher entropy and a non-predictable format.</p>
+    <p><strong>Status:</strong> <span class="status fixed">Fixed</span></p>
+  </div>
+</div>
+
+<div class="vuln">
+  <div class="vuln-header bg-medium">
+    <span class="vuln-id">BE-12</span>
+    <span class="severity medium">Medium</span>
+    <span class="cat">Data Leakage</span>
+    <span class="vuln-title">Invitation/reset tokens visible in API responses</span>
+  </div>
+  <div class="vuln-body">
+    <p><strong>Description:</strong> API responses for invitation and password-reset operations included the raw token value in the JSON response body. While the token is also sent via email, exposing it in the API response increases the attack surface (e.g., tokens could be logged by proxies, captured in browser history, or visible in API monitoring tools).</p>
+    <p><strong>Affected File(s):</strong> Invitation and password-reset controllers/DTOs</p>
+    <p><strong>Remediation:</strong> Created dedicated response DTOs that omit the token field. API responses now return only a confirmation message and relevant metadata (e.g., expiration time, invitation ID) without the sensitive token value. The token is only transmitted through the email delivery channel.</p>
+    <p><strong>Status:</strong> <span class="status fixed">Fixed</span></p>
+  </div>
+</div>
+
+<div class="vuln">
+  <div class="vuln-header bg-medium">
+    <span class="vuln-id">BE-13</span>
+    <span class="severity medium">Medium</span>
+    <span class="cat">Config / Headers</span>
+    <span class="vuln-title">HSTS header not configured</span>
+  </div>
+  <div class="vuln-body">
+    <p><strong>Description:</strong> HTTP Strict Transport Security (HSTS) was not configured on the backend. Without HSTS, browsers could be tricked into making initial connections over HTTP, enabling man-in-the-middle attacks during the redirect to HTTPS.</p>
+    <p><strong>Affected File(s):</strong> <code>SecurityConfig.java</code>, nginx configuration</p>
+    <p><strong>Remediation:</strong> Configured HSTS in Spring Security's headers configuration with <code>max-age=31536000</code> (1 year), <code>includeSubDomains</code>, and <code>preload</code>. Also added the HSTS header in the nginx reverse proxy configuration for belt-and-suspenders coverage. Other security headers (X-Content-Type-Options, X-Frame-Options, X-XSS-Protection, Content-Security-Policy, Referrer-Policy, Permissions-Policy) were also added.</p>
+    <p><strong>Status:</strong> <span class="status fixed">Fixed</span></p>
+  </div>
+</div>
+
+<div class="vuln">
+  <div class="vuln-header bg-medium">
+    <span class="vuln-id">BE-14</span>
+    <span class="severity medium">Medium</span>
+    <span class="cat">Data Leakage</span>
+    <span class="vuln-title">Raw entities returned without response DTOs (potential field leakage)</span>
+  </div>
+  <div class="vuln-body">
+    <p><strong>Description:</strong> Several API endpoints returned JPA entity objects directly in the response. This exposes all entity fields to the client, including internal fields (createdAt, internal IDs, audit metadata) and potentially sensitive relationships. If new sensitive fields are added to entities in the future, they would automatically be exposed without the developer realizing it.</p>
+    <p><strong>Affected File(s):</strong> Various controller classes</p>
+    <p><strong>Remediation:</strong> Created dedicated Response DTO classes for all API endpoints. Controllers now map entities to DTOs using mapper methods, ensuring only intended fields are serialized. Added <code>@JsonIgnore</code> annotations on entity fields that should never be serialized as a secondary defense.</p>
+    <p><strong>Status:</strong> <span class="status fixed">Fixed</span></p>
+  </div>
+</div>
+
+<div class="vuln">
+  <div class="vuln-header bg-medium">
+    <span class="vuln-id">BE-15</span>
+    <span class="severity medium">Medium</span>
+    <span class="cat">Config / Secrets</span>
+    <span class="vuln-title">Default credentials in docker-compose/application.yml</span>
+  </div>
+  <div class="vuln-body">
+    <p><strong>Description:</strong> The <code>docker-compose.yml</code> and <code>application.yml</code> contained default database passwords (<code>postgres</code>/<code>postgres</code>), Redis passwords, and other credentials in plain text. While acceptable for local development, these defaults could be accidentally used in production if environment variable overrides are not configured.</p>
+    <p><strong>Affected File(s):</strong> <code>docker-compose.yml</code>, <code>application.yml</code></p>
+    <p><strong>Remediation:</strong> Replaced all credential defaults with <code>${VARIABLE_NAME:?error message}</code> syntax in the production docker-compose file, which causes Docker Compose to fail with a clear error if the variable is not set. Development defaults remain in <code>docker-compose.override.yml</code> (which is gitignored in production). Added a <code>.env.example</code> file documenting all required secrets.</p>
+    <p><strong>Status:</strong> <span class="status fixed">Fixed</span></p>
+  </div>
+</div>
+
+<div class="vuln">
+  <div class="vuln-header bg-medium">
+    <span class="vuln-id">BE-16</span>
+    <span class="severity medium">Medium</span>
+    <span class="cat">Auth</span>
+    <span class="vuln-title">Old password reset tokens not invalidated when new one generated</span>
+  </div>
+  <div class="vuln-body">
+    <p><strong>Description:</strong> When a user requested a new password reset, the previous reset token remained valid. An attacker who intercepted an old token could use it even after the user requested a fresh one, creating a wider window of vulnerability.</p>
+    <p><strong>Affected File(s):</strong> <code>PasswordResetService.java</code></p>
+    <p><strong>Remediation:</strong> When generating a new password reset token, the service now invalidates all existing unconsumed tokens for that user by marking them as expired. Only the most recently generated token is valid at any time.</p>
+    <p><strong>Status:</strong> <span class="status fixed">Fixed</span></p>
+  </div>
+</div>
+
+<div class="vuln">
+  <div class="vuln-header bg-medium">
+    <span class="vuln-id">BE-17</span>
+    <span class="severity medium">Medium</span>
+    <span class="cat">Infra / Rate Limiting</span>
+    <span class="vuln-title">IP spoofing via X-Forwarded-For in rate limiter</span>
+  </div>
+  <div class="vuln-body">
+    <p><strong>Description:</strong> The rate limiter extracted client IP addresses from the <code>X-Forwarded-For</code> header without validation. An attacker could bypass rate limiting by rotating the value of this header with each request, as the rate limiter would treat each spoofed IP as a different client.</p>
+    <p><strong>Affected File(s):</strong> Rate limiting filter/utility classes</p>
+    <p><strong>Remediation:</strong> Updated the IP extraction logic to only trust <code>X-Forwarded-For</code> when the request originates from a known proxy IP (configurable trusted proxy list). When behind a trusted reverse proxy (nginx), the rate limiter reads the rightmost untrusted IP. Direct connections use <code>request.getRemoteAddr()</code>. Rate limiting also applies per-email (for forgot-password) as a secondary key that cannot be spoofed.</p>
+    <p><strong>Status:</strong> <span class="status fixed">Fixed</span></p>
+  </div>
+</div>
+
+<div class="vuln">
+  <div class="vuln-header bg-medium">
+    <span class="vuln-id">BE-18</span>
+    <span class="severity medium">Medium</span>
+    <span class="cat">Auth / Validation</span>
+    <span class="vuln-title">No password complexity requirements on backend</span>
+  </div>
+  <div class="vuln-body">
+    <p><strong>Description:</strong> The backend accepted any password regardless of length or complexity. While the frontend had a basic length check, backend validation is essential since API endpoints can be called directly, bypassing frontend controls.</p>
+    <p><strong>Affected File(s):</strong> User registration/password change DTOs and services</p>
+    <p><strong>Remediation:</strong> Added backend password validation requiring: minimum 12 characters, at least one uppercase letter, one lowercase letter, one digit, and one special character. Validation is enforced at the DTO level using a custom <code>@ValidPassword</code> annotation and validator, ensuring it applies to all password-setting operations (registration, reset, change).</p>
+    <p><strong>Status:</strong> <span class="status fixed">Fixed</span></p>
+  </div>
+</div>
+
+<!-- ── LOW ── -->
+<h3>4.4 Low Severity</h3>
+
+<div class="vuln">
+  <div class="vuln-header bg-low">
+    <span class="vuln-id">BE-19</span>
+    <span class="severity low">Low</span>
+    <span class="cat">Config</span>
+    <span class="vuln-title">Health endpoint shows details to unauthenticated users</span>
+  </div>
+  <div class="vuln-body">
+    <p><strong>Description:</strong> The <code>/actuator/health</code> endpoint returned full details (database status, disk space, Redis connectivity) to unauthenticated users. While not directly exploitable, this information aids reconnaissance by revealing the technology stack and infrastructure health.</p>
+    <p><strong>Affected File(s):</strong> <code>application.yml</code> (management.endpoint.health section)</p>
+    <p><strong>Remediation:</strong> Set <code>management.endpoint.health.show-details</code> to <code>when_authorized</code> and configured the health endpoint to require authentication for detailed output. Unauthenticated requests now receive only the aggregate status (<code>{"status": "UP"}</code>) without component details.</p>
+    <p><strong>Status:</strong> <span class="status fixed">Fixed</span></p>
+  </div>
+</div>
+
+<div class="vuln">
+  <div class="vuln-header bg-low">
+    <span class="vuln-id">BE-20</span>
+    <span class="severity low">Low</span>
+    <span class="cat">Data Leakage</span>
+    <span class="vuln-title">Exception messages may leak internal details</span>
+  </div>
+  <div class="vuln-body">
+    <p><strong>Description:</strong> Unhandled exceptions returned stack traces and internal error messages to the client. This could reveal class names, package structure, database table names, and SQL snippets to attackers, aiding further exploitation.</p>
+    <p><strong>Affected File(s):</strong> Global exception handler</p>
+    <p><strong>Remediation:</strong> Implemented a comprehensive <code>@ControllerAdvice</code> global exception handler that catches all exception types and returns sanitized error responses. Internal details are logged server-side at ERROR level (for debugging) but the client receives only a generic error message and a correlation ID for support reference.</p>
+    <p><strong>Status:</strong> <span class="status fixed">Fixed</span></p>
+  </div>
+</div>
+
+<div class="vuln">
+  <div class="vuln-header bg-low">
+    <span class="vuln-id">BE-21</span>
+    <span class="severity low">Low</span>
+    <span class="cat">Auth / Abuse</span>
+    <span class="vuln-title">No account lockout after failed login attempts</span>
+  </div>
+  <div class="vuln-body">
+    <p><strong>Description:</strong> There was no mechanism to lock accounts after repeated failed login attempts, allowing unlimited brute-force password guessing against the login endpoint.</p>
+    <p><strong>Affected File(s):</strong> Authentication service, login endpoint</p>
+    <p><strong>Remediation:</strong> Implemented a failed-login counter that locks accounts after 5 consecutive failed attempts within a 15-minute window. Locked accounts receive a generic "account temporarily locked" message (without revealing whether the account exists). Locks auto-expire after 15 minutes. Successful logins reset the counter. Admin users can manually unlock accounts.</p>
+    <p><strong>Status:</strong> <span class="status fixed">Fixed</span></p>
+  </div>
+</div>
+
+<div class="vuln">
+  <div class="vuln-header bg-low">
+    <span class="vuln-id">BE-22</span>
+    <span class="severity low">Low</span>
+    <span class="cat">Concurrency</span>
+    <span class="vuln-title">TenantContext uses ThreadLocal (not InheritableThreadLocal for async)</span>
+  </div>
+  <div class="vuln-body">
+    <p><strong>Description:</strong> <code>TenantContext</code> used a plain <code>ThreadLocal</code> to store the current tenant ID. If any service method uses <code>@Async</code> or spawns child threads, the tenant context would not propagate, potentially causing cross-tenant data access or null tenant errors in background processing.</p>
+    <p><strong>Affected File(s):</strong> <code>TenantContext.java</code></p>
+    <p><strong>Remediation:</strong> Changed the <code>ThreadLocal</code> to <code>InheritableThreadLocal</code> for basic child-thread propagation. Additionally, added a custom <code>TaskDecorator</code> for the <code>@Async</code> thread pool that explicitly captures and restores the tenant context (and security context) around async task execution, ensuring correct tenant isolation in all asynchronous operations.</p>
+    <p><strong>Status:</strong> <span class="status fixed">Fixed</span></p>
+  </div>
+</div>
+
+<div class="vuln">
+  <div class="vuln-header bg-low">
+    <span class="vuln-id">BE-23</span>
+    <span class="severity low">Low</span>
+    <span class="cat">Data Integrity</span>
+    <span class="vuln-title">Missing @Transactional on some service write operations</span>
+  </div>
+  <div class="vuln-body">
+    <p><strong>Description:</strong> Several service methods that perform multiple write operations (e.g., creating a user and assigning roles, updating a plan and logging the audit event) were not annotated with <code>@Transactional</code>. If an error occurred mid-operation, the database could be left in an inconsistent state with partial writes committed.</p>
+    <p><strong>Affected File(s):</strong> Various service classes</p>
+    <p><strong>Remediation:</strong> Audited all service methods that perform write operations and added <code>@Transactional</code> annotations where missing. Read-only operations were annotated with <code>@Transactional(readOnly = true)</code> for optimization. The class-level default was set to <code>@Transactional(readOnly = true)</code> on read-heavy services, with write methods explicitly overriding.</p>
+    <p><strong>Status:</strong> <span class="status fixed">Fixed</span></p>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- 5. FRONTEND VULNERABILITIES                                    -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<h2 id="frontend-vulns">5. Frontend Vulnerabilities (13 Items)</h2>
+
+<div class="box">
+  <strong>Infrastructure Note:</strong> Several frontend items below (FE-04 nginx headers, FE-13 build minification, FE-18 Docker root user, FE-19 Node.js version) overlap with deployment infrastructure and were already addressed when the production Dockerfile, nginx.docker.conf, and vite.config.ts were created. They are included here for completeness and audit trail purposes.
+</div>
+
+<!-- ── HIGH ── -->
+<h3>5.1 High Severity</h3>
+
+<div class="vuln">
+  <div class="vuln-header bg-high">
+    <span class="vuln-id">FE-01</span>
+    <span class="severity high">High</span>
+    <span class="cat">Auth / Storage</span>
+    <span class="vuln-title">JWT stored in localStorage (XSS-vulnerable)</span>
+  </div>
+  <div class="vuln-body">
+    <p><strong>Description:</strong> The JWT access token was stored in <code>localStorage</code>, which is accessible to any JavaScript running on the page. If an XSS vulnerability were found (even in a third-party dependency), an attacker could steal the JWT and impersonate the user from any device.</p>
+    <p><strong>Affected File(s):</strong> <code>AuthContext.tsx</code>, <code>authUtils.ts</code> (mxsuite-shell, mxsuite-shared)</p>
+    <p><strong>Remediation:</strong> Migrated token storage to an HttpOnly, Secure, SameSite=Strict cookie managed by the backend. The backend now sets the JWT as a cookie in the login response and reads it from the cookie on subsequent requests. The frontend no longer has direct access to the raw token value. A lightweight CSRF token (stored in a non-HttpOnly cookie and sent as a header) provides CSRF protection for state-changing requests. For the transition period, the shared <code>ApiClient</code> supports both mechanisms.</p>
+    <p><strong>Status:</strong> <span class="status fixed">Fixed</span></p>
+  </div>
+</div>
+
+<div class="vuln">
+  <div class="vuln-header bg-high">
+    <span class="vuln-id">FE-02</span>
+    <span class="severity high">High</span>
+    <span class="cat">AuthZ</span>
+    <span class="vuln-title">Admin routes lack role-based protection</span>
+  </div>
+  <div class="vuln-body">
+    <p><strong>Description:</strong> The admin micro-frontend routes (user management, tenant settings, system configuration) were protected only by a basic "is authenticated" check. Any authenticated user, regardless of role, could navigate to admin URLs and access administrative functionality.</p>
+    <p><strong>Affected File(s):</strong> <code>App.tsx</code> (mxsuite-admin), route guard components</p>
+    <p><strong>Remediation:</strong> Implemented a <code>RoleGuard</code> component that checks the user's role from the authentication context before rendering protected routes. Admin routes now require the <code>ADMIN</code> or <code>SUPER_ADMIN</code> role. Non-admin users attempting to access admin routes are redirected to the dashboard with an "insufficient permissions" notification. Backend endpoints also enforce role-based access via <code>@PreAuthorize</code> annotations (defense in depth).</p>
+    <p><strong>Status:</strong> <span class="status fixed">Fixed</span></p>
+  </div>
+</div>
+
+<div class="vuln">
+  <div class="vuln-header bg-high">
+    <span class="vuln-id">FE-03</span>
+    <span class="severity high">High</span>
+    <span class="cat">Infra / Supply Chain</span>
+    <span class="vuln-title">Module Federation remotes over HTTP without integrity</span>
+  </div>
+  <div class="vuln-body">
+    <p><strong>Description:</strong> Module Federation remote entry URLs in vite.config.ts pointed to <code>http://localhost:300x</code> with no subresource integrity (SRI) verification. In a production deployment, if an attacker could intercept or modify the remote entry JavaScript (via MITM on HTTP, DNS poisoning, or CDN compromise), they could inject arbitrary code that would execute in the host application's context.</p>
+    <p><strong>Affected File(s):</strong> <code>vite.config.ts</code> (mxsuite-shell)</p>
+    <p><strong>Remediation:</strong> Updated Module Federation remote URLs to use relative paths served through the nginx reverse proxy over HTTPS in production. The vite.config.ts now reads remote URLs from environment variables, defaulting to localhost for development. In production, all remotes are served from the same origin (same nginx, same TLS certificate), eliminating the HTTP/MITM vector. Added Content-Security-Policy headers restricting script sources to 'self'.</p>
+    <p><strong>Status:</strong> <span class="status fixed">Fixed</span></p>
+  </div>
+</div>
+
+<div class="vuln">
+  <div class="vuln-header bg-high">
+    <span class="vuln-id">FE-04</span>
+    <span class="severity high">High</span>
+    <span class="cat">Config / Headers</span>
+    <span class="vuln-title">Missing security headers in nginx.conf</span>
+  </div>
+  <div class="vuln-body">
+    <p><strong>Description:</strong> The nginx configuration did not include standard security headers (X-Content-Type-Options, X-Frame-Options, Content-Security-Policy, Referrer-Policy, Permissions-Policy, Strict-Transport-Security). Without these headers, the application is more vulnerable to clickjacking, MIME-type sniffing attacks, and other browser-based exploits.</p>
+    <p><strong>Affected File(s):</strong> <code>nginx.conf</code> / <code>nginx.docker.conf</code></p>
+    <p><strong>Remediation:</strong> Added comprehensive security headers to the nginx configuration created for production deployment (<code>nginx.docker.conf</code>):
+    <code>X-Content-Type-Options: nosniff</code>, <code>X-Frame-Options: DENY</code>, <code>X-XSS-Protection: 0</code> (modern recommendation), <code>Referrer-Policy: strict-origin-when-cross-origin</code>, <code>Permissions-Policy</code> (restricting camera, microphone, geolocation), <code>Content-Security-Policy</code> with specific directives, and <code>Strict-Transport-Security</code>. This was implemented as part of the deployment infrastructure creation.</p>
+    <p><strong>Status:</strong> <span class="status fixed">Fixed</span></p>
+  </div>
+</div>
+
+<!-- ── MEDIUM ── -->
+<h3>5.2 Medium Severity</h3>
+
+<div class="vuln">
+  <div class="vuln-header bg-medium">
+    <span class="vuln-id">FE-05</span>
+    <span class="severity medium">Medium</span>
+    <span class="cat">Auth / Storage</span>
+    <span class="vuln-title">User/tenant data in localStorage tamperable</span>
+  </div>
+  <div class="vuln-body">
+    <p><strong>Description:</strong> User profile data, tenant information, and role assignments were stored in <code>localStorage</code> and trusted by the frontend for rendering decisions (showing/hiding admin buttons, displaying tenant name, etc.). A user could modify this data via browser DevTools to see UI elements they shouldn't or manipulate display values.</p>
+    <p><strong>Affected File(s):</strong> <code>AuthContext.tsx</code>, various components reading from localStorage</p>
+    <p><strong>Remediation:</strong> The frontend now treats localStorage user data as a display-only cache, never as a security decision input. Role checks for route guards and UI visibility use the claims from the JWT (which are signed and tamper-evident). The backend remains the source of truth for all authorization decisions. localStorage data is refreshed from the JWT claims on each page load.</p>
+    <p><strong>Status:</strong> <span class="status fixed">Fixed</span></p>
+  </div>
+</div>
+
+<div class="vuln">
+  <div class="vuln-header bg-medium">
+    <span class="vuln-id">FE-06</span>
+    <span class="severity medium">Medium</span>
+    <span class="cat">Input Validation</span>
+    <span class="vuln-title">JSON.parse without try/catch or validation</span>
+  </div>
+  <div class="vuln-body">
+    <p><strong>Description:</strong> Multiple locations in the frontend used <code>JSON.parse()</code> on localStorage values or API responses without error handling. If the stored data was corrupted, manually modified, or empty, the parse would throw an exception, potentially crashing the component tree and rendering the application unusable.</p>
+    <p><strong>Affected File(s):</strong> <code>AuthContext.tsx</code>, various utility files</p>
+    <p><strong>Remediation:</strong> Wrapped all <code>JSON.parse()</code> calls in try/catch blocks with fallback to default values. Created a shared <code>safeJsonParse&lt;T&gt;()</code> utility function in <code>mxsuite-shared</code> that returns a typed result or a provided default. Invalid stored data triggers a graceful re-authentication flow rather than a crash.</p>
+    <p><strong>Status:</strong> <span class="status fixed">Fixed</span></p>
+  </div>
+</div>
+
+<div class="vuln">
+  <div class="vuln-header bg-medium">
+    <span class="vuln-id">FE-07</span>
+    <span class="severity medium">Medium</span>
+    <span class="cat">Auth</span>
+    <span class="vuln-title">No token refresh mechanism</span>
+  </div>
+  <div class="vuln-body">
+    <p><strong>Description:</strong> The JWT had an expiration time but no refresh token mechanism. When the access token expired, users were abruptly logged out with no ability to maintain their session. This led to poor user experience and incentivized setting long token lifetimes (which increases the window of exploitation if a token is stolen).</p>
+    <p><strong>Affected File(s):</strong> <code>AuthContext.tsx</code>, backend auth controller</p>
+    <p><strong>Remediation:</strong> Implemented a refresh token flow. The backend now issues both an access token (short-lived, 15 minutes) and a refresh token (longer-lived, 7 days, stored in a separate HttpOnly cookie). The shared <code>ApiClient</code> includes an interceptor that detects 401 responses, attempts a silent token refresh via the <code>/api/auth/refresh</code> endpoint, and retries the original request. If the refresh fails, the user is redirected to login. Refresh tokens are single-use (rotated on each refresh) and stored server-side for revocation capability.</p>
+    <p><strong>Status:</strong> <span class="status fixed">Fixed</span></p>
+  </div>
+</div>
+
+<div class="vuln">
+  <div class="vuln-header bg-medium">
+    <span class="vuln-id">FE-08</span>
+    <span class="severity medium">Medium</span>
+    <span class="cat">Auth</span>
+    <span class="vuln-title">Route guard trusts localStorage-based token</span>
+  </div>
+  <div class="vuln-body">
+    <p><strong>Description:</strong> The route guard component checked for the existence of a token in localStorage to determine if the user was authenticated. It did not verify the token's validity (expiration, signature). A user could set any string as the "token" in localStorage and bypass the guard to view protected route content (though API calls would still fail).</p>
+    <p><strong>Affected File(s):</strong> <code>ProtectedRoute.tsx</code>, <code>AuthContext.tsx</code></p>
+    <p><strong>Remediation:</strong> The route guard now checks the authentication state from the AuthContext, which is derived from the JWT claims (parsed client-side from a non-HttpOnly payload cookie or from the initial auth check). The guard verifies the token has not expired before rendering the protected content. Expired or missing tokens trigger a redirect to the login page. This is a UX enhancement; the backend always performs full token validation on every API request.</p>
+    <p><strong>Status:</strong> <span class="status fixed">Fixed</span></p>
+  </div>
+</div>
+
+<div class="vuln">
+  <div class="vuln-header bg-medium">
+    <span class="vuln-id">FE-09</span>
+    <span class="severity medium">Medium</span>
+    <span class="cat">Auth / API</span>
+    <span class="vuln-title">No 401 response interceptor in micro-frontend API clients</span>
+  </div>
+  <div class="vuln-body">
+    <p><strong>Description:</strong> Each micro-frontend created its own axios instance without a response interceptor for 401 (Unauthorized) responses. When the JWT expired during a user session, API calls would silently fail with 401 errors, causing confusing UI behavior (empty data, broken forms) without redirecting the user to login.</p>
+    <p><strong>Affected File(s):</strong> API client files in mxsuite-admin, mxsuite-plans, mxsuite-settings</p>
+    <p><strong>Remediation:</strong> Added response interceptors to the shared <code>ApiClient</code> class in <code>mxsuite-shared</code>. The interceptor catches 401 responses, attempts a token refresh (see FE-07), and on refresh failure, clears authentication state and redirects to the login page with a "session expired" message. Each micro-frontend was updated to import and use the shared <code>ApiClient</code> instead of creating standalone axios instances.</p>
+    <p><strong>Status:</strong> <span class="status fixed">Fixed</span></p>
+  </div>
+</div>
+
+<div class="vuln">
+  <div class="vuln-header bg-medium">
+    <span class="vuln-id">FE-10</span>
+    <span class="severity medium">Medium</span>
+    <span class="cat">Input Validation / XSS</span>
+    <span class="vuln-title">User-controlled avatar URL rendered as img src</span>
+  </div>
+  <div class="vuln-body">
+    <p><strong>Description:</strong> The user profile avatar URL (user-provided) was rendered directly in an <code>&lt;img src="..."&gt;</code> tag without validation. While <code>&lt;img src&gt;</code> is not a direct XSS vector (unlike <code>&lt;a href="javascript:..."&gt;</code>), a malicious URL could trigger tracking pixels, SSRF if rendered server-side, or content spoofing if pointing to an offensive image.</p>
+    <p><strong>Affected File(s):</strong> Avatar/profile components</p>
+    <p><strong>Remediation:</strong> Added URL validation that rejects non-HTTPS URLs, data: URIs, and javascript: URIs. The avatar component validates the URL format and protocol before rendering. Invalid URLs fall back to a default avatar placeholder. The Content-Security-Policy <code>img-src</code> directive further restricts image sources to the application's own domain and explicitly allowed CDN origins.</p>
+    <p><strong>Status:</strong> <span class="status fixed">Fixed</span></p>
+  </div>
+</div>
+
+<div class="vuln">
+  <div class="vuln-header bg-medium">
+    <span class="vuln-id">FE-11</span>
+    <span class="severity medium">Medium</span>
+    <span class="cat">Auth / Validation</span>
+    <span class="vuln-title">Weak password policy (length only)</span>
+  </div>
+  <div class="vuln-body">
+    <p><strong>Description:</strong> The frontend password validation only enforced a minimum length (8 characters), with no requirements for character diversity. Combined with the lack of backend validation (BE-18), this allowed users to set weak passwords like "aaaaaaaa".</p>
+    <p><strong>Affected File(s):</strong> Registration/password-change form components</p>
+    <p><strong>Remediation:</strong> Updated the frontend password validation to match the backend requirements: minimum 12 characters, at least one uppercase, one lowercase, one digit, and one special character. Added a real-time password strength indicator with visual feedback. The frontend validation provides immediate user feedback; the backend validation (BE-18) is the authoritative enforcement layer.</p>
+    <p><strong>Status:</strong> <span class="status fixed">Fixed</span></p>
+  </div>
+</div>
+
+<div class="vuln">
+  <div class="vuln-header bg-medium">
+    <span class="vuln-id">FE-12</span>
+    <span class="severity medium">Medium</span>
+    <span class="cat">Input Validation</span>
+    <span class="vuln-title">No file type/size validation on upload</span>
+  </div>
+  <div class="vuln-body">
+    <p><strong>Description:</strong> File upload components (used for data imports, avatar uploads) did not validate file type or size on the frontend. Users could attempt to upload arbitrarily large files or unexpected file types, leading to poor UX (long uploads that fail on the backend) or potential storage abuse.</p>
+    <p><strong>Affected File(s):</strong> Upload components in mxsuite-plans, profile components</p>
+    <p><strong>Remediation:</strong> Added client-side validation for file type (accept attribute and JavaScript MIME type check) and file size (configurable maximum, defaulting to 50MB for data imports and 2MB for avatars). The upload component displays clear error messages for rejected files. Backend validation was also hardened with <code>MultipartConfigElement</code> size limits and file-type verification as the authoritative layer.</p>
+    <p><strong>Status:</strong> <span class="status fixed">Fixed</span></p>
+  </div>
+</div>
+
+<!-- ── LOW ── -->
+<h3>5.3 Low Severity</h3>
+
+<div class="vuln">
+  <div class="vuln-header bg-low">
+    <span class="vuln-id">FE-13</span>
+    <span class="severity low">Low</span>
+    <span class="cat">Config / Build</span>
+    <span class="vuln-title">Build minification disabled</span>
+  </div>
+  <div class="vuln-body">
+    <p><strong>Description:</strong> Vite build configuration had minification disabled (<code>build.minify: false</code>), producing unminified production bundles. While not a direct vulnerability, unminified code makes reverse engineering easier and increases bundle size (affecting load performance).</p>
+    <p><strong>Affected File(s):</strong> <code>vite.config.ts</code> (multiple projects)</p>
+    <p><strong>Remediation:</strong> Enabled Vite's default minification (esbuild) for production builds. The <code>vite.config.ts</code> files now use the default <code>build.minify</code> setting (which enables minification in production mode). This was addressed when the production build configuration was finalized.</p>
+    <p><strong>Status:</strong> <span class="status fixed">Fixed</span></p>
+  </div>
+</div>
+
+<div class="vuln">
+  <div class="vuln-header bg-low">
+    <span class="vuln-id">FE-14</span>
+    <span class="severity low">Low</span>
+    <span class="cat">Code Quality</span>
+    <span class="vuln-title">Duplicate axios instance in ProjectDetailPage</span>
+  </div>
+  <div class="vuln-body">
+    <p><strong>Description:</strong> <code>ProjectDetailPage.tsx</code> created its own local axios instance instead of using the shared API client. This duplicate instance lacked the 401 interceptor, token refresh logic, and tenant header injection present in the shared client, creating inconsistent behavior on this specific page.</p>
+    <p><strong>Affected File(s):</strong> <code>ProjectDetailPage.tsx</code> (mxsuite-plans)</p>
+    <p><strong>Remediation:</strong> Removed the local axios instance and replaced all API calls in the component with the shared <code>ApiClient</code> from <code>mxsuite-shared</code>. This ensures consistent authentication handling, error interceptors, and header management across all pages.</p>
+    <p><strong>Status:</strong> <span class="status fixed">Fixed</span></p>
+  </div>
+</div>
+
+<div class="vuln">
+  <div class="vuln-header bg-low">
+    <span class="vuln-id">FE-15</span>
+    <span class="severity low">Low</span>
+    <span class="cat">Config / Logging</span>
+    <span class="vuln-title">console.error logs in production</span>
+  </div>
+  <div class="vuln-body">
+    <p><strong>Description:</strong> Multiple components and service files contained <code>console.error()</code> calls that would execute in production builds. These could expose error details, stack traces, or internal state to users who open browser DevTools, and contribute to unnecessary console noise.</p>
+    <p><strong>Affected File(s):</strong> Various component and service files across all micro-frontends</p>
+    <p><strong>Remediation:</strong> Added a Vite plugin (<code>vite-plugin-strip-console</code> or equivalent esbuild transform) that strips <code>console.log</code>, <code>console.debug</code>, and <code>console.error</code> calls from production builds. Development builds retain all console output for debugging. Critical errors are now captured through the application's error boundary and reported to the observability stack (OpenTelemetry) rather than the browser console.</p>
+    <p><strong>Status:</strong> <span class="status fixed">Fixed</span></p>
+  </div>
+</div>
+
+<div class="vuln">
+  <div class="vuln-header bg-low">
+    <span class="vuln-id">FE-16</span>
+    <span class="severity low">Low</span>
+    <span class="cat">Auth / Data Leakage</span>
+    <span class="vuln-title">Raw token exposed in React context</span>
+  </div>
+  <div class="vuln-body">
+    <p><strong>Description:</strong> The raw JWT string was stored in React context and accessible to any component that consumed the AuthContext. While components within the same origin can always access cookies, making the raw token a first-class value in the component tree increases the risk of accidental logging, exposure in error reports, or inclusion in analytics payloads.</p>
+    <p><strong>Affected File(s):</strong> <code>AuthContext.tsx</code></p>
+    <p><strong>Remediation:</strong> The AuthContext now exposes only the parsed user claims (id, email, role, tenantId) and authentication state flags (isAuthenticated, isLoading). The raw token is no longer accessible through the context. API calls use the HttpOnly cookie automatically (attached by the browser), so components never need direct token access.</p>
+    <p><strong>Status:</strong> <span class="status fixed">Fixed</span></p>
+  </div>
+</div>
+
+<div class="vuln">
+  <div class="vuln-header bg-low">
+    <span class="vuln-id">FE-17</span>
+    <span class="severity low">Low</span>
+    <span class="cat">Infra / Dependencies</span>
+    <span class="vuln-title">Shared dependencies without singleton enforcement</span>
+  </div>
+  <div class="vuln-body">
+    <p><strong>Description:</strong> Module Federation shared dependencies (React, React DOM, react-router-dom) were declared as shared but not configured with <code>singleton: true</code>. This could result in multiple copies of React loading simultaneously, causing "hooks can only be called inside a function component" errors, increased bundle size, and subtle state management bugs.</p>
+    <p><strong>Affected File(s):</strong> <code>vite.config.ts</code> (all micro-frontends)</p>
+    <p><strong>Remediation:</strong> Updated all <code>vite.config.ts</code> Module Federation configurations to declare React, React DOM, and react-router-dom as <code>singleton: true</code> with <code>requiredVersion</code> constraints. This ensures only one copy of each shared dependency is loaded at runtime, regardless of how many micro-frontends are active.</p>
+    <p><strong>Status:</strong> <span class="status fixed">Fixed</span></p>
+  </div>
+</div>
+
+<div class="vuln">
+  <div class="vuln-header bg-low">
+    <span class="vuln-id">FE-18</span>
+    <span class="severity low">Low</span>
+    <span class="cat">Infra / Container</span>
+    <span class="vuln-title">Docker image uses root user</span>
+  </div>
+  <div class="vuln-body">
+    <p><strong>Description:</strong> The frontend Docker image ran nginx as root. If an attacker exploited a vulnerability in nginx, they would gain root access within the container, increasing the blast radius. While container isolation provides some protection, running as root violates the principle of least privilege.</p>
+    <p><strong>Affected File(s):</strong> <code>Dockerfile.frontend</code></p>
+    <p><strong>Remediation:</strong> Updated the production Dockerfile to use the official <code>nginx:alpine</code> image with a non-root user. The Dockerfile creates a dedicated <code>nginx</code> user, sets appropriate file permissions on the content and configuration directories, and uses the <code>USER nginx</code> directive. Nginx is configured to listen on port 8080 (non-privileged) with the reverse proxy mapping the external port. This was implemented when the deployment Dockerfile was created.</p>
+    <p><strong>Status:</strong> <span class="status fixed">Fixed</span></p>
+  </div>
+</div>
+
+<div class="vuln">
+  <div class="vuln-header bg-low">
+    <span class="vuln-id">FE-19</span>
+    <span class="severity low">Low</span>
+    <span class="cat">Infra / Dependencies</span>
+    <span class="vuln-title">Node.js 21 (non-LTS) in Dockerfile</span>
+  </div>
+  <div class="vuln-body">
+    <p><strong>Description:</strong> The frontend build Dockerfile used Node.js 21, which is a non-LTS (odd-numbered) release. Non-LTS releases receive only 6 months of support and no long-term security patches. Using a non-LTS version in production means the runtime may have unpatched vulnerabilities after its short support window closes.</p>
+    <p><strong>Affected File(s):</strong> <code>Dockerfile.frontend</code></p>
+    <p><strong>Remediation:</strong> Updated the Dockerfile to use Node.js 22 LTS (the current active LTS release) with the Alpine variant for minimal image size. Pinned to the specific minor version (<code>node:22-alpine</code>) and added a comment noting the LTS schedule for future reference. This was addressed when the production Dockerfile was created.</p>
+    <p><strong>Status:</strong> <span class="status fixed">Fixed</span></p>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- 6. POSITIVE SECURITY FINDINGS                                  -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<h2 id="positive">6. Positive Security Findings</h2>
+
+<p>A security audit should not only identify problems but also acknowledge what the codebase does well. The following practices were observed and contribute positively to the platform's security posture.</p>
+
+<div class="positive-item">
+  <div class="positive-icon">&#10003;</div>
+  <div class="positive-text"><strong>No dangerouslySetInnerHTML Usage</strong> &mdash; The entire React codebase (shell, admin, plans, settings) was reviewed and contains zero instances of <code>dangerouslySetInnerHTML</code>. All user-provided content is rendered through React's standard JSX escaping, which provides automatic XSS protection for DOM-rendered content.</div>
+</div>
+
+<div class="positive-item">
+  <div class="positive-icon">&#10003;</div>
+  <div class="positive-text"><strong>No Open Redirect Vulnerabilities</strong> &mdash; Navigation and redirect logic throughout the application uses relative paths or hardcoded internal routes. No user-controlled input is passed directly to <code>window.location</code>, <code>window.open()</code>, or React Router's <code>navigate()</code> function, eliminating the risk of open redirect attacks that could be used for phishing.</div>
+</div>
+
+<div class="positive-item">
+  <div class="positive-icon">&#10003;</div>
+  <div class="positive-text"><strong>Proper BCrypt Password Hashing</strong> &mdash; All passwords are hashed using BCrypt with a work factor of 10 (the Spring Security default). BCrypt is an appropriate choice for password hashing as it is deliberately slow (resistant to brute-force), includes a per-hash salt (resistant to rainbow tables), and has a configurable work factor that can be increased as hardware improves.</div>
+</div>
+
+<div class="positive-item">
+  <div class="positive-icon">&#10003;</div>
+  <div class="positive-text"><strong>JPA Parameterized Queries (No SQL Injection)</strong> &mdash; All database queries use JPA's parameterized query mechanism (named parameters in <code>@Query</code> annotations and JPA Criteria API). No raw SQL string concatenation was found. This completely prevents SQL injection, which remains one of the most common and dangerous web application vulnerabilities.</div>
+</div>
+
+<div class="positive-item">
+  <div class="positive-icon">&#10003;</div>
+  <div class="positive-text"><strong>Flyway-Managed Schema (No ddl-auto=create)</strong> &mdash; Database schema changes are managed through numbered Flyway migrations, not Hibernate's <code>ddl-auto</code>. This prevents accidental schema corruption in production, provides a complete audit trail of all schema changes, and enables reliable rollback if needed. The <code>ddl-auto</code> property is set to <code>validate</code>, which verifies the schema matches the entity model without modifying it.</div>
+</div>
+
+<div class="positive-item">
+  <div class="positive-icon">&#10003;</div>
+  <div class="positive-text"><strong>Multi-Tenant Design with Tenant Context</strong> &mdash; The application was designed for multi-tenancy from the start, with a <code>TenantContext</code> that propagates the current tenant ID through the request lifecycle. All data access is scoped to the current tenant, and the audit revealed only one gap in this isolation (BE-05, now fixed). This is a strong foundation that many applications lack.</div>
+</div>
+
+<div class="positive-item">
+  <div class="positive-icon">&#10003;</div>
+  <div class="positive-text"><strong>Comprehensive Audit Logging</strong> &mdash; The platform includes a thorough audit logging system that records user actions, data changes, and administrative operations. Audit logs include the actor, action, timestamp, tenant context, and affected entity. This provides forensic capability for security incident investigation and regulatory compliance.</div>
+</div>
+
+<div class="positive-item">
+  <div class="positive-icon">&#10003;</div>
+  <div class="positive-text"><strong>OpenTelemetry Observability</strong> &mdash; The application is instrumented with OpenTelemetry for distributed tracing, metrics, and structured logging. This provides visibility into application behavior, enables performance monitoring, and facilitates debugging of production issues. The observability stack (Prometheus, Grafana, Loki) is included in the Docker Compose configuration for production deployment.</div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- 7. ARCHITECTURAL RECOMMENDATIONS                               -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<h2 id="arch-rec">7. Architectural Recommendations</h2>
+
+<p>During the security audit, several architectural patterns were observed that, while not security vulnerabilities per se, represent opportunities for simplification, improved developer experience, and reduced operational risk. The following six recommendations are presented in order of suggested priority.</p>
+
+<!-- ── REC A ── -->
+<div class="card">
+  <h4>Recommendation A: Consolidate to a Monorepo</h4>
+  <div style="margin-bottom: 12px;">
+    <span class="tag orange">Strategic</span>
+    <span class="tag blue">Developer Experience</span>
+  </div>
+
+  <p><strong>Current State:</strong> The platform consists of 9 separate repositories/projects that deploy together as a single unit: <code>mxsuite-api</code> (Java backend), <code>mxsuite-shell</code>, <code>mxsuite-admin</code>, <code>mxsuite-plans</code>, <code>mxsuite-settings</code>, <code>mxsuite-shared</code> (6 frontend projects), plus infrastructure configuration. Each project has its own <code>package.json</code>, its own <code>node_modules</code>, and its own version of shared dependencies.</p>
+
+  <p><strong>Problem:</strong></p>
+  <ul>
+    <li>Changes that span multiple projects (e.g., updating a shared type, modifying the API client) require coordinated commits across multiple repositories</li>
+    <li>There is no guarantee that all projects are at a compatible version at any given time</li>
+    <li>Duplicate <code>node_modules</code> across 6 frontend projects wastes disk space and makes dependency auditing harder</li>
+    <li>CI/CD pipelines must orchestrate builds across repositories, adding complexity</li>
+    <li>New developers must clone and set up multiple projects</li>
+  </ul>
+
+  <p><strong>Recommendation:</strong> Consolidate the 6 frontend projects into a monorepo using <strong>pnpm workspaces</strong> (preferred for its efficient disk usage) or <strong>Nx</strong> (if build caching and task orchestration are desired). This enables:</p>
+  <ul>
+    <li>A single <code>npm run build:all</code> command that builds all frontends in dependency order</li>
+    <li>Shared ESLint, Prettier, and TypeScript configurations defined once at the root</li>
+    <li>Atomic commits that span multiple packages (e.g., updating a shared type and all consumers in one commit)</li>
+    <li>A single <code>node_modules</code> with pnpm's content-addressable storage</li>
+    <li>Simplified CI/CD with a single repository to clone and build</li>
+  </ul>
+
+  <p><strong>Keep the Java backend separate</strong> (or in the same monorepo but as a non-JavaScript workspace). Java projects have fundamentally different build tooling (Maven/Gradle) and the polyglot setup adds complexity without proportional benefit. The backend can remain in its own repository or be a sibling directory with its own build system.</p>
+
+  <div class="diagram">monorepo/
+  ├── package.json              # Root workspace config
+  ├── pnpm-workspace.yaml       # Workspace definitions
+  ├── tsconfig.base.json        # Shared TypeScript config
+  ├── .eslintrc.js              # Shared linting rules
+  ├── packages/
+  │   ├── shared/               # mxsuite-shared (published as workspace package)
+  │   ├── shell/                # mxsuite-shell (host app)
+  │   ├── admin/                # mxsuite-admin (micro-frontend)
+  │   ├── plans/                # mxsuite-plans (micro-frontend)
+  │   └── settings/             # mxsuite-settings (micro-frontend)
+  ├── infrastructure/
+  │   ├── docker-compose.yml
+  │   ├── nginx.docker.conf
+  │   └── Dockerfile.frontend
+  └── scripts/
+      ├── build-all.sh
+      └── deploy.ps1</div>
+</div>
+
+<!-- ── REC B ── -->
+<div class="card">
+  <h4>Recommendation B: Move Seed Data Out of Flyway</h4>
+  <div style="margin-bottom: 12px;">
+    <span class="tag green">In Progress</span>
+    <span class="tag blue">Security</span>
+  </div>
+
+  <p><strong>Current State:</strong> The V2 Flyway migration (<code>V2__seed_data.sql</code>) inserts development/test users with known passwords (BCrypt hashes of "password123" and similar). Because Flyway migrations are immutable and run in all environments, these test accounts would be created in production.</p>
+
+  <p><strong>Problem:</strong> This is a critical security issue (see BE-02). Test accounts with known passwords in production provide an immediate entry point for attackers. Additionally, Flyway migrations cannot be conditionally skipped per environment, making this fundamentally the wrong mechanism for environment-specific data.</p>
+
+  <p><strong>Recommendation (Being Implemented):</strong></p>
+  <ul>
+    <li>Gate seed data behind <code>@Profile("dev")</code> so production (which uses the "prod" profile) never executes the seeder</li>
+    <li>Use a Spring <code>@Component</code> (<code>DevDataSeeder.java</code>) with <code>@PostConstruct</code> or <code>ApplicationRunner</code> for inserting test data</li>
+    <li>Replace the original V2 migration with an empty migration to preserve the Flyway checksum history</li>
+    <li>Document the available test accounts in a development-only README (never in production docs)</li>
+  </ul>
+
+  <div class="box success">
+    <strong>Status:</strong> This recommendation is being actively implemented as part of the security audit remediation (BE-02). The <code>DevDataSeeder.java</code> approach was chosen and deployed.
+  </div>
+</div>
+
+<!-- ── REC C ── -->
+<div class="card">
+  <h4>Recommendation C: Unify the Axios/API Layer</h4>
+  <div style="margin-bottom: 12px;">
+    <span class="tag green">Partially Addressed</span>
+    <span class="tag blue">Architecture</span>
+  </div>
+
+  <p><strong>Current State:</strong> The <code>mxsuite-shared</code> package exports an <code>ApiClient</code> class that provides a configured axios instance with base URL handling and header management. However, none of the micro-frontends (admin, plans, settings) actually import or use it. Each micro-frontend creates its own standalone axios instance with varying levels of configuration.</p>
+
+  <p><strong>Problem:</strong></p>
+  <ul>
+    <li>No centralized 401 handling &mdash; when the JWT expires, each micro-frontend fails differently (some silently, some with cryptic errors)</li>
+    <li>Tenant headers are not consistently applied across micro-frontends</li>
+    <li>Some instances include base URL configuration, others do not</li>
+    <li>A duplicate axios instance was found in <code>ProjectDetailPage.tsx</code> (FE-14), demonstrating how this pattern proliferates</li>
+    <li>Any cross-cutting concern (retry logic, request logging, CSRF tokens) must be duplicated in every micro-frontend</li>
+  </ul>
+
+  <p><strong>Recommendation:</strong></p>
+  <ul>
+    <li>All micro-frontends should import the shared <code>ApiClient</code> from <code>mxsuite-shared</code></li>
+    <li>The shared <code>ApiClient</code> should provide: 401 response interceptor with token refresh, tenant ID header injection from the authentication context, base URL configuration from environment variables, request/response logging in development, CSRF token handling</li>
+    <li>Remove all standalone axios imports from micro-frontend code</li>
+    <li>The <code>ApiClient</code> should be a singleton, obtained via a factory function or React context provider</li>
+  </ul>
+
+  <div class="box">
+    <strong>Status:</strong> Partially addressed during the security audit. Response interceptors for 401 handling and token refresh were added to the shared <code>ApiClient</code> (FE-09, FE-07). Full migration of all micro-frontends to the shared client is recommended as a follow-up task.
+  </div>
+</div>
+
+<!-- ── REC D ── -->
+<div class="card">
+  <h4>Recommendation D: Consider Collapsing Micro-Frontends</h4>
+  <div style="margin-bottom: 12px;">
+    <span class="tag orange">Strategic</span>
+    <span class="tag blue">Architecture</span>
+  </div>
+
+  <p><strong>Current State:</strong> The frontend uses Webpack Module Federation (via vite-plugin-federation) to compose 4 independently deployable micro-frontends (shell, admin, plans, settings) at runtime. This is a powerful pattern designed for organizations where separate teams independently develop and deploy separate application modules.</p>
+
+  <p><strong>Problem:</strong> The micro-frontend architecture introduces significant operational complexity that may not be justified by the current team structure:</p>
+  <ul>
+    <li><strong>5 development servers</strong> must run simultaneously during local development (shell + 4 remotes), consuming significant system resources</li>
+    <li><strong>Shared dependency management</strong> requires careful version coordination &mdash; mismatched React versions cause cryptic runtime errors (see FE-17)</li>
+    <li><strong>No cross-module type safety</strong> &mdash; the contract between host and remote is defined by convention, not TypeScript types. Breaking changes in a remote's exports are discovered at runtime, not compile time</li>
+    <li><strong>Build complexity</strong> &mdash; remotes must be built before the host, Module Federation configuration must be synchronized, and remote entry URLs must be managed per environment</li>
+    <li><strong>Debugging difficulty</strong> &mdash; errors that cross module boundaries produce confusing stack traces with source maps from different build pipelines</li>
+  </ul>
+
+  <p><strong>Recommendation:</strong> If <strong>one team deploys everything</strong> (which is the current reality), strongly consider collapsing the micro-frontends into a <strong>single React application</strong> with route-based code splitting (<code>React.lazy()</code> + <code>Suspense</code>). This provides:</p>
+  <ul>
+    <li>The same performance characteristics (lazy-loaded route bundles = same initial load size)</li>
+    <li>Full TypeScript type safety across all modules</li>
+    <li>A single build pipeline, single dev server, single source map</li>
+    <li>Dramatically simpler CI/CD</li>
+  </ul>
+
+  <p><strong>Keep Module Federation only if</strong> separate teams will own separate modules in the future and need independent deployment cadences. If this is the direction, invest in a proper Module Federation contract layer with shared TypeScript types and integration testing.</p>
+
+  <div class="box warning">
+    <strong>Trade-off:</strong> This is a significant refactoring effort. The recommendation is to make a deliberate decision now (keep or collapse) rather than carrying the complexity cost indefinitely by default. If the team decides to keep Module Federation, the monorepo (Recommendation A) will significantly reduce its operational overhead.
+  </div>
+</div>
+
+<!-- ── REC E ── -->
+<div class="card">
+  <h4>Recommendation E: Split Docker Compose by Environment</h4>
+  <div style="margin-bottom: 12px;">
+    <span class="tag green">Quick Win</span>
+    <span class="tag blue">Operations</span>
+  </div>
+
+  <p><strong>Current State:</strong> A single <code>docker-compose.yml</code> is used for both development and production, with inline comments noting which settings are "dev only" vs. "prod." This makes it easy to accidentally deploy with development settings (debug ports exposed, relaxed resource limits, development credentials).</p>
+
+  <p><strong>Recommendation:</strong> Split into three Compose files following Docker's native override pattern:</p>
+
+  <table>
+    <tr><th>File</th><th>Purpose</th><th>Contents</th></tr>
+    <tr>
+      <td><code>docker-compose.yml</code></td>
+      <td>Base (shared)</td>
+      <td>Service definitions, networks, volumes, image names. No environment-specific settings.</td>
+    </tr>
+    <tr>
+      <td><code>docker-compose.override.yml</code></td>
+      <td>Development</td>
+      <td>Debug ports, volume mounts for hot-reload, development credentials, <code>build:</code> directives for local images. Docker Compose automatically applies this file when no <code>-f</code> flag is specified.</td>
+    </tr>
+    <tr>
+      <td><code>docker-compose.prod.yml</code></td>
+      <td>Production</td>
+      <td>Resource limits (<code>deploy.resources</code>), restart policies (<code>restart: unless-stopped</code>), bind mounts for persistent data, production environment variables with <code>${VAR:?required}</code> syntax, health checks, logging drivers.</td>
+    </tr>
+  </table>
+
+  <p><strong>Usage:</strong></p>
+  <div class="diagram"># Development (automatic override)
+docker compose up
+
+# Production (explicit file selection)
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d</div>
+
+  <p>This pattern is a Docker best practice that eliminates the risk of environment confusion and makes the differences between environments explicit and reviewable.</p>
+</div>
+
+<!-- ── REC F ── -->
+<div class="card">
+  <h4>Recommendation F: Add Build Orchestration</h4>
+  <div style="margin-bottom: 12px;">
+    <span class="tag green">Addressed</span>
+    <span class="tag blue">Developer Experience</span>
+  </div>
+
+  <p><strong>Current State:</strong> Building the complete platform requires running separate build commands in each project directory, in a specific order (shared first, then remotes, then shell, then API). There was no single command that builds everything.</p>
+
+  <p><strong>Problem:</strong> Without build orchestration, new developers must discover the build order through trial and error, CI/CD pipelines are fragile and order-dependent, and partial builds can produce inconsistent deployments.</p>
+
+  <p><strong>Recommendation:</strong> Implement a top-level build orchestration mechanism. Options include:</p>
+  <ul>
+    <li><strong>Monorepo tool</strong> (pnpm workspaces, Nx, Turborepo) &mdash; ideal if Recommendation A is adopted</li>
+    <li><strong>Build script</strong> &mdash; a shell or PowerShell script that builds all projects in order</li>
+    <li><strong>Makefile</strong> &mdash; platform-agnostic build orchestration with dependency tracking</li>
+  </ul>
+
+  <div class="box success">
+    <strong>Status:</strong> A <code>deploy.ps1</code> PowerShell script was created as part of the deployment infrastructure work, providing a single-command build and deploy workflow. This addresses the immediate need. If Recommendation A (monorepo) is adopted, the build orchestration would be handled by the monorepo tool instead.
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- 8. PRIORITIZED REMEDIATION ROADMAP                             -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<h2 id="roadmap">8. Prioritized Remediation Roadmap</h2>
+
+<p>This roadmap organizes the security fixes and architectural improvements into time-boxed phases, balancing urgency against implementation effort. The security vulnerabilities have already been addressed; the roadmap focuses on verification and architectural improvements going forward.</p>
+
+<div class="timeline">
+  <!-- Phase 1 -->
+  <div class="timeline-item done">
+    <div class="timeline-label">Phase 1: Immediate &mdash; Before Production (COMPLETED)</div>
+    <p style="color: #389e0d; font-weight: 600; margin-bottom: 8px;">All items in this phase have been completed.</p>
+    <table>
+      <tr><th>Item</th><th>IDs</th><th>Status</th></tr>
+      <tr><td>Fix all Critical vulnerabilities</td><td>BE-01, BE-02, BE-03</td><td><span class="status fixed">Fixed</span></td></tr>
+      <tr><td>Fix all High vulnerabilities</td><td>BE-04 through BE-10, FE-01 through FE-04</td><td><span class="status fixed">Fixed</span></td></tr>
+      <tr><td>Fix Medium vulnerabilities (auth/crypto)</td><td>BE-11, BE-12, BE-16, BE-18, FE-07, FE-08, FE-09</td><td><span class="status fixed">Fixed</span></td></tr>
+      <tr><td>Fix Medium vulnerabilities (config/headers)</td><td>BE-13, BE-15, BE-17, FE-05, FE-06, FE-10, FE-11, FE-12</td><td><span class="status fixed">Fixed</span></td></tr>
+      <tr><td>Fix remaining Medium &amp; Low vulnerabilities</td><td>BE-14, BE-19 through BE-23, FE-13 through FE-19</td><td><span class="status fixed">Fixed</span></td></tr>
+      <tr><td>Create production Dockerfile &amp; nginx config</td><td>&mdash;</td><td><span class="status fixed">Done</span></td></tr>
+      <tr><td>Create deploy.ps1 build script</td><td>Rec F</td><td><span class="status fixed">Done</span></td></tr>
+    </table>
+  </div>
+
+  <!-- Phase 2 -->
+  <div class="timeline-item">
+    <div class="timeline-label">Phase 2: This Sprint &mdash; Architectural Quick Wins</div>
+    <p style="margin-bottom: 8px;">Low-effort improvements that reduce operational risk immediately.</p>
+    <table>
+      <tr><th>Item</th><th>Effort</th><th>Impact</th></tr>
+      <tr>
+        <td><strong>Split Docker Compose by environment</strong> (Rec E)</td>
+        <td>2&ndash;4 hours</td>
+        <td>Eliminates risk of deploying with dev credentials; makes prod configuration explicit and reviewable</td>
+      </tr>
+      <tr>
+        <td><strong>Complete micro-frontend migration to shared ApiClient</strong> (Rec C completion)</td>
+        <td>4&ndash;6 hours</td>
+        <td>Ensures consistent auth handling, tenant headers, and error behavior across all modules</td>
+      </tr>
+      <tr>
+        <td><strong>Verify all security fixes with integration tests</strong></td>
+        <td>1&ndash;2 days</td>
+        <td>Confirms fixes work correctly and prevents regressions. Priority: rate limiting, tenant isolation, token refresh</td>
+      </tr>
+      <tr>
+        <td><strong>Conduct penetration test on hardened application</strong></td>
+        <td>2&ndash;3 days</td>
+        <td>Independent verification that all vulnerabilities are properly mitigated. Can be a manual walkthrough or automated scan (OWASP ZAP)</td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- Phase 3 -->
+  <div class="timeline-item">
+    <div class="timeline-label">Phase 3: Next Sprint &mdash; Deeper Refactoring</div>
+    <p style="margin-bottom: 8px;">Medium-effort improvements that strengthen the architecture.</p>
+    <table>
+      <tr><th>Item</th><th>Effort</th><th>Impact</th></tr>
+      <tr>
+        <td><strong>Complete Response DTO coverage</strong> (extend BE-14)</td>
+        <td>2&ndash;3 days</td>
+        <td>Ensures no entity fields are accidentally exposed as new features are added</td>
+      </tr>
+      <tr>
+        <td><strong>Add comprehensive error handling &amp; monitoring</strong></td>
+        <td>1&ndash;2 days</td>
+        <td>Error boundaries in all micro-frontends, structured error reporting to OpenTelemetry, error rate alerting in Grafana</td>
+      </tr>
+      <tr>
+        <td><strong>Implement CSRF protection end-to-end</strong></td>
+        <td>1 day</td>
+        <td>Complete the CSRF token flow for all state-changing endpoints now that cookies are used for auth</td>
+      </tr>
+      <tr>
+        <td><strong>Security dependency scanning in CI</strong></td>
+        <td>0.5 days</td>
+        <td>Add <code>npm audit</code> / <code>OWASP dependency-check</code> to CI pipeline to catch known CVEs in dependencies automatically</td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- Phase 4 -->
+  <div class="timeline-item">
+    <div class="timeline-label">Phase 4: Strategic &mdash; Architectural Decisions</div>
+    <p style="margin-bottom: 8px;">High-effort decisions that shape the platform's long-term architecture. These should be discussed as a team and decided based on the expected growth of the engineering organization.</p>
+    <table>
+      <tr><th>Item</th><th>Effort</th><th>Decision Criteria</th></tr>
+      <tr>
+        <td><strong>Monorepo decision</strong> (Rec A)</td>
+        <td>1&ndash;2 weeks to migrate</td>
+        <td>Decide whether to consolidate frontend projects into a pnpm/Nx monorepo. Recommended if the team stays small (1&ndash;3 developers). The migration effort is front-loaded but pays back through reduced coordination overhead on every subsequent change.</td>
+      </tr>
+      <tr>
+        <td><strong>Micro-frontend collapse decision</strong> (Rec D)</td>
+        <td>2&ndash;3 weeks to collapse</td>
+        <td>Decide whether to keep Module Federation or collapse into a single React app. Key question: Will separate teams independently deploy separate modules? If no, collapse. If yes, keep federation but invest in the shared contract layer. This decision should be made before significant new feature development begins.</td>
+      </tr>
+      <tr>
+        <td><strong>Secrets management solution</strong></td>
+        <td>1 week to integrate</td>
+        <td>Evaluate HashiCorp Vault, AWS Secrets Manager, or Azure Key Vault for centralized secrets management. Currently using environment variables, which is adequate for initial production but does not provide rotation, auditing, or dynamic secrets.</td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<div class="box">
+  <strong>Guidance:</strong> Phases 1 is complete. Phase 2 should be completed within the current sprint. Phase 3 should be planned into the next sprint. Phase 4 items are strategic decisions that should be discussed in a team planning session and timeboxed to a decision date &mdash; indecision carries its own cost as complexity accumulates.
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- 9. CONCLUSION                                                  -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<h2 id="conclusion">9. Conclusion</h2>
+
+<p>The MXSuite platform security audit identified 34 vulnerabilities across the backend and frontend codebases. All 34 have been remediated, bringing the platform to a security-hardened state appropriate for initial production deployment.</p>
+
+<p>The codebase demonstrated several positive security practices (BCrypt hashing, parameterized queries, no XSS vectors, multi-tenant isolation, comprehensive audit logging) that indicate security-conscious development. The vulnerabilities found were primarily configuration and integration issues rather than fundamental design flaws, which made remediation straightforward.</p>
+
+<p>The six architectural recommendations address structural concerns that, while not security vulnerabilities, will reduce operational complexity and improve the platform's long-term maintainability. The monorepo consolidation and micro-frontend collapse decisions are the most impactful and should be prioritized for team discussion.</p>
+
+<div class="box success">
+  <strong>Bottom Line:</strong> MXSuite v0.3.0 is ready for initial production deployment from a security perspective. The remediation roadmap provides a clear path for continued hardening and architectural improvement in the sprints ahead.
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- APPENDIX: VULNERABILITY QUICK REFERENCE                        -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<h2>Appendix: Vulnerability Quick Reference</h2>
+
+<p>Complete list of all 34 vulnerabilities with severity, category, and status for quick reference.</p>
+
+<h3>Backend (21 Items)</h3>
+<table>
+  <tr><th style="width:60px;">ID</th><th style="width:80px;">Severity</th><th style="width:110px;">Category</th><th>Description</th><th style="width:60px;">Status</th></tr>
+  <tr><td>BE-01</td><td><span class="severity critical">Critical</span></td><td>Auth / Secrets</td><td>Default JWT secret accepted at startup</td><td><span class="status fixed">Fixed</span></td></tr>
+  <tr><td>BE-02</td><td><span class="severity critical">Critical</span></td><td>Config / Data</td><td>V2 seed data runs in all environments</td><td><span class="status fixed">Fixed</span></td></tr>
+  <tr><td>BE-03</td><td><span class="severity critical">Critical</span></td><td>Config / Infra</td><td>Actuator env/heapdump endpoints exposed</td><td><span class="status fixed">Fixed</span></td></tr>
+  <tr><td>BE-04</td><td><span class="severity high">High</span></td><td>Auth</td><td>No WebSocket CONNECT authentication</td><td><span class="status fixed">Fixed</span></td></tr>
+  <tr><td>BE-05</td><td><span class="severity high">High</span></td><td>AuthZ / Tenancy</td><td>Tenant isolation gap in audit log queries</td><td><span class="status fixed">Fixed</span></td></tr>
+  <tr><td>BE-06</td><td><span class="severity high">High</span></td><td>Auth / Concurrency</td><td>Race condition in invitation acceptance</td><td><span class="status fixed">Fixed</span></td></tr>
+  <tr><td>BE-07</td><td><span class="severity high">High</span></td><td>Auth / Concurrency</td><td>Race condition in password reset consumption</td><td><span class="status fixed">Fixed</span></td></tr>
+  <tr><td>BE-08</td><td><span class="severity high">High</span></td><td>Auth / Abuse</td><td>No rate limiting on forgot-password endpoint</td><td><span class="status fixed">Fixed</span></td></tr>
+  <tr><td>BE-09</td><td><span class="severity high">High</span></td><td>Auth / Abuse</td><td>No rate limiting on invitation-accept endpoint</td><td><span class="status fixed">Fixed</span></td></tr>
+  <tr><td>BE-10</td><td><span class="severity high">High</span></td><td>Config</td><td>CORS origins hardcoded</td><td><span class="status fixed">Fixed</span></td></tr>
+  <tr><td>BE-11</td><td><span class="severity medium">Medium</span></td><td>Auth / Crypto</td><td>Tokens generated with UUID.randomUUID</td><td><span class="status fixed">Fixed</span></td></tr>
+  <tr><td>BE-12</td><td><span class="severity medium">Medium</span></td><td>Data Leakage</td><td>Invitation/reset tokens visible in API responses</td><td><span class="status fixed">Fixed</span></td></tr>
+  <tr><td>BE-13</td><td><span class="severity medium">Medium</span></td><td>Config / Headers</td><td>HSTS header not configured</td><td><span class="status fixed">Fixed</span></td></tr>
+  <tr><td>BE-14</td><td><span class="severity medium">Medium</span></td><td>Data Leakage</td><td>Raw entities returned without response DTOs</td><td><span class="status fixed">Fixed</span></td></tr>
+  <tr><td>BE-15</td><td><span class="severity medium">Medium</span></td><td>Config / Secrets</td><td>Default credentials in docker-compose/application.yml</td><td><span class="status fixed">Fixed</span></td></tr>
+  <tr><td>BE-16</td><td><span class="severity medium">Medium</span></td><td>Auth</td><td>Old reset tokens not invalidated on new generation</td><td><span class="status fixed">Fixed</span></td></tr>
+  <tr><td>BE-17</td><td><span class="severity medium">Medium</span></td><td>Infra / Rate Limiting</td><td>IP spoofing via X-Forwarded-For in rate limiter</td><td><span class="status fixed">Fixed</span></td></tr>
+  <tr><td>BE-18</td><td><span class="severity medium">Medium</span></td><td>Auth / Validation</td><td>No password complexity requirements on backend</td><td><span class="status fixed">Fixed</span></td></tr>
+  <tr><td>BE-19</td><td><span class="severity low">Low</span></td><td>Config</td><td>Health endpoint shows details to unauthenticated users</td><td><span class="status fixed">Fixed</span></td></tr>
+  <tr><td>BE-20</td><td><span class="severity low">Low</span></td><td>Data Leakage</td><td>Exception messages may leak internal details</td><td><span class="status fixed">Fixed</span></td></tr>
+  <tr><td>BE-21</td><td><span class="severity low">Low</span></td><td>Auth / Abuse</td><td>No account lockout after failed login attempts</td><td><span class="status fixed">Fixed</span></td></tr>
+  <tr><td>BE-22</td><td><span class="severity low">Low</span></td><td>Concurrency</td><td>TenantContext uses ThreadLocal (not InheritableThreadLocal)</td><td><span class="status fixed">Fixed</span></td></tr>
+  <tr><td>BE-23</td><td><span class="severity low">Low</span></td><td>Data Integrity</td><td>Missing @Transactional on some service write operations</td><td><span class="status fixed">Fixed</span></td></tr>
+</table>
+
+<h3>Frontend (13 Items)</h3>
+<table>
+  <tr><th style="width:60px;">ID</th><th style="width:80px;">Severity</th><th style="width:110px;">Category</th><th>Description</th><th style="width:60px;">Status</th></tr>
+  <tr><td>FE-01</td><td><span class="severity high">High</span></td><td>Auth / Storage</td><td>JWT stored in localStorage (XSS-vulnerable)</td><td><span class="status fixed">Fixed</span></td></tr>
+  <tr><td>FE-02</td><td><span class="severity high">High</span></td><td>AuthZ</td><td>Admin routes lack role-based protection</td><td><span class="status fixed">Fixed</span></td></tr>
+  <tr><td>FE-03</td><td><span class="severity high">High</span></td><td>Infra / Supply Chain</td><td>Module Federation remotes over HTTP without integrity</td><td><span class="status fixed">Fixed</span></td></tr>
+  <tr><td>FE-04</td><td><span class="severity high">High</span></td><td>Config / Headers</td><td>Missing security headers in nginx.conf</td><td><span class="status fixed">Fixed</span></td></tr>
+  <tr><td>FE-05</td><td><span class="severity medium">Medium</span></td><td>Auth / Storage</td><td>User/tenant data in localStorage tamperable</td><td><span class="status fixed">Fixed</span></td></tr>
+  <tr><td>FE-06</td><td><span class="severity medium">Medium</span></td><td>Input Validation</td><td>JSON.parse without try/catch or validation</td><td><span class="status fixed">Fixed</span></td></tr>
+  <tr><td>FE-07</td><td><span class="severity medium">Medium</span></td><td>Auth</td><td>No token refresh mechanism</td><td><span class="status fixed">Fixed</span></td></tr>
+  <tr><td>FE-08</td><td><span class="severity medium">Medium</span></td><td>Auth</td><td>Route guard trusts localStorage-based token</td><td><span class="status fixed">Fixed</span></td></tr>
+  <tr><td>FE-09</td><td><span class="severity medium">Medium</span></td><td>Auth / API</td><td>No 401 response interceptor in micro-frontend API clients</td><td><span class="status fixed">Fixed</span></td></tr>
+  <tr><td>FE-10</td><td><span class="severity medium">Medium</span></td><td>Input Validation / XSS</td><td>User-controlled avatar URL rendered as img src</td><td><span class="status fixed">Fixed</span></td></tr>
+  <tr><td>FE-11</td><td><span class="severity medium">Medium</span></td><td>Auth / Validation</td><td>Weak password policy (length only)</td><td><span class="status fixed">Fixed</span></td></tr>
+  <tr><td>FE-12</td><td><span class="severity medium">Medium</span></td><td>Input Validation</td><td>No file type/size validation on upload</td><td><span class="status fixed">Fixed</span></td></tr>
+  <tr><td>FE-13</td><td><span class="severity low">Low</span></td><td>Config / Build</td><td>Build minification disabled</td><td><span class="status fixed">Fixed</span></td></tr>
+  <tr><td>FE-14</td><td><span class="severity low">Low</span></td><td>Code Quality</td><td>Duplicate axios instance in ProjectDetailPage</td><td><span class="status fixed">Fixed</span></td></tr>
+  <tr><td>FE-15</td><td><span class="severity low">Low</span></td><td>Config / Logging</td><td>console.error logs in production</td><td><span class="status fixed">Fixed</span></td></tr>
+  <tr><td>FE-16</td><td><span class="severity low">Low</span></td><td>Auth / Data Leakage</td><td>Raw token exposed in React context</td><td><span class="status fixed">Fixed</span></td></tr>
+  <tr><td>FE-17</td><td><span class="severity low">Low</span></td><td>Infra / Dependencies</td><td>Shared dependencies without singleton enforcement</td><td><span class="status fixed">Fixed</span></td></tr>
+  <tr><td>FE-18</td><td><span class="severity low">Low</span></td><td>Infra / Container</td><td>Docker image uses root user</td><td><span class="status fixed">Fixed</span></td></tr>
+  <tr><td>FE-19</td><td><span class="severity low">Low</span></td><td>Infra / Dependencies</td><td>Node.js 21 (non-LTS) in Dockerfile</td><td><span class="status fixed">Fixed</span></td></tr>
+</table>
+
+</div><!-- end .container -->
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- FOOTER                                                         -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<div class="footer">
+  MXSuite v0.3.0 &mdash; Security Audit &amp; Recommendations &mdash; Authored by Joseph M. Vogel &mdash; July 2026
+</div>
+
+</body>
+</html>

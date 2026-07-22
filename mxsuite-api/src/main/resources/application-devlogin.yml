@@ -1,0 +1,7 @@
+# Dev Login profile — enables passwordless user-picker login screen
+# Activate by adding 'devlogin' to spring.profiles.active
+# e.g. SPRING_PROFILES_ACTIVE=local,devlogin
+
+mxsuite:
+  dev-login:
+    enabled: true

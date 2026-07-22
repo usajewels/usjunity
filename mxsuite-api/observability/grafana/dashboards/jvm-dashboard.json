@@ -1,0 +1,111 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "title": "Heap Memory Usage",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        { "expr": "jvm_memory_used_bytes{area=\"heap\", application=\"mxsuite-api\"}", "legendFormat": "Used - {{id}}" },
+        { "expr": "jvm_memory_committed_bytes{area=\"heap\", application=\"mxsuite-api\"}", "legendFormat": "Committed - {{id}}" },
+        { "expr": "jvm_memory_max_bytes{area=\"heap\", application=\"mxsuite-api\"}", "legendFormat": "Max - {{id}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "bytes" } }
+    },
+    {
+      "title": "Non-Heap Memory",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        { "expr": "jvm_memory_used_bytes{area=\"nonheap\", application=\"mxsuite-api\"}", "legendFormat": "Used - {{id}}" },
+        { "expr": "jvm_memory_committed_bytes{area=\"nonheap\", application=\"mxsuite-api\"}", "legendFormat": "Committed - {{id}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "bytes" } }
+    },
+    {
+      "title": "Heap Usage %",
+      "type": "gauge",
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 8 },
+      "targets": [
+        { "expr": "jvm_memory_used_bytes{area=\"heap\", id=\"G1 Old Gen\", application=\"mxsuite-api\"} / jvm_memory_max_bytes{area=\"heap\", id=\"G1 Old Gen\", application=\"mxsuite-api\"}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1, "thresholds": { "steps": [{"color":"green","value":null},{"color":"yellow","value":0.7},{"color":"red","value":0.85}] } } }
+    },
+    {
+      "title": "Live Threads",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 8 },
+      "targets": [
+        { "expr": "jvm_threads_live_threads{application=\"mxsuite-api\"}", "legendFormat": "Live" }
+      ]
+    },
+    {
+      "title": "Daemon Threads",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 8 },
+      "targets": [
+        { "expr": "jvm_threads_daemon_threads{application=\"mxsuite-api\"}", "legendFormat": "Daemon" }
+      ]
+    },
+    {
+      "title": "Thread Peak",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 8 },
+      "targets": [
+        { "expr": "jvm_threads_peak_threads{application=\"mxsuite-api\"}", "legendFormat": "Peak" }
+      ]
+    },
+    {
+      "title": "GC Pause Duration",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "targets": [
+        { "expr": "rate(jvm_gc_pause_seconds_sum{application=\"mxsuite-api\"}[1m])", "legendFormat": "{{action}} - {{cause}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "title": "GC Collections Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "targets": [
+        { "expr": "rate(jvm_gc_pause_seconds_count{application=\"mxsuite-api\"}[1m])", "legendFormat": "{{action}} - {{cause}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" } }
+    },
+    {
+      "title": "Classes Loaded",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 22 },
+      "targets": [
+        { "expr": "jvm_classes_loaded_classes{application=\"mxsuite-api\"}", "legendFormat": "Loaded" },
+        { "expr": "jvm_classes_unloaded_classes_total{application=\"mxsuite-api\"}", "legendFormat": "Unloaded" }
+      ]
+    },
+    {
+      "title": "CPU Usage",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 22 },
+      "targets": [
+        { "expr": "process_cpu_usage{application=\"mxsuite-api\"}", "legendFormat": "Process CPU" },
+        { "expr": "system_cpu_usage{application=\"mxsuite-api\"}", "legendFormat": "System CPU" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 } }
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["jvm", "mxsuite"],
+  "templating": {
+    "list": [
+      { "name": "instance", "type": "query", "query": "label_values(jvm_memory_used_bytes{application=\"mxsuite-api\"}, instance)", "datasource": "Prometheus" }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "MXSuite — JVM Metrics",
+  "uid": "mxsuite-jvm"
+}

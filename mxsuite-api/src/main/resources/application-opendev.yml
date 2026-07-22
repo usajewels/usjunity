@@ -1,0 +1,26 @@
+# OpenDev profile - dev + OpenTelemetry enabled (requires collector on localhost:4318)
+spring:
+  flyway:
+    locations: classpath:db/migration,classpath:db/seed/dev
+  mail:
+    host: localhost
+    port: 1025
+    properties:
+      mail:
+        smtp:
+          auth: false
+          starttls:
+            enable: false
+
+mxsuite:
+  security:
+    jwt:
+      secret: ${JWT_SECRET:mxsuite-dev-secret-key-change-in-production-must-be-at-least-256-bits-long}
+
+management:
+  tracing:
+    enabled: true
+
+logging:
+  level:
+    com.mxsuite: DEBUG
