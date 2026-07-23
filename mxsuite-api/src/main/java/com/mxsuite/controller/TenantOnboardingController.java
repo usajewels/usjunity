@@ -6,6 +6,8 @@ import com.mxsuite.model.enums.*;
 import com.mxsuite.repository.*;
 import com.mxsuite.security.TenantContext;
 import com.mxsuite.security.UserPrincipal;
+import com.mxsuite.service.AiMappingService;
+import com.mxsuite.service.BatchImportService;
 import com.mxsuite.service.FileParsingService;
 import com.mxsuite.service.MappingVersionService;
 import org.slf4j.Logger;
@@ -48,6 +50,8 @@ public class TenantOnboardingController {
     private final FileParsingService fileParsingService;
     private final AuditService auditService;
     private final MappingVersionService versionService;
+    private final AiMappingService aiMappingService;
+    private final BatchImportService batchImportService;
     private final String basePath;
 
     public TenantOnboardingController(TenantRepository tenantRepository,
@@ -62,6 +66,8 @@ public class TenantOnboardingController {
                                        FileParsingService fileParsingService,
                                        AuditService auditService,
                                        MappingVersionService versionService,
+                                       AiMappingService aiMappingService,
+                                       BatchImportService batchImportService,
                                        @Value("${mxsuite.storage.local.base-path}") String basePath) {
         this.tenantRepository = tenantRepository;
         this.projectRepository = projectRepository;
@@ -75,6 +81,8 @@ public class TenantOnboardingController {
         this.fileParsingService = fileParsingService;
         this.auditService = auditService;
         this.versionService = versionService;
+        this.aiMappingService = aiMappingService;
+        this.batchImportService = batchImportService;
         this.basePath = basePath;
     }
 
@@ -107,6 +115,11 @@ public class TenantOnboardingController {
     public record SelectSheetRequest(int sheetIndex) {}
 
     public record ConfirmUploadRequest(boolean preserveApproved) {}
+
+    public record PreviewUploadRequest(String csvText, String originalFilename, long totalFileSize) {}
+
+    public record ImportStatusDto(String status, int progressPct, int importedRowCount,
+                                   int totalRowCount, String error, boolean isPreviewOnly) {}
 
     public record FieldMappingDto(
             UUID id, String sourceEntity, String sourceField, String sampleValue,
@@ -261,6 +274,75 @@ public class TenantOnboardingController {
         }
     }
 
+    // --- POST /my-onboarding/upload-preview — Upload CSV preview text for large files ---
+
+    @PostMapping("/upload-preview")
+    @Transactional
+    public ResponseEntity<?> uploadPreview(@RequestBody PreviewUploadRequest request,
+                                            @AuthenticationPrincipal UserPrincipal principal) {
+        Project project = resolveProject();
+        if (project == null) return notFound();
+
+        if (request.csvText() == null || request.csvText().isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "CSV preview text is empty"));
+        }
+
+        String filename = request.originalFilename() != null
+                ? request.originalFilename().replaceAll("[^a-zA-Z0-9._-]", "_") : "preview.csv";
+
+        FileParsingService.ParsedFileResult result = fileParsingService.parseCsvContent(request.csvText());
+        if (result.headers().isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "No headers found in preview data"));
+        }
+
+        // Check for existing user-finalized mappings
+        long existingMapped = mappingRepository.countByProjectIdAndMappingStatus(
+                project.getId(), MappingStatus.MAPPED);
+        long existingRejected = mappingRepository.countByProjectIdAndMappingStatus(
+                project.getId(), MappingStatus.REJECTED);
+        long existingFinalized = existingMapped + existingRejected;
+
+        if (existingFinalized > 0) {
+            // Save as PENDING — let frontend confirm preserve/fresh
+            ProjectDataUpload upload = new ProjectDataUpload();
+            upload.setProject(project);
+            upload.setOriginalFilename(filename);
+            upload.setRowCount(result.totalRows());
+            upload.setSourceColumns(result.sourceColumns());
+            upload.setUploadStatus(UploadStatus.PENDING);
+            upload.setTotalFileSize(request.totalFileSize());
+            uploadRepository.save(upload);
+
+            log.info("Preview upload pending confirmation for project {}: {} (existing finalized: {})",
+                    project.getId(), filename, existingFinalized);
+
+            return ResponseEntity.ok(new UploadResultDto(
+                    upload.getId(), filename, result.totalRows(),
+                    result.sourceColumns(), false, List.of(), true, existingFinalized));
+        }
+
+        // No existing mappings — process immediately
+        ProjectDataUpload upload = new ProjectDataUpload();
+        upload.setProject(project);
+        upload.setOriginalFilename(filename);
+        upload.setRowCount(result.totalRows());
+        upload.setSourceColumns(result.sourceColumns());
+        upload.setUploadStatus(UploadStatus.PREVIEW_ONLY);
+        upload.setTotalFileSize(request.totalFileSize());
+        uploadRepository.save(upload);
+
+        createSchemaNodes(project, result);
+        createAutoMappings(project, result);
+
+        auditService.log("UPLOAD_PREVIEW", "OnboardingProject", project.getId(), filename);
+        log.info("Preview uploaded for onboarding project {}: {} ({} preview rows, {} total file size)",
+                project.getId(), filename, result.totalRows(), request.totalFileSize());
+
+        return ResponseEntity.ok(new UploadResultDto(
+                upload.getId(), filename, result.totalRows(),
+                result.sourceColumns(), false, List.of(), false, 0));
+    }
+
     // --- POST /my-onboarding/select-sheet — Select sheet from multi-sheet Excel ---
 
     @PostMapping("/select-sheet")
@@ -401,13 +483,46 @@ public class TenantOnboardingController {
         Project project = resolveProject();
         if (project == null) return notFound();
 
-        String storagePath = getUploadPath(project);
-        if (storagePath == null) {
+        ProjectDataUpload upload = uploadRepository.findFirstByProjectIdOrderByCreatedAtDesc(project.getId())
+                .orElse(null);
+        if (upload == null) {
             return ResponseEntity.badRequest().body(Map.of("message", "No file uploaded yet"));
         }
 
-        ProjectDataUpload upload = uploadRepository.findFirstByProjectIdOrderByCreatedAtDesc(project.getId())
-                .orElse(null);
+        // For PREVIEW_ONLY uploads (no physical file), build preview from sourceColumns
+        if (upload.getUploadStatus() == UploadStatus.PREVIEW_ONLY && upload.getStoragePath() == null) {
+            List<String> headers = new ArrayList<>();
+            List<List<String>> rows = new ArrayList<>();
+            if (upload.getSourceColumns() != null) {
+                for (Map<String, Object> col : upload.getSourceColumns()) {
+                    headers.add(String.valueOf(col.get("name")));
+                }
+                // Build rows from sample values (transpose columns to rows)
+                int maxSamples = upload.getSourceColumns().stream()
+                        .mapToInt(col -> col.get("sampleValues") instanceof List<?> l ? l.size() : 0)
+                        .max().orElse(0);
+                for (int r = 0; r < maxSamples; r++) {
+                    List<String> row = new ArrayList<>();
+                    for (Map<String, Object> col : upload.getSourceColumns()) {
+                        Object sv = col.get("sampleValues");
+                        if (sv instanceof List<?> list && r < list.size()) {
+                            row.add(String.valueOf(list.get(r)));
+                        } else {
+                            row.add("");
+                        }
+                    }
+                    rows.add(row);
+                }
+            }
+            return ResponseEntity.ok(Map.of(
+                    "headers", headers, "rows", rows,
+                    "totalRows", upload.getRowCount() != null ? upload.getRowCount() : 0));
+        }
+
+        String storagePath = upload.getStoragePath();
+        if (storagePath == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "No file uploaded yet"));
+        }
 
         try {
             Path filePath = Paths.get(storagePath);
@@ -675,6 +790,147 @@ public class TenantOnboardingController {
                 "description", rollback.getDescription()));
     }
 
+    // --- POST /my-onboarding/import/chunk — Receive a chunk of a large file ---
+
+    @PostMapping("/import/chunk")
+    @Transactional
+    public ResponseEntity<?> uploadChunk(@RequestParam("chunkIndex") int chunkIndex,
+                                          @RequestParam("totalChunks") int totalChunks,
+                                          @RequestParam("file") MultipartFile chunk,
+                                          @RequestParam("filename") String filename,
+                                          @AuthenticationPrincipal UserPrincipal principal) {
+        Project project = resolveProject();
+        if (project == null) return notFound();
+
+        ProjectDataUpload upload = uploadRepository.findFirstByProjectIdOrderByCreatedAtDesc(project.getId())
+                .orElse(null);
+        if (upload == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "No upload found. Upload a preview first."));
+        }
+
+        try {
+            // Write chunk to assembly directory
+            Path chunkDir = Paths.get(basePath, "onboarding",
+                    project.getTenant().getId().toString(), "chunks", upload.getId().toString());
+            Path resolvedDir = chunkDir.normalize();
+            if (!resolvedDir.startsWith(Paths.get(basePath).normalize())) {
+                return ResponseEntity.badRequest().body(Map.of("message", "Invalid path"));
+            }
+            Files.createDirectories(resolvedDir);
+
+            Path chunkFile = resolvedDir.resolve("chunk_" + String.format("%05d", chunkIndex));
+            Files.copy(chunk.getInputStream(), chunkFile,
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+
+            upload.setChunksTotal(totalChunks);
+            upload.setChunksReceived(chunkIndex + 1);
+            upload.setImportStatus("UPLOADING");
+            uploadRepository.save(upload);
+
+            log.info("Chunk {}/{} received for upload {} (project {})",
+                    chunkIndex + 1, totalChunks, upload.getId(), project.getId());
+
+            // If all chunks received, assemble into final file
+            if (chunkIndex + 1 >= totalChunks) {
+                String sanitized = filename != null
+                        ? filename.replaceAll("[^a-zA-Z0-9._-]", "_") : "import.csv";
+                String storageName = UUID.randomUUID() + "_" + sanitized;
+                Path storageDir = Paths.get(basePath, "onboarding", project.getTenant().getId().toString());
+                Path assembledFile = storageDir.resolve(storageName).normalize();
+
+                if (!assembledFile.startsWith(Paths.get(basePath).normalize())) {
+                    return ResponseEntity.badRequest().body(Map.of("message", "Invalid path"));
+                }
+
+                // Concatenate all chunks
+                try (var out = Files.newOutputStream(assembledFile)) {
+                    for (int i = 0; i < totalChunks; i++) {
+                        Path cp = resolvedDir.resolve("chunk_" + String.format("%05d", i));
+                        Files.copy(cp, out);
+                    }
+                }
+
+                // Clean up chunk directory
+                for (int i = 0; i < totalChunks; i++) {
+                    Files.deleteIfExists(resolvedDir.resolve("chunk_" + String.format("%05d", i)));
+                }
+                Files.deleteIfExists(resolvedDir);
+
+                upload.setStoragePath(assembledFile.toString());
+                upload.setOriginalFilename(sanitized);
+                upload.setImportStatus("UPLOADED");
+                uploadRepository.save(upload);
+
+                log.info("All chunks assembled for upload {} → {}", upload.getId(), assembledFile);
+            }
+
+            return ResponseEntity.ok(Map.of(
+                    "chunksReceived", upload.getChunksReceived(),
+                    "chunksTotal", totalChunks,
+                    "assembled", chunkIndex + 1 >= totalChunks));
+
+        } catch (IOException e) {
+            log.error("Chunk upload failed for project {}: {}", project.getId(), e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("message", "Failed to store chunk"));
+        }
+    }
+
+    // --- POST /my-onboarding/import/start — Start async batch import ---
+
+    @PostMapping("/import/start")
+    @Transactional
+    public ResponseEntity<?> startImport(@AuthenticationPrincipal UserPrincipal principal) {
+        Project project = resolveProject();
+        if (project == null) return notFound();
+
+        ProjectDataUpload upload = uploadRepository.findFirstByProjectIdOrderByCreatedAtDesc(project.getId())
+                .orElse(null);
+        if (upload == null || upload.getStoragePath() == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "No file available for import. Upload chunks first."));
+        }
+        if ("PROCESSING".equals(upload.getImportStatus())) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Import is already in progress"));
+        }
+
+        upload.setImportStatus("PROCESSING");
+        upload.setImportProgressPct(0);
+        upload.setImportedRowCount(0);
+        upload.setImportError(null);
+        uploadRepository.save(upload);
+
+        // Kick off async import
+        batchImportService.processImport(project.getId(), upload.getId(), principal.id());
+
+        log.info("Batch import started for project {} upload {}", project.getId(), upload.getId());
+
+        return ResponseEntity.ok(new ImportStatusDto("PROCESSING", 0, 0,
+                upload.getRowCount() != null ? upload.getRowCount() : 0, null, true));
+    }
+
+    // --- GET /my-onboarding/import/status — Get import progress ---
+
+    @GetMapping("/import/status")
+    public ResponseEntity<?> importStatus(@AuthenticationPrincipal UserPrincipal principal) {
+        Project project = resolveProject();
+        if (project == null) return notFound();
+
+        ProjectDataUpload upload = uploadRepository.findFirstByProjectIdOrderByCreatedAtDesc(project.getId())
+                .orElse(null);
+        if (upload == null) {
+            return ResponseEntity.ok(new ImportStatusDto("NONE", 0, 0, 0, null, false));
+        }
+
+        boolean previewOnly = upload.getUploadStatus() == UploadStatus.PREVIEW_ONLY;
+        return ResponseEntity.ok(new ImportStatusDto(
+                upload.getImportStatus() != null ? upload.getImportStatus() : "NONE",
+                upload.getImportProgressPct() != null ? upload.getImportProgressPct() : 0,
+                upload.getImportedRowCount() != null ? upload.getImportedRowCount() : 0,
+                upload.getRowCount() != null ? upload.getRowCount() : 0,
+                upload.getImportError(),
+                previewOnly));
+    }
+
     // ---- Internal helpers ----
 
     private Project resolveProject() {
@@ -853,9 +1109,147 @@ public class TenantOnboardingController {
     private record FieldMatch(TargetFieldDef target, BigDecimal confidence) {}
 
     private void createAutoMappings(Project project, FileParsingService.ParsedFileResult result) {
+        // If headers haven't changed, just update sample values — don't re-map
+        List<FieldMappingEntry> existing = mappingRepository.findAllByProjectId(project.getId());
+        if (!existing.isEmpty() && headersMatch(existing, result.headers())) {
+            updateSampleValues(existing, result);
+            log.info("Headers unchanged for project {} — preserved {} existing mappings",
+                    project.getId(), existing.size());
+            return;
+        }
+
         // Clear existing mappings for this project
         mappingRepository.deleteByProjectId(project.getId());
 
+        // Try AI-powered mapping first, fall back to rule-based
+        if (aiMappingService.isAvailable()) {
+            try {
+                createAiMappings(project, result);
+                return;
+            } catch (Exception e) {
+                log.warn("AI mapping failed for project {}, falling back to rule-based: {}",
+                        project.getId(), e.getMessage());
+                // Clear any partial AI results
+                mappingRepository.deleteByProjectId(project.getId());
+            }
+        }
+
+        createRuleBasedMappings(project, result);
+    }
+
+    /**
+     * Check if the existing mapping source fields match the new upload headers.
+     */
+    private boolean headersMatch(List<FieldMappingEntry> existing, List<String> newHeaders) {
+        Set<String> existingNormalized = new HashSet<>();
+        for (FieldMappingEntry e : existing) {
+            existingNormalized.add(normalize(e.getSourceField()));
+        }
+        Set<String> newNormalized = new HashSet<>();
+        for (String h : newHeaders) {
+            newNormalized.add(normalize(h));
+        }
+        return existingNormalized.equals(newNormalized);
+    }
+
+    /**
+     * Update sample values on existing mappings from the new upload without changing mappings.
+     */
+    private void updateSampleValues(List<FieldMappingEntry> existing, FileParsingService.ParsedFileResult result) {
+        Map<String, String> newSamples = new HashMap<>();
+        for (int i = 0; i < result.headers().size(); i++) {
+            String sampleValue = null;
+            if (result.sourceColumns() != null && i < result.sourceColumns().size()) {
+                Object sv = result.sourceColumns().get(i).get("sampleValues");
+                if (sv instanceof List<?> list && !list.isEmpty()) {
+                    sampleValue = String.valueOf(list.get(0));
+                }
+            }
+            newSamples.put(normalize(result.headers().get(i)), sampleValue);
+        }
+        for (FieldMappingEntry e : existing) {
+            String key = normalize(e.getSourceField());
+            if (newSamples.containsKey(key)) {
+                e.setSampleValue(newSamples.get(key));
+                mappingRepository.save(e);
+            }
+        }
+    }
+
+    private void createAiMappings(Project project, FileParsingService.ParsedFileResult result) {
+        // Build inputs for AI service
+        List<AiMappingService.FieldInput> sourceFields = new ArrayList<>();
+        Map<String, String> sampleValues = new HashMap<>();
+
+        for (int i = 0; i < result.headers().size(); i++) {
+            String header = result.headers().get(i);
+            String sampleValue = null;
+            if (result.sourceColumns() != null && i < result.sourceColumns().size()) {
+                Object sv = result.sourceColumns().get(i).get("sampleValues");
+                if (sv instanceof List<?> list && !list.isEmpty()) {
+                    sampleValue = String.valueOf(list.get(0));
+                }
+            }
+            sourceFields.add(new AiMappingService.FieldInput(header, sampleValue));
+            sampleValues.put(header, sampleValue);
+        }
+
+        List<AiMappingService.TargetFieldDef> targetDefs = TARGET_FIELDS.stream()
+                .map(t -> new AiMappingService.TargetFieldDef(t.entity(), t.field(), t.description()))
+                .toList();
+
+        // Call Claude
+        List<AiMappingService.AiMapping> aiMappings = aiMappingService.mapFields(sourceFields, targetDefs);
+
+        // Convert AI results to FieldMappingEntry records
+        Set<String> usedTargets = new HashSet<>();
+        int matched = 0;
+
+        for (AiMappingService.AiMapping aim : aiMappings) {
+            FieldMappingEntry entry = new FieldMappingEntry();
+            entry.setProject(project);
+            entry.setSourceEntity("Uploaded Data");
+            entry.setSourceField(aim.sourceField());
+            entry.setSampleValue(sampleValues.get(aim.sourceField()));
+
+            if (aim.targetField() != null && !usedTargets.contains(aim.targetField())
+                    && aim.confidence().compareTo(BigDecimal.valueOf(40)) > 0) {
+                usedTargets.add(aim.targetField());
+                entry.setTargetEntity(aim.targetEntity());
+                entry.setTargetField(aim.targetField());
+                entry.setConfidencePct(aim.confidence());
+                entry.setMappingStatus(MappingStatus.NEEDS_REVIEW);
+                matched++;
+
+                // Also add rule-based candidates for alternatives
+                entry = mappingRepository.save(entry);
+                String normalized = normalize(aim.sourceField());
+                List<FieldMatch> ruleMatches = findMatches(normalized);
+                int order = 0;
+                for (FieldMatch m : ruleMatches) {
+                    if (m.target().field().equals(aim.targetField())) continue;
+                    MappingCandidate candidate = new MappingCandidate();
+                    candidate.setFieldMapping(entry);
+                    candidate.setTargetField(m.target().field());
+                    candidate.setMatchPct(m.confidence());
+                    candidate.setDescription(m.target().description());
+                    candidate.setSortOrder(order++);
+                    entry.getCandidates().add(candidate);
+                }
+                if (!entry.getCandidates().isEmpty()) {
+                    mappingRepository.save(entry);
+                }
+            } else {
+                entry.setMappingStatus(MappingStatus.UNMAPPED);
+                mappingRepository.save(entry);
+            }
+        }
+
+        log.info("AI-mapped {} fields for project {} ({} matched)",
+                result.headers().size(), project.getId(), matched);
+    }
+
+    private void createRuleBasedMappings(Project project, FileParsingService.ParsedFileResult result) {
         Set<String> usedTargets = new HashSet<>();
 
         for (int i = 0; i < result.headers().size(); i++) {
@@ -923,7 +1317,7 @@ public class TenantOnboardingController {
             }
         }
 
-        log.info("Auto-mapped {} fields for project {} ({} matched)",
+        log.info("Rule-based mapped {} fields for project {} ({} matched)",
                 result.headers().size(), project.getId(), usedTargets.size());
     }
 
@@ -1061,32 +1455,95 @@ public class TenantOnboardingController {
     private List<FieldMatch> findMatches(String normalized) {
         List<FieldMatch> matches = new ArrayList<>();
         for (TargetFieldDef target : TARGET_FIELDS) {
-            // Exact alias match
+            // Tier 1: Exact alias match → 95%
             if (target.aliases().contains(normalized)) {
                 matches.add(new FieldMatch(target, new BigDecimal("95.00")));
                 continue;
             }
-            // Normalized target field name match
+            // Tier 2: Normalized target field name match → 90%
             if (normalize(target.field()).equals(normalized)) {
                 matches.add(new FieldMatch(target, new BigDecimal("90.00")));
                 continue;
             }
-            // Partial match — source contains target or vice versa
+            // Tier 3: Partial match — source contains target or vice versa → 70%
             String normalizedTarget = normalize(target.field());
             if (normalized.contains(normalizedTarget) || normalizedTarget.contains(normalized)) {
                 matches.add(new FieldMatch(target, new BigDecimal("70.00")));
                 continue;
             }
-            // Check if any alias is a substring
+            // Tier 4: Check if any alias is a substring → 65%
+            boolean aliasSubstringMatch = false;
             for (String alias : target.aliases()) {
                 if (normalized.contains(alias) || alias.contains(normalized)) {
                     matches.add(new FieldMatch(target, new BigDecimal("65.00")));
+                    aliasSubstringMatch = true;
                     break;
                 }
+            }
+            if (aliasSubstringMatch) continue;
+            // Tier 5: Jaro-Winkler similarity against field name and aliases → scaled confidence
+            double bestSimilarity = jaroWinkler(normalized, normalizedTarget);
+            for (String alias : target.aliases()) {
+                bestSimilarity = Math.max(bestSimilarity, jaroWinkler(normalized, alias));
+            }
+            if (bestSimilarity >= 0.82) {
+                // Scale: 0.82 → 50%, 1.0 → 60%  (linear between)
+                double confidence = 50.0 + (bestSimilarity - 0.82) / (1.0 - 0.82) * 10.0;
+                matches.add(new FieldMatch(target, BigDecimal.valueOf(confidence).setScale(2, java.math.RoundingMode.HALF_UP)));
             }
         }
         matches.sort((a, b) -> b.confidence().compareTo(a.confidence()));
         return matches;
+    }
+
+    /**
+     * Jaro-Winkler similarity: returns 0.0–1.0.
+     * Optimized for short strings like field names; boosts score when strings share a common prefix.
+     */
+    private static double jaroWinkler(String s1, String s2) {
+        if (s1.equals(s2)) return 1.0;
+        if (s1.isEmpty() || s2.isEmpty()) return 0.0;
+
+        int maxDist = Math.max(s1.length(), s2.length()) / 2 - 1;
+        if (maxDist < 0) maxDist = 0;
+
+        boolean[] s1Matched = new boolean[s1.length()];
+        boolean[] s2Matched = new boolean[s2.length()];
+        int matches = 0;
+
+        for (int i = 0; i < s1.length(); i++) {
+            int lo = Math.max(0, i - maxDist);
+            int hi = Math.min(i + maxDist + 1, s2.length());
+            for (int j = lo; j < hi; j++) {
+                if (s2Matched[j] || s1.charAt(i) != s2.charAt(j)) continue;
+                s1Matched[i] = true;
+                s2Matched[j] = true;
+                matches++;
+                break;
+            }
+        }
+        if (matches == 0) return 0.0;
+
+        int transpositions = 0;
+        int k = 0;
+        for (int i = 0; i < s1.length(); i++) {
+            if (!s1Matched[i]) continue;
+            while (!s2Matched[k]) k++;
+            if (s1.charAt(i) != s2.charAt(k)) transpositions++;
+            k++;
+        }
+
+        double jaro = ((double) matches / s1.length()
+                + (double) matches / s2.length()
+                + (matches - transpositions / 2.0) / matches) / 3.0;
+
+        // Winkler prefix boost (up to 4 chars)
+        int prefix = 0;
+        for (int i = 0; i < Math.min(4, Math.min(s1.length(), s2.length())); i++) {
+            if (s1.charAt(i) == s2.charAt(i)) prefix++;
+            else break;
+        }
+        return jaro + prefix * 0.1 * (1.0 - jaro);
     }
 
     private static String normalize(String s) {

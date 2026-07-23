@@ -54,7 +54,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/admin/tenants")
-@PreAuthorize("hasAnyRole('PLATFORM_ADMIN', 'PLATFORM_SUPPORT')")
+@PreAuthorize("hasAnyRole('PLATFORM_ADMIN', 'COACH_ADMIN', 'PLATFORM_SUPPORT')")
 @Transactional(readOnly = true)
 public class TenantController {
 
@@ -353,7 +353,7 @@ public class TenantController {
     }
 
     @PostMapping("/{id}/coaches")
-    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN', 'COACH_ADMIN')")
     @Transactional
     public ResponseEntity<?> assignCoach(@PathVariable UUID id,
                                           @RequestBody AssignCoachRequest request) {
@@ -382,7 +382,7 @@ public class TenantController {
     }
 
     @DeleteMapping("/{id}/coaches/{userId}")
-    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN', 'COACH_ADMIN')")
     @Transactional
     public ResponseEntity<Void> unassignCoach(@PathVariable UUID id, @PathVariable UUID userId) {
         assignmentRepository.findByTenantId(id).stream()

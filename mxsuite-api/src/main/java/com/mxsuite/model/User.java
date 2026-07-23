@@ -67,6 +67,6 @@ public class User extends BaseEntity {
     }
 
     public boolean isPlatformUser() {
-        return role == UserRole.PLATFORM_ADMIN || role == UserRole.PLATFORM_SUPPORT;
+        return role == UserRole.PLATFORM_ADMIN || role == UserRole.COACH_ADMIN || role == UserRole.PLATFORM_SUPPORT;
     }
 }

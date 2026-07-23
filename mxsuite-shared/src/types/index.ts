@@ -3,7 +3,7 @@
 // =====================================================
 
 export type TenantType = 'PLATFORM' | 'CUSTOMER';
-export type UserRole = 'PLATFORM_ADMIN' | 'PLATFORM_SUPPORT' | 'TENANT_ADMIN' | 'TENANT_USER';
+export type UserRole = 'PLATFORM_ADMIN' | 'COACH_ADMIN' | 'PLATFORM_SUPPORT' | 'TENANT_ADMIN' | 'TENANT_USER';
 export type PlanStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
 export type RunType = 'DRY_RUN' | 'FULL_RUN';
 export type RunStatus = 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
@@ -538,6 +538,16 @@ export interface UploadResultDto {
   sheets?: { name: string; rowCount: number }[];
   hasExistingMappings?: boolean;
   existingMappedCount?: number;
+  totalFileSize?: number;
+}
+
+export interface ImportStatusDto {
+  status: 'NONE' | 'UPLOADING' | 'UPLOADED' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+  progressPct: number;
+  importedRowCount: number;
+  totalRowCount: number;
+  error?: string;
+  isPreviewOnly: boolean;
 }
 
 // Coach dashboard types

@@ -127,6 +127,9 @@ mxsuite:
     from: ${MXSUITE_EMAIL_FROM:noreply@mxsuite.com}
   app:
     base-url: ${MXSUITE_BASE_URL:http://localhost:3000}
+  ai:
+    anthropic-api-key: ${ANTHROPIC_API_KEY:}
+    model: ${ANTHROPIC_MODEL:claude-sonnet-4-20250514}
   bootstrap:
     admin-email: ${MXSUITE_ADMIN_EMAIL:admin@mxsuite.com}
     admin-password: ${MXSUITE_ADMIN_PASSWORD:}

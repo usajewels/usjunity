@@ -86,7 +86,7 @@ public class MigrationDashboardController {
     @GetMapping("/projects")
     public Page<MigrationProjectDto> listProjects(@AuthenticationPrincipal UserPrincipal principal,
                                                    Pageable pageable) {
-        if (principal != null && principal.isPlatformAdmin()) {
+        if (principal != null && (principal.isPlatformAdmin() || principal.isCoachAdmin())) {
             return projectRepository.findAllMigrationProjects(pageable)
                     .map(this::toMigrationProjectDto);
         }
@@ -176,7 +176,7 @@ public class MigrationDashboardController {
 
     @PutMapping("/projects/{id}")
     @Transactional
-    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_SUPPORT')")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','COACH_ADMIN','PLATFORM_SUPPORT')")
     public ResponseEntity<?> updateMigration(@PathVariable UUID id,
                                               @RequestBody UpdateMigrationRequest request) {
         return projectRepository.findById(id)
@@ -223,7 +223,7 @@ public class MigrationDashboardController {
     }
 
     private boolean hasAccess(Project project, UserPrincipal principal) {
-        if (principal.isPlatformAdmin()) return true;
+        if (principal.isPlatformAdmin() || principal.isCoachAdmin()) return true;
         UUID projectTenantId = project.getTenant().getId();
         if (principal.isPlatformSupport()) {
             if (project.getTenant().isOpenToAllCoaches()) return true;

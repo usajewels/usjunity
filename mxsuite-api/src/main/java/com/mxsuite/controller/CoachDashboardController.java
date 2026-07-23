@@ -22,7 +22,7 @@ import java.util.stream.Stream;
 
 @RestController
 @RequestMapping("/api/admin/coach-dashboard")
-@PreAuthorize("hasAnyRole('PLATFORM_ADMIN', 'PLATFORM_SUPPORT')")
+@PreAuthorize("hasAnyRole('PLATFORM_ADMIN', 'COACH_ADMIN', 'PLATFORM_SUPPORT')")
 @Transactional(readOnly = true)
 public class CoachDashboardController {
 
@@ -215,7 +215,7 @@ public class CoachDashboardController {
     // --- Helpers ---
 
     private List<UUID> visibleTenantIds(UserPrincipal principal) {
-        if (principal.isPlatformAdmin()) {
+        if (principal.isPlatformAdmin() || principal.isCoachAdmin()) {
             return tenantRepository.findAll().stream()
                     .filter(t -> t.getTenantType() == TenantType.CUSTOMER)
                     .map(Tenant::getId)

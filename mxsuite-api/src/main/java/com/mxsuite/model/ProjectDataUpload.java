@@ -41,4 +41,25 @@ public class ProjectDataUpload extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "upload_status", nullable = false)
     private UploadStatus uploadStatus = UploadStatus.PENDING;
+
+    @Column(name = "total_file_size")
+    private Long totalFileSize;
+
+    @Column(name = "import_status", length = 30)
+    private String importStatus = "NONE";
+
+    @Column(name = "import_progress_pct")
+    private Integer importProgressPct = 0;
+
+    @Column(name = "imported_row_count")
+    private Integer importedRowCount = 0;
+
+    @Column(name = "import_error", columnDefinition = "TEXT")
+    private String importError;
+
+    @Column(name = "chunks_received")
+    private Integer chunksReceived = 0;
+
+    @Column(name = "chunks_total")
+    private Integer chunksTotal = 0;
 }

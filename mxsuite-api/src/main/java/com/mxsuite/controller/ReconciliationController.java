@@ -63,7 +63,7 @@ public class ReconciliationController {
 
     @PostMapping("/{id}/sign-off")
     @Transactional
-    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_SUPPORT')")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','COACH_ADMIN','PLATFORM_SUPPORT')")
     public ResponseEntity<?> signOff(@PathVariable UUID projectId,
                                       @PathVariable UUID id,
                                       @RequestBody SignOffRequest request,

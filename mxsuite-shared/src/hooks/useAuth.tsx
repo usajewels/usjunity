@@ -13,6 +13,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isPlatformUser: boolean;
   isPlatformAdmin: boolean;
+  isCoachAdmin: boolean;
   isTenantAdmin: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
@@ -54,8 +55,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
 
   const isAuthenticated = !!token && !!user;
-  const isPlatformUser = user?.role === 'PLATFORM_ADMIN' || user?.role === 'PLATFORM_SUPPORT';
+  const isPlatformUser = user?.role === 'PLATFORM_ADMIN' || user?.role === 'COACH_ADMIN' || user?.role === 'PLATFORM_SUPPORT';
   const isPlatformAdmin = user?.role === 'PLATFORM_ADMIN';
+  const isCoachAdmin = user?.role === 'COACH_ADMIN';
   const isTenantAdmin = user?.role === 'TENANT_ADMIN';
 
   const login = useCallback(async (email: string, password: string) => {
@@ -87,7 +89,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider value={{
-      user, tenant, isAuthenticated, isPlatformUser, isPlatformAdmin, isTenantAdmin,
+      user, tenant, isAuthenticated, isPlatformUser, isPlatformAdmin, isCoachAdmin, isTenantAdmin,
       login, logout,
     }}>
       {children}

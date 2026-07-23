@@ -40,11 +40,12 @@ public class AuthController {
     private static final String LOCKOUT_KEY_PREFIX = "auth:lockout:";
 
     @SuppressWarnings("unchecked")
-    private static final Map<String, List<String>> DEFAULT_FEATURE_CONFIG = Map.of(
-            "PLATFORM_ADMIN", List.of("projects", "workspaces", "migration"),
-            "PLATFORM_SUPPORT", List.of("projects", "workspaces", "migration"),
-            "TENANT_ADMIN", List.of("my-onboarding"),
-            "TENANT_USER", List.of("my-onboarding")
+    private static final Map<String, List<String>> DEFAULT_FEATURE_CONFIG = Map.ofEntries(
+            Map.entry("PLATFORM_ADMIN", List.of("projects", "workspaces", "migration")),
+            Map.entry("COACH_ADMIN", List.of("projects", "workspaces", "migration")),
+            Map.entry("PLATFORM_SUPPORT", List.of("projects", "workspaces", "migration")),
+            Map.entry("TENANT_ADMIN", List.of("my-onboarding")),
+            Map.entry("TENANT_USER", List.of("my-onboarding"))
     );
 
     private final UserRepository userRepository;

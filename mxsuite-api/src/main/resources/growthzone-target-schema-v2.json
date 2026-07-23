@@ -1,0 +1,343 @@
+{
+  "schemaVersion": "2.0",
+  "platform": "GrowthZone",
+  "description": "Hierarchical target schema for GrowthZone data migration",
+  "entities": {
+    "Contact": {
+      "label": "Contacts",
+      "description": "Individual people — members, prospects, staff, board members, etc.",
+      "identifiedBy": "sourceId",
+      "importOrder": 1,
+      "fields": {
+        "firstName":       { "type": "string",  "required": true,  "description": "First name" },
+        "lastName":        { "type": "string",  "required": true,  "description": "Last name" },
+        "middleName":      { "type": "string",  "required": false, "description": "Middle name" },
+        "prefix":          { "type": "string",  "required": false, "description": "Prefix (Mr., Mrs., Dr., etc.)" },
+        "suffix":          { "type": "string",  "required": false, "description": "Suffix (Jr., III, etc.)" },
+        "nickname":        { "type": "string",  "required": false, "description": "Nickname or preferred name" },
+        "email":           { "type": "string",  "required": true,  "description": "Primary email address" },
+        "email2":          { "type": "string",  "required": false, "description": "Secondary email address" },
+        "phone":           { "type": "string",  "required": false, "description": "Primary phone number" },
+        "homePhone":       { "type": "string",  "required": false, "description": "Home phone number" },
+        "mobilePhone":     { "type": "string",  "required": false, "description": "Mobile / cell phone number" },
+        "fax":             { "type": "string",  "required": false, "description": "Fax number" },
+        "title":           { "type": "string",  "required": false, "description": "Job title" },
+        "company":         { "type": "string",  "required": false, "description": "Company or organization name" },
+        "designation":     { "type": "string",  "required": false, "description": "Professional designation (CPA, PE, etc.)" },
+        "dateOfBirth":     { "type": "date",    "required": false, "description": "Date of birth" },
+        "website":         { "type": "string",  "required": false, "description": "Personal or professional website URL" },
+        "doNotEmail":      { "type": "boolean", "required": false, "description": "Email opt-out flag" },
+        "doNotMail":       { "type": "boolean", "required": false, "description": "Postal mail opt-out flag" },
+        "doNotFax":        { "type": "boolean", "required": false, "description": "Fax opt-out flag" },
+        "facebookUrl":     { "type": "string",  "required": false, "description": "Facebook profile URL" },
+        "linkedInUrl":     { "type": "string",  "required": false, "description": "LinkedIn profile URL" },
+        "twitterUrl":      { "type": "string",  "required": false, "description": "Twitter / X handle or URL" },
+        "instagramUrl":    { "type": "string",  "required": false, "description": "Instagram profile URL" },
+        "contactType":     { "type": "string",  "required": false, "description": "Contact type or category" },
+        "status":          { "type": "string",  "required": false, "description": "Contact status (Active, Inactive, etc.)" },
+        "source":          { "type": "string",  "required": false, "description": "Lead or acquisition source" },
+        "tags":            { "type": "string",  "required": false, "description": "Tags or keywords (comma-separated)" },
+        "notes":           { "type": "string",  "required": false, "description": "Notes or comments" },
+        "profileImageUrl": { "type": "string",  "required": false, "description": "Profile image URL or file reference" },
+        "sourceId":        { "type": "string",  "required": false, "description": "Original ID from source system" },
+        "createdDate":     { "type": "date",    "required": false, "description": "Record creation date" },
+        "modifiedDate":    { "type": "date",    "required": false, "description": "Record last modified date" }
+      },
+      "children": {
+        "ContactAddress": {
+          "label": "Contact Addresses",
+          "description": "Mailing, billing, or seasonal addresses linked to a contact",
+          "parentKey": "contactSourceId",
+          "parentEntity": "Contact",
+          "parentField": "sourceId",
+          "importOrder": 2,
+          "fields": {
+            "addressType": { "type": "string",  "required": false, "description": "Address type (Home, Work, Billing, Seasonal, etc.)" },
+            "address1":    { "type": "string",  "required": false, "description": "Street address line 1" },
+            "address2":    { "type": "string",  "required": false, "description": "Street address line 2" },
+            "city":        { "type": "string",  "required": false, "description": "City" },
+            "state":       { "type": "string",  "required": false, "description": "State or province" },
+            "zip":         { "type": "string",  "required": false, "description": "Zip or postal code" },
+            "country":     { "type": "string",  "required": false, "description": "Country" },
+            "isPrimary":   { "type": "boolean", "required": false, "description": "Is this the primary address?" }
+          }
+        }
+      }
+    },
+
+    "Organization": {
+      "label": "Organizations",
+      "description": "Companies, businesses, or organizational entities",
+      "identifiedBy": "orgSourceId",
+      "importOrder": 1,
+      "fields": {
+        "orgName":             { "type": "string",  "required": true,  "description": "Organization / company name" },
+        "orgEmail":            { "type": "string",  "required": false, "description": "Organization email address" },
+        "orgPhone":            { "type": "string",  "required": false, "description": "Organization main phone number" },
+        "orgFax":              { "type": "string",  "required": false, "description": "Organization fax number" },
+        "orgWebsite":          { "type": "string",  "required": false, "description": "Organization website URL" },
+        "orgAddress1":         { "type": "string",  "required": false, "description": "Organization street address line 1" },
+        "orgAddress2":         { "type": "string",  "required": false, "description": "Organization street address line 2" },
+        "orgCity":             { "type": "string",  "required": false, "description": "Organization city" },
+        "orgState":            { "type": "string",  "required": false, "description": "Organization state or province" },
+        "orgZip":              { "type": "string",  "required": false, "description": "Organization zip or postal code" },
+        "orgCountry":          { "type": "string",  "required": false, "description": "Organization country" },
+        "orgType":             { "type": "string",  "required": false, "description": "Organization type or category" },
+        "orgStatus":           { "type": "string",  "required": false, "description": "Organization status (Active, Inactive, etc.)" },
+        "orgTaxExempt":        { "type": "boolean", "required": false, "description": "Tax exempt flag" },
+        "billingContactName":  { "type": "string",  "required": false, "description": "Billing contact full name" },
+        "billingContactPhone": { "type": "string",  "required": false, "description": "Billing contact phone number" },
+        "orgFacebookUrl":      { "type": "string",  "required": false, "description": "Organization Facebook page URL" },
+        "orgLinkedInUrl":      { "type": "string",  "required": false, "description": "Organization LinkedIn page URL" },
+        "orgTwitterUrl":       { "type": "string",  "required": false, "description": "Organization Twitter / X URL" },
+        "orgInstagramUrl":     { "type": "string",  "required": false, "description": "Organization Instagram URL" },
+        "orgLogoUrl":          { "type": "string",  "required": false, "description": "Organization logo URL or file reference" },
+        "orgNotes":            { "type": "string",  "required": false, "description": "Organization notes or comments" },
+        "orgTags":             { "type": "string",  "required": false, "description": "Organization tags or keywords (comma-separated)" },
+        "orgSourceId":         { "type": "string",  "required": false, "description": "Original organization ID from source system" },
+        "orgCreatedDate":      { "type": "date",    "required": false, "description": "Organization record creation date" },
+        "orgModifiedDate":     { "type": "date",    "required": false, "description": "Organization record last modified date" }
+      }
+    },
+
+    "Membership": {
+      "label": "Memberships",
+      "description": "Membership records linking contacts to membership types/levels",
+      "identifiedBy": "memberSourceId",
+      "importOrder": 3,
+      "references": {
+        "memberContactSourceId": { "entity": "Contact", "field": "sourceId", "required": true,  "description": "Source ID of the member (links to Contact)" },
+        "billToSourceId":        { "entity": "Contact", "field": "sourceId", "required": false, "description": "Source ID of bill-to contact (if different from member)" }
+      },
+      "fields": {
+        "memberSourceId":      { "type": "string",  "required": false, "description": "Original membership ID from source system" },
+        "memberType":          { "type": "string",  "required": true,  "description": "Membership type or level" },
+        "memberStatus":        { "type": "string",  "required": false, "description": "Membership status (Active, Expired, Terminated, etc.)" },
+        "joinDate":            { "type": "date",    "required": false, "description": "Date the member joined" },
+        "expirationDate":      { "type": "date",    "required": false, "description": "Membership expiration date" },
+        "renewalDate":         { "type": "date",    "required": false, "description": "Next renewal date" },
+        "terminationDate":     { "type": "date",    "required": false, "description": "Date membership was terminated" },
+        "terminationReason":   { "type": "string",  "required": false, "description": "Reason for termination" },
+        "duesAmount":          { "type": "number",  "required": false, "description": "Current dues amount" },
+        "paidThruDate":        { "type": "date",    "required": false, "description": "Paid-through / billed-through date" },
+        "isApproved":          { "type": "boolean", "required": false, "description": "Membership approved flag" },
+        "dateApproved":        { "type": "date",    "required": false, "description": "Date membership was approved" },
+        "doNotRenew":          { "type": "boolean", "required": false, "description": "Do not renew flag" },
+        "autoRenew":           { "type": "boolean", "required": false, "description": "Auto-renew flag" },
+        "directoryOptOut":     { "type": "boolean", "required": false, "description": "Opted out of member directory" },
+        "chapter":             { "type": "string",  "required": false, "description": "Primary chapter or section" },
+        "referredBy":          { "type": "string",  "required": false, "description": "Referred by contact name or ID" },
+        "memberNotes":         { "type": "string",  "required": false, "description": "Membership notes" },
+        "memberCreatedDate":   { "type": "date",    "required": false, "description": "Membership record creation date" }
+      }
+    },
+
+    "Event": {
+      "label": "Events",
+      "description": "Conferences, webinars, workshops, and other events",
+      "identifiedBy": "eventSourceId",
+      "importOrder": 1,
+      "references": {
+        "parentEventSourceId": { "entity": "Event", "field": "eventSourceId", "required": false, "description": "Source ID of parent event (for sub-events)" }
+      },
+      "fields": {
+        "eventSourceId":          { "type": "string",  "required": false, "description": "Original event ID from source system" },
+        "eventName":              { "type": "string",  "required": true,  "description": "Event name / title" },
+        "eventDescription":       { "type": "string",  "required": false, "description": "Event description (may contain HTML)" },
+        "eventSummary":           { "type": "string",  "required": false, "description": "Short summary or subtitle" },
+        "eventCode":              { "type": "string",  "required": false, "description": "Event code or identifier" },
+        "eventType":              { "type": "string",  "required": false, "description": "Event type (Conference, Webinar, Workshop, etc.)" },
+        "eventCategory":          { "type": "string",  "required": false, "description": "Event category" },
+        "startDate":              { "type": "date",    "required": true,  "description": "Event start date and time" },
+        "endDate":                { "type": "date",    "required": true,  "description": "Event end date and time" },
+        "timeZone":               { "type": "string",  "required": false, "description": "Event time zone" },
+        "locationName":           { "type": "string",  "required": false, "description": "Venue or location name" },
+        "locationAddress1":       { "type": "string",  "required": false, "description": "Venue street address line 1" },
+        "locationAddress2":       { "type": "string",  "required": false, "description": "Venue street address line 2" },
+        "locationCity":           { "type": "string",  "required": false, "description": "Venue city" },
+        "locationState":          { "type": "string",  "required": false, "description": "Venue state or province" },
+        "locationZip":            { "type": "string",  "required": false, "description": "Venue zip or postal code" },
+        "locationCountry":        { "type": "string",  "required": false, "description": "Venue country" },
+        "capacity":               { "type": "number",  "required": false, "description": "Maximum attendee capacity" },
+        "eventUrl":               { "type": "string",  "required": false, "description": "Event web page URL" },
+        "registrationOpenDate":   { "type": "date",    "required": false, "description": "Registration opens date" },
+        "registrationCloseDate":  { "type": "date",    "required": false, "description": "Registration closes date" },
+        "earlyBirdDeadline":      { "type": "date",    "required": false, "description": "Early-bird registration cutoff date" },
+        "isClosed":               { "type": "boolean", "required": false, "description": "Event closed flag" },
+        "isInviteOnly":           { "type": "boolean", "required": false, "description": "Invite-only flag" },
+        "isPublished":            { "type": "boolean", "required": false, "description": "Published / visible in portal" },
+        "allowWaitList":          { "type": "boolean", "required": false, "description": "Allow wait list" },
+        "allowGroupRegistration": { "type": "boolean", "required": false, "description": "Allow group registrations" },
+        "registrationGoal":       { "type": "number",  "required": false, "description": "Target number of registrations" },
+        "revenueGoal":            { "type": "number",  "required": false, "description": "Target event revenue" },
+        "expectedAttendance":     { "type": "number",  "required": false, "description": "Projected attendance count" },
+        "agenda":                 { "type": "string",  "required": false, "description": "Event agenda (may contain HTML)" },
+        "confirmationText":       { "type": "string",  "required": false, "description": "Registration confirmation text" },
+        "eventImageUrl":          { "type": "string",  "required": false, "description": "Event image URL or file reference" },
+        "chapterId":              { "type": "string",  "required": false, "description": "Chapter or organizational unit" },
+        "eventCreatedDate":       { "type": "date",    "required": false, "description": "Event record creation date" }
+      },
+      "children": {
+        "EventRegistration": {
+          "label": "Event Registrations",
+          "description": "Attendee registrations for an event",
+          "parentKey": "regEventSourceId",
+          "parentEntity": "Event",
+          "parentField": "eventSourceId",
+          "importOrder": 4,
+          "references": {
+            "regContactSourceId": { "entity": "Contact", "field": "sourceId", "required": true, "description": "Source ID of the registrant contact" },
+            "regOrderSourceId":   { "entity": "Order",   "field": "orderSourceId", "required": false, "description": "Source ID of the associated order" }
+          },
+          "fields": {
+            "regSourceId":        { "type": "string",  "required": false, "description": "Original registration ID from source system" },
+            "regCategory":        { "type": "string",  "required": false, "description": "Registration category" },
+            "regClass":           { "type": "string",  "required": false, "description": "Registration class or type" },
+            "regFee":             { "type": "string",  "required": false, "description": "Registration fee name or ID" },
+            "isApprovedReg":      { "type": "boolean", "required": false, "description": "Registration approved" },
+            "regDateApproved":    { "type": "date",    "required": false, "description": "Date registration was approved" },
+            "isWaitListed":       { "type": "boolean", "required": false, "description": "On wait list" },
+            "attended":           { "type": "boolean", "required": false, "description": "Attended event" },
+            "noShow":             { "type": "boolean", "required": false, "description": "No-show flag" },
+            "checkInDate":        { "type": "date",    "required": false, "description": "Check-in date and time" },
+            "cancellationDate":   { "type": "date",    "required": false, "description": "Cancellation date" },
+            "cancellationReason": { "type": "string",  "required": false, "description": "Reason for cancellation" },
+            "badgeName":          { "type": "string",  "required": false, "description": "Badge display name" },
+            "badgeOrganization":  { "type": "string",  "required": false, "description": "Badge organization name" },
+            "badgeTitle":         { "type": "string",  "required": false, "description": "Badge title" },
+            "regNotes":           { "type": "string",  "required": false, "description": "Registration notes" },
+            "regCreatedDate":     { "type": "date",    "required": false, "description": "Registration record creation date" }
+          }
+        }
+      }
+    },
+
+    "Invoice": {
+      "label": "Invoices",
+      "description": "Invoices issued to contacts or organizations",
+      "identifiedBy": "invoiceSourceId",
+      "importOrder": 3,
+      "references": {
+        "invoiceBillToSourceId": { "entity": "Contact", "field": "sourceId", "required": true,  "description": "Source ID of the bill-to contact or organization" },
+        "invoiceOrderSourceId":  { "entity": "Order",   "field": "orderSourceId", "required": false, "description": "Source ID of the associated order" }
+      },
+      "fields": {
+        "invoiceSourceId":       { "type": "string",  "required": false, "description": "Original invoice ID from source system" },
+        "invoiceNumber":         { "type": "string",  "required": true,  "description": "Invoice number" },
+        "invoiceDate":           { "type": "date",    "required": true,  "description": "Invoice date" },
+        "invoiceDueDate":        { "type": "date",    "required": false, "description": "Payment due date" },
+        "invoiceTotal":          { "type": "number",  "required": true,  "description": "Invoice total amount" },
+        "invoiceBalanceDue":     { "type": "number",  "required": false, "description": "Remaining balance due" },
+        "invoiceAmountPaid":     { "type": "number",  "required": false, "description": "Amount paid to date" },
+        "invoiceAmountRefunded": { "type": "number",  "required": false, "description": "Amount refunded" },
+        "invoiceCurrency":       { "type": "string",  "required": false, "description": "Currency code (USD, CAD, etc.)" },
+        "invoiceType":           { "type": "string",  "required": false, "description": "Invoice type" },
+        "invoiceTerms":          { "type": "string",  "required": false, "description": "Payment terms (Net 30, Due on Receipt, etc.)" },
+        "invoicePONumber":       { "type": "string",  "required": false, "description": "Purchase order number" },
+        "invoiceMemo":           { "type": "string",  "required": false, "description": "Invoice memo" },
+        "invoiceNotes":          { "type": "string",  "required": false, "description": "Invoice notes" },
+        "invoiceIsVoid":         { "type": "boolean", "required": false, "description": "Voided flag" },
+        "invoiceCreatedDate":    { "type": "date",    "required": false, "description": "Invoice record creation date" }
+      },
+      "children": {
+        "InvoiceLineItem": {
+          "label": "Invoice Line Items",
+          "description": "Individual line items on an invoice",
+          "parentKey": "iliInvoiceSourceId",
+          "parentEntity": "Invoice",
+          "parentField": "invoiceSourceId",
+          "importOrder": 4,
+          "fields": {
+            "iliDescription": { "type": "string", "required": false, "description": "Line item description" },
+            "iliProductName": { "type": "string", "required": false, "description": "Product or item name" },
+            "iliQuantity":    { "type": "number", "required": false, "description": "Quantity" },
+            "iliUnitPrice":   { "type": "number", "required": false, "description": "Unit price" },
+            "iliTotal":       { "type": "number", "required": false, "description": "Line item total amount" },
+            "iliGLAccount":   { "type": "string", "required": false, "description": "GL account code or name" }
+          }
+        }
+      }
+    },
+
+    "Payment": {
+      "label": "Payments",
+      "description": "Payment transactions applied to invoices or orders",
+      "identifiedBy": "paymentSourceId",
+      "importOrder": 5,
+      "references": {
+        "paymentContactSourceId": { "entity": "Contact", "field": "sourceId",        "required": true,  "description": "Source ID of the payer contact" },
+        "paymentInvoiceSourceId": { "entity": "Invoice", "field": "invoiceSourceId", "required": false, "description": "Source ID of the invoice this payment applies to" },
+        "paymentOrderSourceId":   { "entity": "Order",   "field": "orderSourceId",   "required": false, "description": "Source ID of the associated order" }
+      },
+      "fields": {
+        "paymentSourceId":        { "type": "string",  "required": false, "description": "Original payment ID from source system" },
+        "paymentNumber":          { "type": "string",  "required": false, "description": "Payment number or reference" },
+        "paymentDate":            { "type": "date",    "required": true,  "description": "Payment date" },
+        "paymentAmount":          { "type": "number",  "required": true,  "description": "Payment amount" },
+        "paymentMethod":          { "type": "string",  "required": false, "description": "Payment method (Credit Card, Check, ACH, Cash, etc.)" },
+        "paymentReferenceNumber": { "type": "string",  "required": false, "description": "Check number, transaction ID, or reference" },
+        "paymentCardType":        { "type": "string",  "required": false, "description": "Credit card type (Visa, MC, Amex, etc.)" },
+        "paymentCardLastFour":    { "type": "string",  "required": false, "description": "Last four digits of credit card" },
+        "paymentCurrency":        { "type": "string",  "required": false, "description": "Currency code (USD, CAD, etc.)" },
+        "paymentStatus":          { "type": "string",  "required": false, "description": "Payment status" },
+        "paymentIsVoid":          { "type": "boolean", "required": false, "description": "Voided flag" },
+        "paymentMemo":            { "type": "string",  "required": false, "description": "Payment memo" },
+        "paymentNotes":           { "type": "string",  "required": false, "description": "Payment notes" },
+        "paymentCreatedDate":     { "type": "date",    "required": false, "description": "Payment record creation date" }
+      }
+    },
+
+    "Order": {
+      "label": "Orders",
+      "description": "Sales orders for products, event registrations, dues, etc.",
+      "identifiedBy": "orderSourceId",
+      "importOrder": 3,
+      "references": {
+        "orderBillToSourceId": { "entity": "Contact", "field": "sourceId", "required": true,  "description": "Source ID of the bill-to contact or organization" },
+        "orderShipToSourceId": { "entity": "Contact", "field": "sourceId", "required": false, "description": "Source ID of ship-to contact" }
+      },
+      "fields": {
+        "orderSourceId":       { "type": "string",  "required": false, "description": "Original order ID from source system" },
+        "orderNumber":         { "type": "string",  "required": true,  "description": "Order number" },
+        "orderDate":           { "type": "date",    "required": true,  "description": "Order date" },
+        "orderTotal":          { "type": "number",  "required": false, "description": "Order total amount" },
+        "orderBalanceDue":     { "type": "number",  "required": false, "description": "Order remaining balance" },
+        "orderAmountPaid":     { "type": "number",  "required": false, "description": "Amount paid on order" },
+        "orderDiscounts":      { "type": "number",  "required": false, "description": "Total discount amount" },
+        "orderStatus":         { "type": "string",  "required": false, "description": "Order status (Open, Completed, Cancelled, etc.)" },
+        "orderCurrency":       { "type": "string",  "required": false, "description": "Currency code (USD, CAD, etc.)" },
+        "orderPONumber":       { "type": "string",  "required": false, "description": "Purchase order number" },
+        "orderTrackingNumber": { "type": "string",  "required": false, "description": "Shipping tracking number" },
+        "orderMemo":           { "type": "string",  "required": false, "description": "Order memo" },
+        "orderNotes":          { "type": "string",  "required": false, "description": "Order notes" },
+        "orderCreatedDate":    { "type": "date",    "required": false, "description": "Order record creation date" }
+      },
+      "children": {
+        "OrderLineItem": {
+          "label": "Order Line Items",
+          "description": "Individual line items on an order",
+          "parentKey": "oliOrderSourceId",
+          "parentEntity": "Order",
+          "parentField": "orderSourceId",
+          "importOrder": 4,
+          "fields": {
+            "oliDescription": { "type": "string", "required": false, "description": "Line item description" },
+            "oliProductName": { "type": "string", "required": false, "description": "Product or item name" },
+            "oliQuantity":    { "type": "number", "required": false, "description": "Quantity ordered" },
+            "oliUnitPrice":   { "type": "number", "required": false, "description": "Unit price" },
+            "oliTotal":       { "type": "number", "required": false, "description": "Line item total amount" },
+            "oliGLAccount":   { "type": "string", "required": false, "description": "GL account code or name" }
+          }
+        }
+      }
+    }
+  },
+
+  "importSequence": [
+    { "order": 1, "entities": ["Contact", "Organization", "Event"], "note": "Root entities with no dependencies — can be imported in parallel" },
+    { "order": 2, "entities": ["ContactAddress"],                    "note": "Depends on Contact" },
+    { "order": 3, "entities": ["Membership", "Invoice", "Order"],    "note": "Depends on Contact and/or Organization" },
+    { "order": 4, "entities": ["EventRegistration", "InvoiceLineItem", "OrderLineItem"], "note": "Depends on parent entities from order 1-3" },
+    { "order": 5, "entities": ["Payment"],                           "note": "Depends on Contact, Invoice, and/or Order" }
+  ]
+}

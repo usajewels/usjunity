@@ -1,18 +1,23 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Card, Typography, Upload, Button, Table, Modal, Radio, Space, Tag, message,
+  Card, Typography, Upload, Button, Table, Modal, Radio, Space, Tag, Spin, Progress, message,
 } from 'antd';
 import {
   InboxOutlined, FileExcelOutlined, ArrowRightOutlined,
-  ExclamationCircleOutlined,
+  ExclamationCircleOutlined, LoadingOutlined, CloudUploadOutlined,
+  CheckCircleOutlined,
 } from '@ant-design/icons';
-import type { UploadResultDto, UploadPreviewDto } from '@mxsuite/shared';
-import { usePageTitle } from '@mxsuite/shared';
+import type { UploadResultDto, UploadPreviewDto, ImportStatusDto } from '@mxsuite/shared';
+import { usePageTitle, useWebSocket } from '@mxsuite/shared';
 import { tenantOnboardingApi } from '../../services/tenantOnboardingApi';
+import { isLargeFile, isCsvFile, extractCsvPreview } from '../../utils/csvPreview';
+import { chunkedUpload, type ChunkProgress } from '../../utils/chunkedUpload';
 
 const { Title, Text, Paragraph } = Typography;
 const { Dragger } = Upload;
+
+const LARGE_FILE_THRESHOLD_MB = 50;
 
 export default function TenantUploadPage() {
   usePageTitle('Data Upload');
@@ -21,6 +26,7 @@ export default function TenantUploadPage() {
   const [uploadResult, setUploadResult] = useState<UploadResultDto | null>(null);
   const [preview, setPreview] = useState<UploadPreviewDto | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
+  const [isPreviewOnly, setIsPreviewOnly] = useState(false);
 
   // Sheet selection state
   const [sheetModalOpen, setSheetModalOpen] = useState(false);
@@ -31,17 +37,41 @@ export default function TenantUploadPage() {
   const [confirmModalOpen, setConfirmModalOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
 
-  // Load existing preview on mount
+  // Import state
+  const [importStatus, setImportStatus] = useState<ImportStatusDto | null>(null);
+  const [chunkProgress, setChunkProgress] = useState<ChunkProgress | null>(null);
+  const [importing, setImporting] = useState(false);
+  const largeFileRef = useRef<File | null>(null);
+
+  // WebSocket for real-time import progress
+  const wsToken = localStorage.getItem('mxsuite_token') ?? undefined;
+  const { subscribe } = useWebSocket({ token: wsToken });
+
+  // Load existing preview + import status on mount
   useEffect(() => {
     setLoadingPreview(true);
-    tenantOnboardingApi.getUploadPreview()
-      .then(({ data }) => setPreview(data))
-      .catch(() => { /* no upload yet */ })
-      .finally(() => setLoadingPreview(false));
+    Promise.all([
+      tenantOnboardingApi.getUploadPreview().catch(() => null),
+      tenantOnboardingApi.getImportStatus().catch(() => null),
+    ]).then(([previewRes, statusRes]) => {
+      if (previewRes?.data) setPreview(previewRes.data);
+      if (statusRes?.data) {
+        setImportStatus(statusRes.data);
+        setIsPreviewOnly(statusRes.data.isPreviewOnly);
+      }
+    }).finally(() => setLoadingPreview(false));
   }, []);
 
+  // Subscribe to import progress via WebSocket
+  useEffect(() => {
+    const unsub = subscribe('/user/queue/import-progress', (msg: unknown) => {
+      setImportStatus(msg as ImportStatusDto);
+    });
+    return unsub;
+  }, [subscribe]);
+
   /** After upload or sheet-select, check if we need user confirmation or can proceed. */
-  const handleUploadResponse = async (data: UploadResultDto) => {
+  const handleUploadResponse = async (data: UploadResultDto, previewOnly?: boolean) => {
     setUploadResult(data);
 
     if (data.needsSheetSelection && data.sheets && data.sheets.length > 1) {
@@ -50,7 +80,6 @@ export default function TenantUploadPage() {
     }
 
     if (data.hasExistingMappings) {
-      // Needs confirmation — file is stored but mappings not processed yet
       setConfirmModalOpen(true);
       return;
     }
@@ -58,14 +87,29 @@ export default function TenantUploadPage() {
     // No existing mappings — already processed, load preview
     const { data: prev } = await tenantOnboardingApi.getUploadPreview();
     setPreview(prev);
-    message.success(`File uploaded: ${data.originalFilename} (${data.rowCount.toLocaleString()} rows)`);
+    if (previewOnly) {
+      setIsPreviewOnly(true);
+      message.success(`Preview extracted: ${data.originalFilename} (${data.rowCount.toLocaleString()} rows). Proceed to mappings, then start full import.`);
+    } else {
+      message.success(`File uploaded: ${data.originalFilename} (${data.rowCount.toLocaleString()} rows)`);
+    }
   };
 
   const handleUpload = async (file: File) => {
     setUploading(true);
     try {
-      const { data } = await tenantOnboardingApi.upload(file);
-      await handleUploadResponse(data);
+      // Large CSV files: extract preview client-side instead of uploading the whole file
+      if (isCsvFile(file) && isLargeFile(file, LARGE_FILE_THRESHOLD_MB)) {
+        largeFileRef.current = file;
+        const csvText = await extractCsvPreview(file, 1000);
+        const { data } = await tenantOnboardingApi.uploadPreview(csvText, file.name, file.size);
+        await handleUploadResponse(data, true);
+      } else {
+        // Normal upload for small files and Excel
+        const { data } = await tenantOnboardingApi.upload(file);
+        setIsPreviewOnly(false);
+        await handleUploadResponse(data);
+      }
     } catch {
       message.error('Failed to upload file');
     } finally {
@@ -109,6 +153,34 @@ export default function TenantUploadPage() {
     }
   };
 
+  /** Start full import: chunked upload → start async processing */
+  const handleStartImport = async () => {
+    const file = largeFileRef.current;
+    if (!file) {
+      message.error('No file selected. Please re-upload the file.');
+      return;
+    }
+
+    setImporting(true);
+    setChunkProgress(null);
+    try {
+      // Phase 1: Upload file in chunks
+      await chunkedUpload(file, (progress) => {
+        setChunkProgress(progress);
+      });
+
+      // Phase 2: Start async batch processing
+      const { data } = await tenantOnboardingApi.startImport();
+      setImportStatus(data);
+      setChunkProgress(null);
+      message.success('Full import started. You can monitor progress below.');
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : 'Failed to start import');
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const previewColumns = preview?.headers.map((h, i) => ({
     title: h,
     dataIndex: i.toString(),
@@ -122,6 +194,11 @@ export default function TenantUploadPage() {
     row.forEach((val, col) => { obj[col.toString()] = val; });
     return obj;
   }) || [];
+
+  const isImportActive = importStatus?.status === 'PROCESSING';
+  const isImportComplete = importStatus?.status === 'COMPLETED';
+  const isImportFailed = importStatus?.status === 'FAILED';
+  const showImportSection = isPreviewOnly || isImportActive || isImportComplete || isImportFailed;
 
   return (
     <div>
@@ -144,20 +221,130 @@ export default function TenantUploadPage() {
           beforeUpload={(file) => handleUpload(file as unknown as File)}
           showUploadList={false}
           accept=".csv,.xlsx,.xls"
-          disabled={uploading}
+          disabled={uploading || importing}
           style={{ padding: '20px 0', borderColor: '#e0d4f5' }}
         >
-          <p className="ant-upload-drag-icon">
-            <InboxOutlined style={{ fontSize: 48, color: '#2d1854' }} />
-          </p>
-          <p className="ant-upload-text" style={{ color: '#2d1854' }}>
-            {uploading ? 'Uploading...' : 'Click or drag file to upload'}
-          </p>
-          <p className="ant-upload-hint" style={{ color: '#6b4fa0' }}>
-            Supports CSV, Excel (.xlsx, .xls). Max 50 MB.
-          </p>
+          {uploading ? (
+            <>
+              <p className="ant-upload-drag-icon">
+                <Spin indicator={<LoadingOutlined style={{ fontSize: 48, color: '#2d1854' }} spin />} />
+              </p>
+              <p className="ant-upload-text" style={{ color: '#2d1854', fontWeight: 600 }}>
+                Uploading and processing your file...
+              </p>
+              <p className="ant-upload-hint" style={{ color: '#6b4fa0' }}>
+                This may take a moment for large files. Please do not close this page.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="ant-upload-drag-icon">
+                <InboxOutlined style={{ fontSize: 48, color: '#2d1854' }} />
+              </p>
+              <p className="ant-upload-text" style={{ color: '#2d1854' }}>
+                Click or drag file to upload
+              </p>
+              <p className="ant-upload-hint" style={{ color: '#6b4fa0' }}>
+                Supports CSV, Excel (.xlsx, .xls). Large CSV files ({'>'}50 MB) will extract a preview automatically.
+              </p>
+            </>
+          )}
         </Dragger>
       </Card>
+
+      {/* Import progress section — shown for preview-only uploads */}
+      {showImportSection && (
+        <Card
+          style={{ marginBottom: 24, borderColor: '#e0d4f5', borderTop: '3px solid #2d1854' }}
+          title={<Text strong style={{ color: '#2d1854' }}>Full Data Import</Text>}
+        >
+          {/* Not yet started */}
+          {isPreviewOnly && !isImportActive && !isImportComplete && !isImportFailed && !importing && !chunkProgress && (
+            <div style={{ textAlign: 'center', padding: '16px 0' }}>
+              <CloudUploadOutlined style={{ fontSize: 36, color: '#6b4fa0', marginBottom: 8 }} />
+              <Paragraph type="secondary">
+                A preview of your data has been uploaded for mapping. After reviewing and approving your mappings,
+                start the full import to process all rows.
+              </Paragraph>
+              <Button
+                type="primary"
+                size="large"
+                icon={<CloudUploadOutlined />}
+                onClick={handleStartImport}
+                style={{ background: '#2d1854', borderColor: '#2d1854' }}
+              >
+                Start Full Import
+              </Button>
+            </div>
+          )}
+
+          {/* Chunked upload in progress */}
+          {chunkProgress && (
+            <div style={{ padding: '8px 0' }}>
+              <Text strong style={{ color: '#2d1854' }}>
+                Uploading file... ({chunkProgress.chunkIndex + 1} / {chunkProgress.totalChunks} chunks)
+              </Text>
+              <Progress
+                percent={chunkProgress.pct}
+                strokeColor="#2d1854"
+                status="active"
+                style={{ marginTop: 8 }}
+              />
+            </div>
+          )}
+
+          {/* Processing in progress */}
+          {isImportActive && (
+            <div style={{ padding: '8px 0' }}>
+              <Space style={{ marginBottom: 8 }}>
+                <Spin indicator={<LoadingOutlined style={{ color: '#2d1854' }} spin />} />
+                <Text strong style={{ color: '#2d1854' }}>
+                  Processing... {importStatus.importedRowCount.toLocaleString()} / {importStatus.totalRowCount.toLocaleString()} rows
+                </Text>
+              </Space>
+              <Progress
+                percent={importStatus.progressPct}
+                strokeColor="#2d1854"
+                status="active"
+              />
+            </div>
+          )}
+
+          {/* Complete */}
+          {isImportComplete && (
+            <div style={{ textAlign: 'center', padding: '16px 0' }}>
+              <CheckCircleOutlined style={{ fontSize: 36, color: '#52c41a', marginBottom: 8 }} />
+              <Paragraph>
+                <Text strong style={{ color: '#52c41a' }}>Import complete!</Text>
+              </Paragraph>
+              <Text type="secondary">
+                {importStatus!.importedRowCount.toLocaleString()} rows imported successfully.
+              </Text>
+            </div>
+          )}
+
+          {/* Failed */}
+          {isImportFailed && (
+            <div style={{ padding: '8px 0' }}>
+              <Text type="danger" strong>Import failed</Text>
+              {importStatus!.error && (
+                <Paragraph type="secondary" style={{ marginTop: 4 }}>
+                  {importStatus!.error}
+                </Paragraph>
+              )}
+              <div style={{ marginTop: 12 }}>
+                <Button
+                  type="primary"
+                  danger
+                  onClick={handleStartImport}
+                >
+                  Retry Import
+                </Button>
+              </div>
+            </div>
+          )}
+        </Card>
+      )}
 
       {/* Preview */}
       {preview && preview.headers.length > 0 && (
@@ -167,6 +354,7 @@ export default function TenantUploadPage() {
               <Title level={5} style={{ marginBottom: 0, color: '#2d1854' }}>Data Preview</Title>
               <Text type="secondary" style={{ fontSize: 12 }}>
                 {preview.totalRows.toLocaleString()} rows detected · {preview.headers.length} columns
+                {isPreviewOnly && ' (preview only)'}
               </Text>
             </div>
             <Button

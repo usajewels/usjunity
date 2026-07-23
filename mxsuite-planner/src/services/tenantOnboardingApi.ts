@@ -1,6 +1,6 @@
 import { api } from '@mxsuite/shared';
 import type {
-  TenantOnboardingDto, UploadPreviewDto, UploadResultDto,
+  TenantOnboardingDto, UploadPreviewDto, UploadResultDto, ImportStatusDto,
   MappingVersionDto, MappingVersionDetailDto, FieldChangeHistoryDto,
 } from '@mxsuite/shared';
 
@@ -26,6 +26,31 @@ export const tenantOnboardingApi = {
 
   getUploadPreview: () =>
     api.get<UploadPreviewDto>('/my-onboarding/upload/preview'),
+
+  // Preview upload — send extracted CSV text for large files
+  uploadPreview: (csvText: string, originalFilename: string, totalFileSize: number) =>
+    api.post<UploadResultDto>('/my-onboarding/upload-preview', {
+      csvText, originalFilename, totalFileSize,
+    }),
+
+  // Chunked upload for large file import
+  uploadChunk: (chunkIndex: number, totalChunks: number, chunk: Blob, filename: string) => {
+    const form = new FormData();
+    form.append('file', chunk, `chunk_${chunkIndex}`);
+    form.append('chunkIndex', chunkIndex.toString());
+    form.append('totalChunks', totalChunks.toString());
+    form.append('filename', filename);
+    return api.post('/my-onboarding/import/chunk', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+
+  // Batch import
+  startImport: () =>
+    api.post<ImportStatusDto>('/my-onboarding/import/start'),
+
+  getImportStatus: () =>
+    api.get<ImportStatusDto>('/my-onboarding/import/status'),
 
   // Mappings
   listMappings: (params?: Record<string, unknown>) =>

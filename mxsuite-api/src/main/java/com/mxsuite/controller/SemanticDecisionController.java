@@ -80,7 +80,7 @@ public class SemanticDecisionController {
 
     @PostMapping
     @Transactional
-    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_SUPPORT')")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','COACH_ADMIN','PLATFORM_SUPPORT')")
     public ResponseEntity<DecisionDto> create(@RequestBody CreateDecisionRequest request,
                                                @AuthenticationPrincipal UserPrincipal principal) {
         UUID tenantId = TenantContext.getCurrentTenantId();

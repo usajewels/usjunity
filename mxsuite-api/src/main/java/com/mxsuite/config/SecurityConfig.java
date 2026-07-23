@@ -64,9 +64,9 @@ public class SecurityConfig {
                 // VULN-03: Restrict all other actuator endpoints to PLATFORM_ADMIN only
                 .requestMatchers("/actuator/**").hasRole("PLATFORM_ADMIN")
                 .requestMatchers("/ws/**").permitAll()
-                .requestMatchers("/api/admin/**").hasAnyRole("PLATFORM_ADMIN", "PLATFORM_SUPPORT")
+                .requestMatchers("/api/admin/**").hasAnyRole("PLATFORM_ADMIN", "COACH_ADMIN", "PLATFORM_SUPPORT")
                 .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**")
-                    .hasAnyRole("PLATFORM_ADMIN", "PLATFORM_SUPPORT")
+                    .hasAnyRole("PLATFORM_ADMIN", "COACH_ADMIN", "PLATFORM_SUPPORT")
                 .anyRequest().authenticated()
             )
             .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)

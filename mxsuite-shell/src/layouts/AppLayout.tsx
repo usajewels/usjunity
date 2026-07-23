@@ -4,7 +4,7 @@ import {
   DashboardOutlined, ProjectOutlined,
   SettingOutlined, MessageOutlined, BellOutlined, LogoutOutlined,
   UserOutlined, MenuFoldOutlined, MenuUnfoldOutlined, MenuOutlined,
-  SwapOutlined, ImportOutlined,
+  SwapOutlined, ImportOutlined, TeamOutlined,
   CodeOutlined, HistoryOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
@@ -17,7 +17,7 @@ const { Text } = Typography;
 export default function AppLayout({ children }: { children?: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const { user, tenant, platformBranding, isPlatformUser, isPlatformAdmin, hasFeature, logout } = useAuth();
+  const { user, tenant, platformBranding, isPlatformUser, isPlatformAdmin, isTenantAdmin, hasFeature, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const { token: themeToken } = theme.useToken();
@@ -173,6 +173,7 @@ export default function AppLayout({ children }: { children?: React.ReactNode }) 
         },
       ],
     }] : []),
+    ...(isTenantAdmin ? [{ key: '/team', icon: <TeamOutlined />, label: 'Team Members' }] : []),
     { key: '/chat', icon: <MessageOutlined />, label: 'Chat' },
     ...(isPlatformAdmin ? [
       { type: 'divider' as const },
@@ -268,7 +269,7 @@ export default function AppLayout({ children }: { children?: React.ReactNode }) 
 
   // Compute best-matching selectedKey for nested paths
   const allMenuKeys = [
-    '/', '/chat',
+    '/', '/team', '/chat',
     '/plans/my-onboarding', '/plans/my-onboarding/upload', '/plans/my-onboarding/mappings',
     '/plans/my-onboarding/decisions', '/plans/my-onboarding/status', '/plans/my-onboarding/activity',
     '/plans/onboarding-projects', '/plans/onboarding-projects/projects', '/plans/onboarding-projects/mappings', '/plans/onboarding-projects/decisions', '/plans/onboarding-projects/approvals',

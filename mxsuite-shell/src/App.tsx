@@ -8,6 +8,7 @@ import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import ProfilePage from './pages/ProfilePage';
 import SettingsPage from './pages/SettingsPage';
+import TeamPage from './pages/TeamPage';
 
 // Lazy-load remote micro-frontend modules
 const AdminApp = lazy(() => import('mxsuiteAdmin/AdminApp'));
@@ -59,6 +60,7 @@ function ProtectedRoutes() {
         <Route index element={<DashboardPage />} />
         <Route path="profile" element={<ProfilePage />} />
         <Route path="settings" element={<SettingsPage />} />
+        <Route path="team" element={<TeamPage />} />
         <Route path="workspaces/*" element={
           <FeatureGuard feature="workspaces">
             <RemoteModuleLoader module={WorkspacesApp} fallbackTitle="Workspaces module" />

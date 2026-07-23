@@ -2,6 +2,7 @@ package com.mxsuite.controller;
 
 import com.mxsuite.audit.AuditService;
 import com.mxsuite.model.User;
+import com.mxsuite.model.enums.TenantType;
 import com.mxsuite.model.enums.UserRole;
 import com.mxsuite.repository.TenantRepository;
 import com.mxsuite.repository.UserRepository;
@@ -28,7 +29,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/admin/users")
-@PreAuthorize("hasAnyRole('PLATFORM_ADMIN', 'PLATFORM_SUPPORT')")
+@PreAuthorize("hasAnyRole('PLATFORM_ADMIN', 'COACH_ADMIN', 'PLATFORM_SUPPORT')")
 @Transactional(readOnly = true)
 public class UserController {
 
@@ -67,7 +68,7 @@ public class UserController {
 
     @GetMapping("/coaches")
     public List<UserResponse> listCoaches() {
-        return userRepository.findByRoleIn(List.of(UserRole.PLATFORM_ADMIN, UserRole.PLATFORM_SUPPORT))
+        return userRepository.findByRoleIn(List.of(UserRole.PLATFORM_ADMIN, UserRole.COACH_ADMIN, UserRole.PLATFORM_SUPPORT))
                 .stream().filter(User::isActive).map(this::toResponse).toList();
     }
 
@@ -105,6 +106,17 @@ public class UserController {
             return ResponseEntity.badRequest().body(Map.of(
                     "status", 400,
                     "message", "Tenant not found"
+            ));
+        }
+
+        // Coaches and coach admins must belong to the platform tenant
+        boolean isPlatformRole = request.role() == UserRole.PLATFORM_ADMIN
+                || request.role() == UserRole.COACH_ADMIN
+                || request.role() == UserRole.PLATFORM_SUPPORT;
+        if (isPlatformRole && tenant.get().getTenantType() != TenantType.PLATFORM) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "status", 400,
+                    "message", "Platform roles (Admin, Coach Admin, Coach) can only be created in the platform organization"
             ));
         }
 

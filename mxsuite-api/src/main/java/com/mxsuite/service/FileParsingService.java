@@ -136,6 +136,31 @@ public class FileParsingService {
         return new PreviewResult(headers, dataRows, totalRows);
     }
 
+    /**
+     * Parse CSV content from a string (e.g. a preview extracted client-side).
+     */
+    public ParsedFileResult parseCsvContent(String csvText) {
+        List<String> headers;
+        List<List<String>> sampleRows = new ArrayList<>();
+        int totalRows = 0;
+
+        String[] lines = csvText.split("\\r?\\n");
+        if (lines.length == 0 || lines[0].isBlank()) {
+            return new ParsedFileResult(List.of(), List.of(), 0, List.of());
+        }
+
+        headers = parseCsvLine(lines[0]);
+        for (int i = 1; i < lines.length; i++) {
+            if (lines[i].isBlank()) continue;
+            totalRows++;
+            if (sampleRows.size() < SAMPLE_ROWS) {
+                sampleRows.add(parseCsvLine(lines[i]));
+            }
+        }
+
+        return new ParsedFileResult(headers, sampleRows, totalRows, buildSourceColumns(headers, sampleRows));
+    }
+
     // ---- internal helpers ----
 
     private ParsedFileResult parseSheet(Sheet sheet) {

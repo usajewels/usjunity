@@ -126,9 +126,10 @@ public class InvitationController {
                                          @Valid @RequestBody SendInviteRequest request) {
         UUID tenantId = TenantContext.getCurrentTenantId();
 
-        // Only TENANT_ADMIN, PLATFORM_ADMIN, PLATFORM_SUPPORT can invite
+        // Only TENANT_ADMIN, PLATFORM_ADMIN, COACH_ADMIN, PLATFORM_SUPPORT can invite
         if (principal.role() != UserRole.TENANT_ADMIN
                 && principal.role() != UserRole.PLATFORM_ADMIN
+                && principal.role() != UserRole.COACH_ADMIN
                 && principal.role() != UserRole.PLATFORM_SUPPORT) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
                     "status", 403, "message", "Only admins can send invitations"));
@@ -136,9 +137,17 @@ public class InvitationController {
 
         // Tenant users can only invite TENANT_USER or TENANT_ADMIN roles
         if (!principal.isPlatformUser() &&
-                (request.role() == UserRole.PLATFORM_ADMIN || request.role() == UserRole.PLATFORM_SUPPORT)) {
+                (request.role() == UserRole.PLATFORM_ADMIN || request.role() == UserRole.COACH_ADMIN
+                        || request.role() == UserRole.PLATFORM_SUPPORT)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
                     "status", 403, "message", "Cannot assign platform roles"));
+        }
+
+        // COACH_ADMIN can only invite PLATFORM_SUPPORT (coach) roles
+        if (principal.role() == UserRole.COACH_ADMIN
+                && request.role() != UserRole.PLATFORM_SUPPORT) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
+                    "status", 403, "message", "Coach admins can only invite coaches"));
         }
 
         String email = request.email().toLowerCase().trim();

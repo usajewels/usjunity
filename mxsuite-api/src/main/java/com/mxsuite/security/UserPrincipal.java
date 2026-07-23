@@ -56,11 +56,15 @@ public record UserPrincipal(
     }
 
     public boolean isPlatformUser() {
-        return role == UserRole.PLATFORM_ADMIN || role == UserRole.PLATFORM_SUPPORT;
+        return role == UserRole.PLATFORM_ADMIN || role == UserRole.COACH_ADMIN || role == UserRole.PLATFORM_SUPPORT;
     }
 
     public boolean isPlatformAdmin() {
         return role == UserRole.PLATFORM_ADMIN;
+    }
+
+    public boolean isCoachAdmin() {
+        return role == UserRole.COACH_ADMIN;
     }
 
     public boolean isPlatformSupport() {

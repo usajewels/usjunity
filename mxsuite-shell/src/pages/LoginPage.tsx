@@ -10,6 +10,7 @@ const { Title, Text } = Typography;
 
 const ROLE_STYLES: Record<string, React.CSSProperties> = {
   PLATFORM_ADMIN: { backgroundColor: '#2d1854', color: '#ffffff', borderColor: '#2d1854' },
+  COACH_ADMIN: { backgroundColor: '#44336b', color: '#ffffff', borderColor: '#44336b' },
   PLATFORM_SUPPORT: { backgroundColor: '#6b4fa0', color: '#ffffff', borderColor: '#6b4fa0' },
   TENANT_ADMIN: { backgroundColor: '#f3eeff', color: '#2d1854', borderColor: '#e0d4f5' },
   TENANT_USER: { backgroundColor: '#f5f5f5', color: '#8c8c8c', borderColor: '#d9d9d9' },
@@ -17,6 +18,7 @@ const ROLE_STYLES: Record<string, React.CSSProperties> = {
 
 const ROLE_LABELS: Record<string, string> = {
   PLATFORM_ADMIN: 'Platform Admin',
+  COACH_ADMIN: 'Coach Admin',
   PLATFORM_SUPPORT: 'Coach',
   TENANT_ADMIN: 'Member Admin',
   TENANT_USER: 'Member',
@@ -24,6 +26,7 @@ const ROLE_LABELS: Record<string, string> = {
 
 const ROLE_AVATAR_COLORS: Record<string, string> = {
   PLATFORM_ADMIN: '#2d1854',
+  COACH_ADMIN: '#44336b',
   PLATFORM_SUPPORT: '#6b4fa0',
   TENANT_ADMIN: '#9b7fd4',
   TENANT_USER: '#d9d9d9',
