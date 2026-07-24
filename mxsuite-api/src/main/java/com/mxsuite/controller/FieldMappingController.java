@@ -10,6 +10,7 @@ import com.mxsuite.repository.SourceSchemaNodeRepository;
 import com.mxsuite.security.UserPrincipal;
 import com.mxsuite.service.MappingVersionService;
 import com.mxsuite.service.NotificationService;
+import com.mxsuite.service.TargetSchemaService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
@@ -31,17 +32,20 @@ public class FieldMappingController {
     private final AuditService auditService;
     private final NotificationService notificationService;
     private final MappingVersionService versionService;
+    private final TargetSchemaService targetSchemaService;
 
     public FieldMappingController(FieldMappingEntryRepository mappingRepository,
                                    SourceSchemaNodeRepository schemaNodeRepository,
                                    AuditService auditService,
                                    NotificationService notificationService,
-                                   MappingVersionService versionService) {
+                                   MappingVersionService versionService,
+                                   TargetSchemaService targetSchemaService) {
         this.mappingRepository = mappingRepository;
         this.schemaNodeRepository = schemaNodeRepository;
         this.auditService = auditService;
         this.notificationService = notificationService;
         this.versionService = versionService;
+        this.targetSchemaService = targetSchemaService;
     }
 
     // --- DTOs ---
@@ -180,6 +184,36 @@ public class FieldMappingController {
             @PathVariable UUID mappingId,
             Pageable pageable) {
         return ResponseEntity.ok(versionService.getFieldHistory(mappingId, pageable));
+    }
+
+    @GetMapping("/target-schema")
+    public ResponseEntity<Map<String, Object>> targetSchema(@PathVariable UUID projectId) {
+        return ResponseEntity.ok(Map.of("targetSchema", targetSchemaService.getFlatFields()));
+    }
+
+    @PostMapping("/{id}/clone")
+    @Transactional
+    public ResponseEntity<?> cloneMapping(@PathVariable UUID projectId,
+                                           @PathVariable UUID id,
+                                           @RequestBody Map<String, String> body,
+                                           @AuthenticationPrincipal UserPrincipal principal) {
+        return mappingRepository.findById(id)
+                .filter(m -> m.getProject().getId().equals(projectId))
+                .map(source -> {
+                    FieldMappingEntry clone = new FieldMappingEntry();
+                    clone.setProject(source.getProject());
+                    clone.setSourceEntity(source.getSourceEntity());
+                    clone.setSourceField(source.getSourceField());
+                    clone.setSampleValue(source.getSampleValue());
+                    clone.setTargetField(body.get("targetField"));
+                    clone.setTargetEntity(body.get("targetEntity"));
+                    clone.setMappingStatus(MappingStatus.NEEDS_REVIEW);
+                    clone = mappingRepository.save(clone);
+                    String fieldLabel = clone.getSourceEntity() + "." + clone.getSourceField();
+                    auditService.log("CLONE_MAPPING", "FieldMapping", clone.getId(), fieldLabel);
+                    return ResponseEntity.ok(toDto(clone));
+                })
+                .orElse(ResponseEntity.notFound().build());
     }
 
     // --- Helpers ---

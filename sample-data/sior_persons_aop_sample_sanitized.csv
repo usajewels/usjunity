@@ -1,0 +1,301 @@
+ID,Topic Code,Topic Code,Entity ID,Record ID,Record Name,Status
+0000001,35,Landlord,000001,000001,Member00001,Active
+0000002,31,Tenant Representation,000002,000002,Member00002,Active
+0000003,36,Corporate Services,000001,000003,Member00003,Active
+0000004,32,Distribution & Logistics,000001,000004,Member00004,Active
+0000005,33,Brokerage Management,000002,000005,Member00005,Active
+0000006,34,Sale/Leasing,000002,000006,Member00006,Active
+0000007,30,Investments,000002,000007,Member00007,Active
+0000008,36,Corporate Services,000002,000008,Member00008,Active
+0000009,37,Consulting,000002,000009,Member00009,Active
+0000010,37,Consulting,000001,000010,Member00010,Active
+0000011,32,Distribution & Logistics,000002,000011,Member00011,Active
+0000012,33,Brokerage Management,000002,000012,Member00012,Active
+0000013,34,Sale/Leasing,000002,000013,Member00013,Active
+0000014,37,Consulting,000001,000014,Member00014,Active
+0000015,32,Distribution & Logistics,000002,000015,Member00015,Active
+0000016,30,Investments,000002,000016,Member00016,Active
+0000017,36,Corporate Services,000002,000017,Member00017,Active
+0000018,33,Brokerage Management,000001,000018,Member00018,Active
+0000019,36,Corporate Services,000002,000019,Member00019,Active
+0000020,31,Tenant Representation,000002,000020,Member00020,Active
+0000021,35,Landlord,000002,000021,Member00021,Active
+0000022,35,Landlord,000001,000022,Member00022,Active
+0000023,33,Brokerage Management,000002,000023,Member00023,Active
+0000024,31,Tenant Representation,000002,000024,Member00024,Active
+0000025,37,Consulting,000001,000025,Member00025,Inactive
+0000026,32,Distribution & Logistics,000001,000026,Member00026,Active
+0000027,31,Tenant Representation,000002,000027,Member00027,Active
+0000028,35,Landlord,000002,000028,Member00028,Active
+0000029,34,Sale/Leasing,000001,000029,Member00029,Active
+0000030,36,Corporate Services,000002,000030,Member00030,Active
+0000031,34,Sale/Leasing,000001,000031,Member00031,Active
+0000032,30,Investments,000002,000032,Member00032,Active
+0000033,35,Landlord,000002,000033,Member00033,Active
+0000034,30,Investments,000001,000034,Member00034,Active
+0000035,34,Sale/Leasing,000002,000035,Member00035,Active
+0000036,36,Corporate Services,000002,000036,Member00036,Active
+0000037,32,Distribution & Logistics,000002,000037,Member00037,Active
+0000038,34,Sale/Leasing,000001,000038,Member00038,Active
+0000039,34,Sale/Leasing,000002,000039,Member00039,Active
+0000040,37,Consulting,000002,000040,Member00040,Active
+0000041,34,Sale/Leasing,000002,000041,Member00041,Active
+0000042,36,Corporate Services,000002,000042,Member00042,Active
+0000043,33,Brokerage Management,000002,000043,Member00043,Active
+0000044,33,Brokerage Management,000002,000044,Member00044,Active
+0000045,30,Investments,000001,000045,Member00045,Active
+0000046,31,Tenant Representation,000002,000046,Member00046,Active
+0000047,30,Investments,000001,000047,Member00047,Active
+0000048,32,Distribution & Logistics,000002,000048,Member00048,Active
+0000049,34,Sale/Leasing,000001,000049,Member00049,Active
+0000050,37,Consulting,000001,000050,Member00050,Active
+0000051,35,Landlord,000001,000051,Member00051,Active
+0000052,30,Investments,000002,000052,Member00052,Active
+0000053,33,Brokerage Management,000001,000053,Member00053,Active
+0000054,33,Brokerage Management,000002,000054,Member00054,Active
+0000055,32,Distribution & Logistics,000002,000055,Member00055,Active
+0000056,33,Brokerage Management,000001,000056,Member00056,Active
+0000057,32,Distribution & Logistics,000001,000057,Member00057,Active
+0000058,35,Landlord,000001,000058,Member00058,Active
+0000059,35,Landlord,000001,000059,Member00059,Active
+0000060,37,Consulting,000002,000060,Member00060,Active
+0000061,31,Tenant Representation,000002,000061,Member00061,Active
+0000062,31,Tenant Representation,000002,000062,Member00062,Active
+0000063,31,Tenant Representation,000002,000063,Member00063,Active
+0000064,32,Distribution & Logistics,000002,000064,Member00064,Active
+0000065,35,Landlord,000001,000065,Member00065,Active
+0000066,36,Corporate Services,000002,000066,Member00066,Active
+0000067,30,Investments,000001,000067,Member00067,Active
+0000068,37,Consulting,000001,000068,Member00068,Active
+0000069,36,Corporate Services,000002,000069,Member00069,Active
+0000070,37,Consulting,000001,000070,Member00070,Active
+0000071,36,Corporate Services,000001,000071,Member00071,Active
+0000072,33,Brokerage Management,000001,000072,Member00072,Active
+0000073,31,Tenant Representation,000002,000073,Member00073,Active
+0000074,31,Tenant Representation,000001,000074,Member00074,Active
+0000075,35,Landlord,000002,000075,Member00075,Active
+0000076,37,Consulting,000002,000076,Member00076,Active
+0000077,33,Brokerage Management,000002,000077,Member00077,Active
+0000078,34,Sale/Leasing,000001,000078,Member00078,Active
+0000079,31,Tenant Representation,000001,000079,Member00079,Active
+0000080,35,Landlord,000002,000080,Member00080,Active
+0000081,31,Tenant Representation,000002,000081,Member00081,Active
+0000082,32,Distribution & Logistics,000001,000082,Member00082,Active
+0000083,31,Tenant Representation,000001,000083,Member00083,Active
+0000084,37,Consulting,000002,000084,Member00084,Active
+0000085,36,Corporate Services,000001,000085,Member00085,Active
+0000086,32,Distribution & Logistics,000002,000086,Member00086,Active
+0000087,35,Landlord,000001,000087,Member00087,Active
+0000088,31,Tenant Representation,000001,000088,Member00088,Active
+0000089,33,Brokerage Management,000001,000089,Member00089,Active
+0000090,31,Tenant Representation,000002,000090,Member00090,Active
+0000091,37,Consulting,000001,000091,Member00091,Active
+0000092,34,Sale/Leasing,000001,000092,Member00092,Active
+0000093,30,Investments,000002,000093,Member00093,Active
+0000094,34,Sale/Leasing,000002,000094,Member00094,Active
+0000095,35,Landlord,000001,000095,Member00095,Active
+0000096,36,Corporate Services,000001,000096,Member00096,Active
+0000097,31,Tenant Representation,000001,000097,Member00097,Active
+0000098,35,Landlord,000002,000098,Member00098,Active
+0000099,32,Distribution & Logistics,000002,000099,Member00099,Active
+0000100,33,Brokerage Management,000001,000100,Member00100,Active
+0000101,30,Investments,000001,000101,Member00101,Active
+0000102,36,Corporate Services,000002,000102,Member00102,Active
+0000103,34,Sale/Leasing,000002,000103,Member00103,Active
+0000104,33,Brokerage Management,000002,000104,Member00104,Active
+0000105,34,Sale/Leasing,000002,000105,Member00105,Active
+0000106,35,Landlord,000002,000106,Member00106,Active
+0000107,30,Investments,000001,000107,Member00107,Active
+0000108,33,Brokerage Management,000001,000108,Member00108,Active
+0000109,35,Landlord,000002,000109,Member00109,Active
+0000110,34,Sale/Leasing,000002,000110,Member00110,Active
+0000111,30,Investments,000001,000111,Member00111,Active
+0000112,30,Investments,000002,000112,Member00112,Active
+0000113,37,Consulting,000001,000113,Member00113,Active
+0000114,36,Corporate Services,000002,000114,Member00114,Active
+0000115,33,Brokerage Management,000001,000115,Member00115,Active
+0000116,36,Corporate Services,000002,000116,Member00116,Active
+0000117,33,Brokerage Management,000002,000117,Member00117,Active
+0000118,37,Consulting,000002,000118,Member00118,Active
+0000119,35,Landlord,000002,000119,Member00119,Active
+0000120,31,Tenant Representation,000002,000120,Member00120,Active
+0000121,32,Distribution & Logistics,000001,000121,Member00121,Active
+0000122,32,Distribution & Logistics,000002,000122,Member00122,Active
+0000123,34,Sale/Leasing,000001,000123,Member00123,Active
+0000124,33,Brokerage Management,000001,000124,Member00124,Active
+0000125,32,Distribution & Logistics,000001,000125,Member00125,Active
+0000126,32,Distribution & Logistics,000001,000126,Member00126,Active
+0000127,35,Landlord,000001,000127,Member00127,Active
+0000128,36,Corporate Services,000002,000128,Member00128,Active
+0000129,35,Landlord,000002,000129,Member00129,Active
+0000130,33,Brokerage Management,000001,000130,Member00130,Active
+0000131,37,Consulting,000002,000131,Member00131,Active
+0000132,34,Sale/Leasing,000002,000132,Member00132,Active
+0000133,32,Distribution & Logistics,000001,000133,Member00133,Active
+0000134,31,Tenant Representation,000002,000134,Member00134,Active
+0000135,36,Corporate Services,000002,000135,Member00135,Active
+0000136,34,Sale/Leasing,000002,000136,Member00136,Active
+0000137,30,Investments,000002,000137,Member00137,Active
+0000138,30,Investments,000002,000138,Member00138,Active
+0000139,36,Corporate Services,000002,000139,Member00139,Active
+0000140,31,Tenant Representation,000001,000140,Member00140,Active
+0000141,33,Brokerage Management,000001,000141,Member00141,Active
+0000142,36,Corporate Services,000001,000142,Member00142,Active
+0000143,33,Brokerage Management,000001,000143,Member00143,Active
+0000144,30,Investments,000001,000144,Member00144,Active
+0000145,32,Distribution & Logistics,000001,000145,Member00145,Active
+0000146,31,Tenant Representation,000002,000146,Member00146,Active
+0000147,32,Distribution & Logistics,000002,000147,Member00147,Active
+0000148,31,Tenant Representation,000002,000148,Member00148,Active
+0000149,36,Corporate Services,000002,000149,Member00149,Active
+0000150,31,Tenant Representation,000002,000150,Member00150,Active
+0000151,35,Landlord,000001,000151,Member00151,Active
+0000152,37,Consulting,000001,000152,Member00152,Active
+0000153,33,Brokerage Management,000001,000153,Member00153,Active
+0000154,31,Tenant Representation,000002,000154,Member00154,Active
+0000155,36,Corporate Services,000001,000155,Member00155,Active
+0000156,34,Sale/Leasing,000002,000156,Member00156,Active
+0000157,34,Sale/Leasing,000002,000157,Member00157,Active
+0000158,37,Consulting,000002,000158,Member00158,Active
+0000159,37,Consulting,000001,000159,Member00159,Active
+0000160,30,Investments,000002,000160,Member00160,Active
+0000161,34,Sale/Leasing,000001,000161,Member00161,Active
+0000162,36,Corporate Services,000002,000162,Member00162,Active
+0000163,33,Brokerage Management,000001,000163,Member00163,Active
+0000164,36,Corporate Services,000001,000164,Member00164,Active
+0000165,34,Sale/Leasing,000001,000165,Member00165,Active
+0000166,37,Consulting,000002,000166,Member00166,Active
+0000167,31,Tenant Representation,000002,000167,Member00167,Active
+0000168,33,Brokerage Management,000002,000168,Member00168,Active
+0000169,35,Landlord,000001,000169,Member00169,Active
+0000170,32,Distribution & Logistics,000002,000170,Member00170,Active
+0000171,34,Sale/Leasing,000002,000171,Member00171,Active
+0000172,36,Corporate Services,000002,000172,Member00172,Active
+0000173,36,Corporate Services,000002,000173,Member00173,Active
+0000174,32,Distribution & Logistics,000002,000174,Member00174,Active
+0000175,33,Brokerage Management,000001,000175,Member00175,Active
+0000176,35,Landlord,000001,000176,Member00176,Active
+0000177,35,Landlord,000001,000177,Member00177,Active
+0000178,34,Sale/Leasing,000001,000178,Member00178,Active
+0000179,36,Corporate Services,000001,000179,Member00179,Active
+0000180,34,Sale/Leasing,000001,000180,Member00180,Active
+0000181,34,Sale/Leasing,000002,000181,Member00181,Active
+0000182,36,Corporate Services,000001,000182,Member00182,Active
+0000183,31,Tenant Representation,000002,000183,Member00183,Active
+0000184,34,Sale/Leasing,000001,000184,Member00184,Active
+0000185,36,Corporate Services,000001,000185,Member00185,Active
+0000186,33,Brokerage Management,000002,000186,Member00186,Active
+0000187,36,Corporate Services,000002,000187,Member00187,Active
+0000188,31,Tenant Representation,000002,000188,Member00188,Active
+0000189,37,Consulting,000001,000189,Member00189,Active
+0000190,32,Distribution & Logistics,000001,000190,Member00190,Active
+0000191,35,Landlord,000002,000191,Member00191,Active
+0000192,34,Sale/Leasing,000001,000192,Member00192,Active
+0000193,31,Tenant Representation,000001,000193,Member00193,Active
+0000194,32,Distribution & Logistics,000001,000194,Member00194,Active
+0000195,30,Investments,000002,000195,Member00195,Active
+0000196,35,Landlord,000001,000196,Member00196,Active
+0000197,33,Brokerage Management,000001,000197,Member00197,Active
+0000198,31,Tenant Representation,000001,000198,Member00198,Active
+0000199,35,Landlord,000001,000199,Member00199,Active
+0000200,33,Brokerage Management,000001,000200,Member00200,Active
+0000201,37,Consulting,000002,000201,Member00201,Active
+0000202,37,Consulting,000002,000202,Member00202,Active
+0000203,37,Consulting,000002,000203,Member00203,Active
+0000204,31,Tenant Representation,000002,000204,Member00204,Active
+0000205,31,Tenant Representation,000001,000205,Member00205,Active
+0000206,34,Sale/Leasing,000001,000206,Member00206,Active
+0000207,35,Landlord,000001,000207,Member00207,Active
+0000208,33,Brokerage Management,000001,000208,Member00208,Active
+0000209,35,Landlord,000001,000209,Member00209,Active
+0000210,33,Brokerage Management,000002,000210,Member00210,Active
+0000211,36,Corporate Services,000001,000211,Member00211,Active
+0000212,37,Consulting,000001,000212,Member00212,Active
+0000213,30,Investments,000001,000213,Member00213,Active
+0000214,37,Consulting,000001,000214,Member00214,Active
+0000215,31,Tenant Representation,000001,000215,Member00215,Active
+0000216,34,Sale/Leasing,000002,000216,Member00216,Active
+0000217,35,Landlord,000002,000217,Member00217,Active
+0000218,34,Sale/Leasing,000002,000218,Member00218,Active
+0000219,34,Sale/Leasing,000002,000219,Member00219,Active
+0000220,36,Corporate Services,000002,000220,Member00220,Active
+0000221,34,Sale/Leasing,000002,000221,Member00221,Active
+0000222,31,Tenant Representation,000002,000222,Member00222,Active
+0000223,34,Sale/Leasing,000002,000223,Member00223,Active
+0000224,32,Distribution & Logistics,000002,000224,Member00224,Active
+0000225,32,Distribution & Logistics,000001,000225,Member00225,Active
+0000226,34,Sale/Leasing,000001,000226,Member00226,Active
+0000227,36,Corporate Services,000002,000227,Member00227,Active
+0000228,35,Landlord,000001,000228,Member00228,Active
+0000229,36,Corporate Services,000001,000229,Member00229,Active
+0000230,35,Landlord,000002,000230,Member00230,Active
+0000231,32,Distribution & Logistics,000002,000231,Member00231,Active
+0000232,37,Consulting,000002,000232,Member00232,Active
+0000233,33,Brokerage Management,000001,000233,Member00233,Active
+0000234,33,Brokerage Management,000002,000234,Member00234,Active
+0000235,34,Sale/Leasing,000002,000235,Member00235,Active
+0000236,32,Distribution & Logistics,000002,000236,Member00236,Active
+0000237,30,Investments,000002,000237,Member00237,Active
+0000238,35,Landlord,000001,000238,Member00238,Active
+0000239,32,Distribution & Logistics,000002,000239,Member00239,Active
+0000240,31,Tenant Representation,000002,000240,Member00240,Active
+0000241,36,Corporate Services,000001,000241,Member00241,Active
+0000242,36,Corporate Services,000002,000242,Member00242,Active
+0000243,36,Corporate Services,000002,000243,Member00243,Active
+0000244,37,Consulting,000001,000244,Member00244,Active
+0000245,34,Sale/Leasing,000001,000172,Member00245,Active
+0000246,37,Consulting,000001,000245,Member00246,Active
+0000247,32,Distribution & Logistics,000002,000246,Member00247,Active
+0000248,33,Brokerage Management,000001,000247,Member00248,Active
+0000249,36,Corporate Services,000002,000248,Member00249,Active
+0000250,35,Landlord,000002,000249,Member00250,Active
+0000251,36,Corporate Services,000001,000250,Member00251,Active
+0000252,37,Consulting,000001,000251,Member00252,Active
+0000253,36,Corporate Services,000001,000252,Member00253,Active
+0000254,33,Brokerage Management,000001,000253,Member00254,Active
+0000255,36,Corporate Services,000002,000254,Member00255,Active
+0000256,31,Tenant Representation,000002,000255,Member00256,Active
+0000257,37,Consulting,000002,000256,Member00257,Active
+0000258,34,Sale/Leasing,000001,000257,Member00258,Active
+0000259,34,Sale/Leasing,000001,000258,Member00259,Active
+0000260,33,Brokerage Management,000002,000259,Member00260,Active
+0000261,34,Sale/Leasing,000002,000260,Member00261,Active
+0000262,32,Distribution & Logistics,000002,000261,Member00262,Active
+0000263,34,Sale/Leasing,000002,000262,Member00263,Active
+0000264,30,Investments,000001,000263,Member00264,Active
+0000265,33,Brokerage Management,000002,000264,Member00265,Active
+0000266,32,Distribution & Logistics,000002,000265,Member00266,Active
+0000267,32,Distribution & Logistics,000002,000266,Member00267,Active
+0000268,36,Corporate Services,000002,000267,Member00268,Active
+0000269,32,Distribution & Logistics,000002,000268,Member00269,Active
+0000270,30,Investments,000002,000269,Member00270,Active
+0000271,35,Landlord,000002,000270,Member00271,Active
+0000272,36,Corporate Services,000002,000271,Member00272,Active
+0000273,35,Landlord,000002,000272,Member00273,Active
+0000274,31,Tenant Representation,000002,000273,Member00274,Active
+0000275,30,Investments,000002,000274,Member00275,Active
+0000276,32,Distribution & Logistics,000002,000132,Member00132,Active
+0000277,37,Consulting,000001,000275,Member00276,Active
+0000278,32,Distribution & Logistics,000002,000276,Member00277,Active
+0000279,30,Investments,000001,000277,Member00278,Active
+0000280,37,Consulting,000002,000278,Member00279,Active
+0000281,37,Consulting,000002,000279,Member00280,Active
+0000282,31,Tenant Representation,000001,000280,Member00281,Active
+0000283,31,Tenant Representation,000002,000281,Member00282,Active
+0000284,35,Landlord,000002,000282,Member00283,Active
+0000285,36,Corporate Services,000002,000283,Member00284,Active
+0000286,35,Landlord,000002,000284,Member00285,Active
+0000287,30,Investments,000001,000285,Member00286,Active
+0000288,36,Corporate Services,000002,000286,Member00287,Active
+0000289,33,Brokerage Management,000001,000287,Member00288,Active
+0000290,37,Consulting,000001,000288,Member00289,Active
+0000291,32,Distribution & Logistics,000002,000289,Member00290,Active
+0000292,37,Consulting,000002,000290,Member00291,Active
+0000293,30,Investments,000002,000291,Member00292,Active
+0000294,34,Sale/Leasing,000002,000292,Member00293,Active
+0000295,34,Sale/Leasing,000001,000293,Member00294,Active
+0000296,37,Consulting,000002,000294,Member00295,Active
+0000297,31,Tenant Representation,000001,000295,Member00296,Active
+0000298,30,Investments,000002,000296,Member00297,Active
+0000299,33,Brokerage Management,000002,000297,Member00298,Active
+0000300,32,Distribution & Logistics,000001,000298,Member00299,Active

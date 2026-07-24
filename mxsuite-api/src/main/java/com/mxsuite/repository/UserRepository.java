@@ -27,4 +27,7 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     long countByActive(boolean active);
 
     List<User> findByRoleIn(List<UserRole> roles);
+
+    @Query("SELECT u FROM User u WHERE u.role IN (com.mxsuite.model.enums.UserRole.PLATFORM_SUPPORT, com.mxsuite.model.enums.UserRole.COACH_ADMIN) AND u.active = true")
+    List<User> findActiveCoaches();
 }

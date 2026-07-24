@@ -355,6 +355,34 @@ docker compose --env-file /opt/mxsuite/.env up -d</div>
         <tr><td><code>SERVER_PORT</code></td><td><code>8080</code></td><td>Port the Spring Boot API listens on inside the container</td><td>No</td></tr>
     </table>
 
+    <h3>AI Providers</h3>
+    <p>MXSuite supports multiple AI providers for intelligent field mapping, chat, and other AI-powered features.
+    Each provider can be independently configured, and different tasks can be routed to different providers.
+    If no provider API keys are set, the system falls back to rule-based mapping.</p>
+
+    <h4>Provider API Keys</h4>
+    <table>
+        <tr><th>Variable</th><th>Default</th><th>Description</th><th>Required</th></tr>
+        <tr><td><code>ANTHROPIC_API_KEY</code></td><td><em>none</em></td><td>Anthropic (Claude) API key — best accuracy for field mapping</td><td>No</td></tr>
+        <tr><td><code>ANTHROPIC_MODEL</code></td><td><code>claude-sonnet-4-20250514</code></td><td>Anthropic model to use</td><td>No</td></tr>
+        <tr><td><code>GROQ_API_KEY</code></td><td><em>none</em></td><td>Groq API key — fast and cost-effective (LLama models)</td><td>No</td></tr>
+        <tr><td><code>GROQ_MODEL</code></td><td><code>llama-3.3-70b-versatile</code></td><td>Groq model to use</td><td>No</td></tr>
+        <tr><td><code>XAI_API_KEY</code></td><td><em>none</em></td><td>xAI (Grok) API key</td><td>No</td></tr>
+        <tr><td><code>GROK_MODEL</code></td><td><code>grok-3-mini</code></td><td>Grok model to use</td><td>No</td></tr>
+    </table>
+
+    <h4>Task-to-Provider Routing</h4>
+    <p>Each AI-powered task can be routed to a specific provider. This allows you to use the best provider for each use case — for example, Claude for high-accuracy field mapping and Groq for fast, low-cost chat responses.</p>
+    <table>
+        <tr><th>Variable</th><th>Default</th><th>Description</th><th>Options</th></tr>
+        <tr><td><code>AI_MAPPING_PROVIDER</code></td><td><code>anthropic</code></td><td>Provider used for AI field mapping</td><td><code>anthropic</code>, <code>groq</code>, <code>grok</code></td></tr>
+        <tr><td><code>AI_CHAT_PROVIDER</code></td><td><code>groq</code></td><td>Provider used for AI chat / assistant</td><td><code>anthropic</code>, <code>groq</code>, <code>grok</code></td></tr>
+    </table>
+
+    <div class="callout blue">
+        <strong>Note:</strong> At least one provider must have a valid API key for AI features to work. If the provider assigned to a task has no API key, that task will fall back to rule-based processing (for mapping) or be unavailable (for chat). You can configure all three providers simultaneously and route different tasks to different providers.
+    </div>
+
 
     <!-- ============================================================ -->
     <!-- 5. DATABASE MANAGEMENT                                        -->

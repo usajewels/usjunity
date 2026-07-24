@@ -1,7 +1,11 @@
 package com.mxsuite;
 
+import com.mxsuite.config.AiProviderConfig;
+import com.mxsuite.config.AnalyticsProperties;
+import com.mxsuite.config.MssqlProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 import org.springframework.data.web.config.EnableSpringDataWebSupport;
 import org.springframework.scheduling.annotation.EnableAsync;
@@ -17,6 +21,7 @@ import org.springframework.scheduling.annotation.EnableAsync;
 @SpringBootApplication
 @EnableJpaAuditing
 @EnableAsync
+@EnableConfigurationProperties({AiProviderConfig.class, AnalyticsProperties.class, MssqlProperties.class})
 @EnableSpringDataWebSupport(pageSerializationMode = EnableSpringDataWebSupport.PageSerializationMode.VIA_DTO)
 public class MxSuiteApplication {
 

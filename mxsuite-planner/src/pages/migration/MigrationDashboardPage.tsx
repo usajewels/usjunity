@@ -5,8 +5,8 @@ import {
   Table, Tag, Typography, Spin, message, Row, Col, Card, Input, Select, Space, Button, Tooltip, Timeline,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { SearchOutlined, AppstoreOutlined, UnorderedListOutlined } from '@ant-design/icons';
-import type { MigrationProject, MigrationStats, MigrationBlueprint } from '@mxsuite/shared';
+import { SearchOutlined, AppstoreOutlined, UnorderedListOutlined, WarningOutlined } from '@ant-design/icons';
+import type { MigrationProject, MigrationStats, MigrationBlueprint, SlaAlertDto } from '@mxsuite/shared';
 import { migrationApi } from '../../services/migrationApi';
 import type { AuditEventDto } from '../../services/migrationApi';
 import StatsCards from '../../components/migration/StatsCards';
@@ -31,6 +31,21 @@ const PHASE_LABELS: Record<string, string> = {
   DISCOVER: 'Discover', MAP: 'Map', GENERATE: 'Generate',
   DRY_RUN: 'Dry Run', MIGRATE: 'Migrate', CUT_OVER: 'Cut Over',
 };
+
+/** Format a duration in minutes to a human-readable string */
+function formatDuration(minutes: number): string {
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  return `${days}d`;
+}
+
+/** Get the active phase time entry for a project */
+function getActivePhaseTime(project: MigrationProject): { phase: string; durationMinutes: number } | null {
+  const entry = project.phaseTimes?.find((pt) => pt.active);
+  return entry ? { phase: entry.phase, durationMinutes: entry.durationMinutes } : null;
+}
 
 function ReconBar({ pct }: { pct: number }) {
   const color = pct >= 95 ? '#52c41a' : '#2d1854';
@@ -60,6 +75,8 @@ export default function MigrationDashboardPage() {
   });
   const [blueprints, setBlueprints] = useState<MigrationBlueprint[]>([]);
   const [recentActivity, setRecentActivity] = useState<AuditEventDto[]>([]);
+  const [alerts, setAlerts] = useState<SlaAlertDto[]>([]);
+  const [alertCount, setAlertCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
@@ -86,6 +103,15 @@ export default function MigrationDashboardPage() {
         setStats(statsRes.data);
         setBlueprints(bpRes.data);
         setRecentActivity(activityRes.data.content ?? []);
+
+        // Fetch alerts (non-blocking — graceful degradation)
+        try {
+          const alertsRes = await migrationApi.getAlerts();
+          setAlerts(alertsRes.data);
+          setAlertCount(alertsRes.data.length);
+        } catch {
+          // Alerts are optional — silently ignore (may be 403 for non-admin)
+        }
       } catch {
         message.error('Failed to load migration dashboard');
       } finally {
@@ -147,14 +173,18 @@ export default function MigrationDashboardPage() {
       title: 'Phase',
       key: 'phase',
       sorter: (a, b) => PHASE_ORDER.indexOf(a.migrationPhase) - PHASE_ORDER.indexOf(b.migrationPhase),
-      render: (_, record) => (
-        <div>
-          <PhaseLifecycleDots currentPhase={record.migrationPhase} gates={record.phaseGates} />
-          <Text style={{ fontSize: 11, color: 'rgba(0,0,0,0.65)', marginTop: 2, display: 'block' }}>
-            {PHASE_LABELS[record.migrationPhase] || record.migrationPhase}
-          </Text>
-        </div>
-      ),
+      render: (_, record) => {
+        const active = getActivePhaseTime(record);
+        return (
+          <div>
+            <PhaseLifecycleDots currentPhase={record.migrationPhase} gates={record.phaseGates} />
+            <Text style={{ fontSize: 11, color: 'rgba(0,0,0,0.65)', marginTop: 2, display: 'block' }}>
+              {PHASE_LABELS[record.migrationPhase] || record.migrationPhase}
+              {active && <span style={{ marginLeft: 6, color: '#6b4fa0', fontWeight: 500 }}>· {formatDuration(active.durationMinutes)}</span>}
+            </Text>
+          </div>
+        );
+      },
     },
     {
       title: 'Status',
@@ -190,7 +220,7 @@ export default function MigrationDashboardPage() {
     {
       title: '',
       key: 'actions',
-      width: 110,
+      width: 170,
       render: (_, record) => (
         <Space size={0}>
           <Button size="small" type="link" style={{ color: '#6b4fa0', padding: '0 4px' }}
@@ -200,6 +230,10 @@ export default function MigrationDashboardPage() {
           <Button size="small" type="link" style={{ color: '#6b4fa0', padding: '0 4px' }}
             onClick={(e) => { e.stopPropagation(); navigate(`projects/${record.id}/reconciliation`); }}>
             Recon
+          </Button>
+          <Button size="small" type="link" style={{ color: '#6b4fa0', padding: '0 4px' }}
+            onClick={(e) => { e.stopPropagation(); navigate(`projects/${record.id}/metrics`); }}>
+            Metrics
           </Button>
         </Space>
       ),
@@ -230,7 +264,7 @@ export default function MigrationDashboardPage() {
       </div>
 
       {/* Summary stats */}
-      <StatsCards stats={stats} />
+      <StatsCards stats={stats} alertCount={alertCount} />
 
       {/* Search + status filter + view toggle */}
       <Row align="middle" gutter={8} style={{ marginBottom: 16, marginTop: 8 }}>
@@ -329,6 +363,25 @@ export default function MigrationDashboardPage() {
                         {(project as any).tenant?.name || project.sourceSystem || '—'}
                       </Text>
                       <PhaseLifecycleDots currentPhase={project.migrationPhase} gates={project.phaseGates} />
+                      {(() => {
+                        const active = getActivePhaseTime(project);
+                        const totalMinutes = (project.phaseTimes || []).reduce((sum, pt) => sum + pt.durationMinutes, 0);
+                        if (!active && totalMinutes === 0) return null;
+                        return (
+                          <div style={{ marginTop: 6, display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                            {active && (
+                              <Text style={{ color: '#6b4fa0' }}>
+                                {PHASE_LABELS[active.phase] || active.phase}: <strong>{formatDuration(active.durationMinutes)}</strong>
+                              </Text>
+                            )}
+                            {totalMinutes > 0 && (
+                              <Text style={{ color: 'rgba(0,0,0,0.45)' }}>
+                                Total: {formatDuration(totalMinutes)}
+                              </Text>
+                            )}
+                          </div>
+                        );
+                      })()}
                       {pct > 0 && (
                         <div style={{ marginTop: 10 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
@@ -392,6 +445,48 @@ export default function MigrationDashboardPage() {
             })}
           />
         </>
+      )}
+
+      {/* SLA Alerts */}
+      {alerts.length > 0 && (
+        <Card
+          title={
+            <Space>
+              <WarningOutlined style={{ color: '#fa8c16' }} />
+              <span style={{ color: '#2d1854' }}>Projects Needing Attention</span>
+              <Tag color="orange">{alerts.length}</Tag>
+            </Space>
+          }
+          size="small"
+          style={{ marginBottom: 24, borderTop: '3px solid #fa8c16', borderColor: '#ffe58f' }}
+        >
+          <Table
+            dataSource={alerts}
+            rowKey="projectId"
+            pagination={false}
+            size="small"
+            columns={[
+              { title: 'Project', dataIndex: 'projectName', key: 'projectName',
+                render: (name: string) => <Text strong>{name}</Text> },
+              { title: 'Organization', dataIndex: 'tenantName', key: 'tenantName' },
+              { title: 'Owner', dataIndex: 'ownerName', key: 'ownerName' },
+              { title: 'Phase', dataIndex: 'phase', key: 'phase',
+                render: (phase: string) => (
+                  <Tag style={{ backgroundColor: '#fff7e6', color: '#ad6800', borderColor: '#ffe58f' }}>
+                    {PHASE_LABELS[phase] || phase}
+                  </Tag>
+                ) },
+              { title: 'Time in Phase', dataIndex: 'minutesInPhase', key: 'minutesInPhase',
+                render: (min: number) => formatDuration(min) },
+              { title: '% Over', dataIndex: 'percentOverThreshold', key: 'pctOver',
+                render: (pct: number) => (
+                  <Text style={{ color: pct > 100 ? '#cf1322' : '#fa8c16', fontWeight: 600 }}>
+                    +{Math.round(pct)}%
+                  </Text>
+                ) },
+            ]}
+          />
+        </Card>
       )}
 
       {/* Blueprints */}

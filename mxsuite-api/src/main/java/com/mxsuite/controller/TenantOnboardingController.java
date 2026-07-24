@@ -7,9 +7,11 @@ import com.mxsuite.repository.*;
 import com.mxsuite.security.TenantContext;
 import com.mxsuite.security.UserPrincipal;
 import com.mxsuite.service.AiMappingService;
+import com.mxsuite.service.BakFileService;
 import com.mxsuite.service.BatchImportService;
 import com.mxsuite.service.FileParsingService;
 import com.mxsuite.service.MappingVersionService;
+import com.mxsuite.service.TargetSchemaService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -37,6 +39,7 @@ public class TenantOnboardingController {
 
     private static final Logger log = LoggerFactory.getLogger(TenantOnboardingController.class);
     private static final long MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
+    private static final long MAX_BAK_FILE_SIZE = 2L * 1024 * 1024 * 1024; // 2 GB
 
     private final TenantRepository tenantRepository;
     private final ProjectRepository projectRepository;
@@ -48,10 +51,14 @@ public class TenantOnboardingController {
     private final SourceSchemaNodeRepository schemaNodeRepository;
     private final UserRepository userRepository;
     private final FileParsingService fileParsingService;
+    private final BakFileService bakFileService;
     private final AuditService auditService;
     private final MappingVersionService versionService;
     private final AiMappingService aiMappingService;
     private final BatchImportService batchImportService;
+    private final TargetSchemaService targetSchemaService;
+    private final OnboardingRepository onboardingRepository;
+    private final PhaseTimeEntryRepository phaseTimeEntryRepository;
     private final String basePath;
 
     public TenantOnboardingController(TenantRepository tenantRepository,
@@ -64,10 +71,14 @@ public class TenantOnboardingController {
                                        SourceSchemaNodeRepository schemaNodeRepository,
                                        UserRepository userRepository,
                                        FileParsingService fileParsingService,
+                                       BakFileService bakFileService,
                                        AuditService auditService,
                                        MappingVersionService versionService,
                                        AiMappingService aiMappingService,
                                        BatchImportService batchImportService,
+                                       TargetSchemaService targetSchemaService,
+                                       OnboardingRepository onboardingRepository,
+                                       PhaseTimeEntryRepository phaseTimeEntryRepository,
                                        @Value("${mxsuite.storage.local.base-path}") String basePath) {
         this.tenantRepository = tenantRepository;
         this.projectRepository = projectRepository;
@@ -79,10 +90,14 @@ public class TenantOnboardingController {
         this.schemaNodeRepository = schemaNodeRepository;
         this.userRepository = userRepository;
         this.fileParsingService = fileParsingService;
+        this.bakFileService = bakFileService;
         this.auditService = auditService;
         this.versionService = versionService;
         this.aiMappingService = aiMappingService;
         this.batchImportService = batchImportService;
+        this.targetSchemaService = targetSchemaService;
+        this.onboardingRepository = onboardingRepository;
+        this.phaseTimeEntryRepository = phaseTimeEntryRepository;
         this.basePath = basePath;
     }
 
@@ -108,11 +123,18 @@ public class TenantOnboardingController {
             UUID id, String originalFilename, int rowCount,
             List<Map<String, Object>> sourceColumns,
             boolean needsSheetSelection, List<SheetDto> sheets,
+            boolean needsTableSelection, List<TableDto> tables,
             boolean hasExistingMappings, long existingMappedCount) {}
 
     public record SheetDto(int index, String name, int rowCount) {}
 
+    public record TableDto(String name, String schema, int columnCount) {}
+
     public record SelectSheetRequest(int sheetIndex) {}
+
+    public record SelectTablesRequest(List<String> tableNames) {}
+
+    public record BackupPathRequest(String filePath) {}
 
     public record ConfirmUploadRequest(boolean preserveApproved) {}
 
@@ -175,6 +197,13 @@ public class TenantOnboardingController {
                 phaseGateRepository.save(gate);
             }
 
+            // Start phase timer for DISCOVER
+            PhaseTimeEntry discoverTimer = new PhaseTimeEntry();
+            discoverTimer.setProject(project);
+            discoverTimer.setPhase(MigrationPhase.DISCOVER);
+            discoverTimer.setStartedAt(Instant.now());
+            phaseTimeEntryRepository.save(discoverTimer);
+
             tenant.setOnboardingProject(project);
             tenantRepository.save(tenant);
 
@@ -197,14 +226,20 @@ public class TenantOnboardingController {
         if (file.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("message", "File is empty"));
         }
-        if (file.getSize() > MAX_FILE_SIZE) {
-            return ResponseEntity.badRequest().body(Map.of("message", "File exceeds 50 MB limit"));
-        }
 
         String originalFilename = file.getOriginalFilename();
         String sanitized = originalFilename != null
                 ? originalFilename.replaceAll("[^a-zA-Z0-9._-]", "_") : "upload.csv";
+        boolean isBackup = bakFileService.isBackupFile(file.getContentType(), sanitized);
         boolean isExcel = fileParsingService.isExcelFile(file.getContentType(), sanitized);
+
+        // .bak files get a higher size limit
+        long maxSize = isBackup ? MAX_BAK_FILE_SIZE : MAX_FILE_SIZE;
+        if (file.getSize() > maxSize) {
+            String limitLabel = isBackup ? "2 GB" : "50 MB";
+            return ResponseEntity.badRequest().body(Map.of("message",
+                    "File exceeds " + limitLabel + " limit. For larger backups, use the file path option."));
+        }
 
         try {
             // Store file
@@ -226,6 +261,11 @@ public class TenantOnboardingController {
                     project.getId(), MappingStatus.REJECTED);
             long existingFinalized = existingMapped + existingRejected;
 
+            // SQL Server .bak backup file
+            if (isBackup) {
+                return handleBackupUpload(project, sanitized, resolvedFile, existingFinalized);
+            }
+
             if (isExcel) {
                 List<FileParsingService.SheetInfo> sheets = fileParsingService.listExcelSheets(resolvedFile);
                 if (sheets.size() > 1) {
@@ -243,7 +283,7 @@ public class TenantOnboardingController {
 
                     return ResponseEntity.ok(new UploadResultDto(
                             upload.getId(), sanitized, 0, List.of(), true, sheetDtos,
-                            existingFinalized > 0, existingFinalized));
+                            false, List.of(), existingFinalized > 0, existingFinalized));
                 }
 
                 // Single sheet
@@ -318,7 +358,7 @@ public class TenantOnboardingController {
 
             return ResponseEntity.ok(new UploadResultDto(
                     upload.getId(), filename, result.totalRows(),
-                    result.sourceColumns(), false, List.of(), true, existingFinalized));
+                    result.sourceColumns(), false, List.of(), false, List.of(), true, existingFinalized));
         }
 
         // No existing mappings — process immediately
@@ -340,7 +380,7 @@ public class TenantOnboardingController {
 
         return ResponseEntity.ok(new UploadResultDto(
                 upload.getId(), filename, result.totalRows(),
-                result.sourceColumns(), false, List.of(), false, 0));
+                result.sourceColumns(), false, List.of(), false, List.of(), false, 0));
     }
 
     // --- POST /my-onboarding/select-sheet — Select sheet from multi-sheet Excel ---
@@ -389,7 +429,7 @@ public class TenantOnboardingController {
                 uploadRepository.save(upload);
                 return ResponseEntity.ok(new UploadResultDto(
                         upload.getId(), upload.getOriginalFilename(), result.totalRows(),
-                        result.sourceColumns(), false, List.of(), true, existingFinalized));
+                        result.sourceColumns(), false, List.of(), false, List.of(), true, existingFinalized));
             }
 
             upload.setUploadStatus(UploadStatus.PARSED);
@@ -399,12 +439,185 @@ public class TenantOnboardingController {
 
             return ResponseEntity.ok(new UploadResultDto(
                     upload.getId(), upload.getOriginalFilename(), result.totalRows(),
-                    result.sourceColumns(), false, List.of(), false, 0));
+                    result.sourceColumns(), false, List.of(), false, List.of(), false, 0));
 
         } catch (IOException e) {
             log.error("Sheet selection failed for project {}: {}", project.getId(), e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("message", "Failed to parse Excel sheet"));
+        }
+    }
+
+    // --- POST /my-onboarding/upload-backup-path — Provide a server-accessible path to a .bak file ---
+    //     For large backups that can't be uploaded via HTTP (e.g. network share, mounted volume)
+
+    @PostMapping("/upload-backup-path")
+    @Transactional
+    public ResponseEntity<?> uploadBackupPath(@RequestBody BackupPathRequest request,
+                                               @AuthenticationPrincipal UserPrincipal principal) {
+        Project project = resolveProject();
+        if (project == null) return notFound();
+
+        if (request.filePath() == null || request.filePath().isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "File path is required"));
+        }
+
+        Path bakPath = Path.of(request.filePath()).normalize();
+        if (!Files.exists(bakPath)) {
+            return ResponseEntity.badRequest().body(Map.of("message",
+                    "File not found at the specified path. Ensure the path is accessible from the server."));
+        }
+        if (!bakPath.getFileName().toString().toLowerCase().endsWith(".bak")) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Only .bak files are accepted"));
+        }
+
+        String sanitized = bakPath.getFileName().toString().replaceAll("[^a-zA-Z0-9._-]", "_");
+
+        try {
+            // Copy to local storage for record-keeping
+            String storageName = UUID.randomUUID() + "_" + sanitized;
+            Path storageDir = Paths.get(basePath, "onboarding", project.getTenant().getId().toString());
+            Path resolvedFile = storageDir.resolve(storageName).normalize();
+            Files.createDirectories(storageDir);
+            Files.copy(bakPath, resolvedFile, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+
+            long existingMapped = mappingRepository.countByProjectIdAndMappingStatus(
+                    project.getId(), MappingStatus.MAPPED);
+            long existingRejected = mappingRepository.countByProjectIdAndMappingStatus(
+                    project.getId(), MappingStatus.REJECTED);
+            long existingFinalized = existingMapped + existingRejected;
+
+            return handleBackupUpload(project, sanitized, resolvedFile, existingFinalized);
+
+        } catch (IOException e) {
+            log.error("Backup path upload failed for project {}: {}", project.getId(), e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("message", "Failed to process backup file: " + e.getMessage()));
+        }
+    }
+
+    // --- POST /my-onboarding/re-extract — Retry schema extraction for a stored .bak file ---
+
+    @PostMapping("/re-extract")
+    @Transactional
+    public ResponseEntity<?> reExtractSchema(@AuthenticationPrincipal UserPrincipal principal) {
+        Project project = resolveProject();
+        if (project == null) return notFound();
+
+        ProjectDataUpload upload = uploadRepository.findFirstByProjectIdOrderByCreatedAtDesc(project.getId())
+                .orElse(null);
+        if (upload == null || upload.getStoragePath() == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "No backup file uploaded yet"));
+        }
+        if (!upload.getOriginalFilename().toLowerCase().endsWith(".bak")) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Last upload is not a .bak file"));
+        }
+
+        Path bakFile = Paths.get(upload.getStoragePath());
+        if (!Files.exists(bakFile)) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("message", "Backup file no longer exists on disk"));
+        }
+
+        try {
+            BakFileService.BakParseResult bakResult = bakFileService.parseBackup(bakFile);
+            List<TableDto> tableDtos = bakResult.tables().stream()
+                    .map(t -> new TableDto(t.tableName(), t.schemaName(), t.columns().size()))
+                    .toList();
+            FileParsingService.ParsedFileResult parseResult = bakFileService.toParseResult(bakResult);
+
+            upload.setRowCount(bakResult.tables().size());
+            upload.setSourceColumns(parseResult.sourceColumns());
+            uploadRepository.save(upload);
+
+            long existingMapped = mappingRepository.countByProjectIdAndMappingStatus(
+                    project.getId(), MappingStatus.MAPPED);
+            long existingRejected = mappingRepository.countByProjectIdAndMappingStatus(
+                    project.getId(), MappingStatus.REJECTED);
+            long existingFinalized = existingMapped + existingRejected;
+
+            log.info("Re-extracted schema for project {}: {} tables from '{}'",
+                    project.getId(), bakResult.tables().size(), bakResult.databaseName());
+
+            return ResponseEntity.ok(new UploadResultDto(
+                    upload.getId(), upload.getOriginalFilename(), bakResult.tables().size(),
+                    parseResult.sourceColumns(), false, List.of(),
+                    true, tableDtos, existingFinalized > 0, existingFinalized));
+
+        } catch (IOException e) {
+            String msg = e.getMessage();
+            log.warn("Re-extract failed for project {}: {}", project.getId(), msg);
+            if (msg != null && (msg.contains("Connection refused") || msg.contains("TCP/IP connection"))) {
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                        .body(Map.of("message", "SQL Server is not available at "
+                                + bakFileService.getConnectionInfo()
+                                + ". Ensure SQL Server is running and try again."));
+            }
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("message", "Schema extraction failed: " + msg));
+        }
+    }
+
+    // --- POST /my-onboarding/select-tables — Select tables from a .bak backup for mapping ---
+
+    @PostMapping("/select-tables")
+    @Transactional
+    public ResponseEntity<?> selectTables(@RequestBody SelectTablesRequest request,
+                                           @AuthenticationPrincipal UserPrincipal principal) {
+        Project project = resolveProject();
+        if (project == null) return notFound();
+
+        if (request.tableNames() == null || request.tableNames().isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "At least one table must be selected"));
+        }
+
+        ProjectDataUpload upload = uploadRepository.findFirstByProjectIdOrderByCreatedAtDesc(project.getId())
+                .orElse(null);
+        if (upload == null || upload.getUploadStatus() != UploadStatus.PENDING) {
+            return ResponseEntity.badRequest().body(Map.of("message", "No pending backup upload to select tables from"));
+        }
+
+        // Re-parse the backup to get full schema
+        try {
+            Path bakFile = Paths.get(upload.getStoragePath());
+            if (!Files.exists(bakFile)) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(Map.of("message", "Backup file no longer exists"));
+            }
+
+            BakFileService.BakParseResult bakResult = bakFileService.parseBackup(bakFile);
+
+            // Filter to selected tables only
+            Set<String> selectedSet = new HashSet<>(request.tableNames());
+            List<BakFileService.TableInfo> selectedTables = bakResult.tables().stream()
+                    .filter(t -> selectedSet.contains(t.tableName()))
+                    .toList();
+
+            BakFileService.BakParseResult filtered = new BakFileService.BakParseResult(
+                    bakResult.databaseName(), selectedTables);
+
+            // Create schema nodes and mappings for selected tables
+            FileParsingService.ParsedFileResult parseResult = bakFileService.toParseResult(filtered);
+            createSchemaNodesFromBak(project, filtered);
+            createAutoMappings(project, parseResult);
+
+            // Update upload record
+            upload.setSourceColumns(parseResult.sourceColumns());
+            upload.setRowCount(selectedTables.size());
+            upload.setUploadStatus(UploadStatus.PARSED);
+            uploadRepository.save(upload);
+
+            auditService.log("SELECT_TABLES", "OnboardingProject", project.getId(),
+                    selectedTables.size() + " tables selected from " + upload.getOriginalFilename());
+
+            return ResponseEntity.ok(new UploadResultDto(
+                    upload.getId(), upload.getOriginalFilename(), selectedTables.size(),
+                    parseResult.sourceColumns(), false, List.of(), false, List.of(), false, 0));
+
+        } catch (IOException e) {
+            log.error("Table selection failed for project {}: {}", project.getId(), e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("message", "Failed to process backup: " + e.getMessage()));
         }
     }
 
@@ -467,7 +680,7 @@ public class TenantOnboardingController {
 
             return ResponseEntity.ok(new UploadResultDto(
                     upload.getId(), upload.getOriginalFilename(), result.totalRows(),
-                    result.sourceColumns(), false, List.of(), false, 0));
+                    result.sourceColumns(), false, List.of(), false, List.of(), false, 0));
 
         } catch (IOException e) {
             log.error("Confirm upload failed for project {}: {}", project.getId(), e.getMessage(), e);
@@ -543,6 +756,21 @@ public class TenantOnboardingController {
         }
     }
 
+    // --- GET /my-onboarding/schema — Target schema for current tenant ---
+
+    @GetMapping("/schema")
+    public ResponseEntity<?> getSchema() {
+        UUID tenantId = TenantContext.getCurrentTenantId();
+        if (tenantId == null) return notFound();
+
+        var onboarding = onboardingRepository.findByTenantId(tenantId).orElse(null);
+        List<Map<String, Object>> schema = (onboarding != null && onboarding.getTargetSchema() != null
+                && !onboarding.getTargetSchema().isEmpty())
+                ? onboarding.getTargetSchema()
+                : targetSchemaService.getFlatFields();
+        return ResponseEntity.ok(Map.of("targetSchema", schema));
+    }
+
     // --- GET /my-onboarding/mappings — List mappings ---
 
     @GetMapping("/mappings")
@@ -614,6 +842,33 @@ public class TenantOnboardingController {
 
         mappingRepository.save(mapping);
         return ResponseEntity.ok(toMappingDto(mapping));
+    }
+
+    // --- POST /my-onboarding/mappings/{id}/clone — Clone entry for one-to-many source mapping ---
+
+    @PostMapping("/mappings/{id}/clone")
+    @Transactional
+    public ResponseEntity<?> cloneMapping(@PathVariable UUID id,
+                                           @RequestBody Map<String, String> body) {
+        Project project = resolveProject();
+        if (project == null) return notFound();
+
+        FieldMappingEntry source = mappingRepository.findById(id).orElse(null);
+        if (source == null || !source.getProject().getId().equals(project.getId())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
+        FieldMappingEntry clone = new FieldMappingEntry();
+        clone.setProject(project);
+        clone.setSourceEntity(source.getSourceEntity());
+        clone.setSourceField(source.getSourceField());
+        clone.setSampleValue(source.getSampleValue());
+        clone.setTargetField(body.get("targetField"));
+        clone.setTargetEntity(body.get("targetEntity"));
+        clone.setMappingStatus(MappingStatus.NEEDS_REVIEW);
+        clone = mappingRepository.save(clone);
+
+        return ResponseEntity.ok(toMappingDto(clone));
     }
 
     // --- POST /my-onboarding/mappings/{id}/approve — Approve a mapping ---
@@ -1005,7 +1260,7 @@ public class TenantOnboardingController {
 
         return ResponseEntity.ok(new UploadResultDto(
                 upload.getId(), filename, result.totalRows(),
-                result.sourceColumns(), false, List.of(), false, 0));
+                result.sourceColumns(), false, List.of(), false, List.of(), false, 0));
     }
 
     /** Store upload as PENDING — file is saved but mappings are NOT processed yet. */
@@ -1027,7 +1282,7 @@ public class TenantOnboardingController {
 
         return ResponseEntity.ok(new UploadResultDto(
                 upload.getId(), filename, result.totalRows(),
-                result.sourceColumns(), false, List.of(), true, existingFinalized));
+                result.sourceColumns(), false, List.of(), false, List.of(), true, existingFinalized));
     }
 
     private void createSchemaNodes(Project project, FileParsingService.ParsedFileResult result) {
@@ -1055,6 +1310,92 @@ public class TenantOnboardingController {
         }
     }
 
+    /** Create multi-entity schema nodes from a SQL Server backup: one ENTITY per table, FIELDs per column. */
+    private void createSchemaNodesFromBak(Project project, BakFileService.BakParseResult bakResult) {
+        schemaNodeRepository.deleteByProjectId(project.getId());
+
+        int tableOrder = 0;
+        for (BakFileService.TableInfo table : bakResult.tables()) {
+            // Each table becomes an ENTITY node
+            SourceSchemaNode tableNode = new SourceSchemaNode();
+            tableNode.setProject(project);
+            tableNode.setNodeName(table.tableName());
+            tableNode.setNodeType("ENTITY");
+            tableNode.setRecordCount(table.columns().size());
+            tableNode.setSortOrder(tableOrder++);
+            tableNode = schemaNodeRepository.save(tableNode);
+
+            // Each column becomes a FIELD node
+            int colOrder = 0;
+            for (BakFileService.ColumnInfo col : table.columns()) {
+                SourceSchemaNode fieldNode = new SourceSchemaNode();
+                fieldNode.setProject(project);
+                fieldNode.setParent(tableNode);
+                fieldNode.setNodeName(col.columnName());
+                fieldNode.setNodeType("FIELD");
+                fieldNode.setSortOrder(colOrder++);
+                schemaNodeRepository.save(fieldNode);
+            }
+        }
+    }
+
+    /** Handle a .bak backup upload: store file, parse schema if SQL Server available, offer table selection. */
+    private ResponseEntity<?> handleBackupUpload(Project project, String filename,
+                                                  Path storedFile, long existingFinalized) throws IOException {
+        // Always save the upload record first — file is stored regardless of SQL Server availability
+        ProjectDataUpload upload = new ProjectDataUpload();
+        upload.setProject(project);
+        upload.setOriginalFilename(filename);
+        upload.setStoragePath(storedFile.toString());
+        upload.setUploadStatus(UploadStatus.PENDING);
+        upload.setTotalFileSize(Files.size(storedFile));
+        upload = uploadRepository.save(upload);
+
+        auditService.log("UPLOAD", "OnboardingProject", project.getId(), filename + " (SQL Server backup)");
+
+        // Attempt to parse the backup — SQL Server must be available
+        BakFileService.BakParseResult bakResult;
+        try {
+            bakResult = bakFileService.parseBackup(storedFile);
+        } catch (IOException e) {
+            String msg = e.getMessage();
+            log.warn("Backup file stored but schema extraction failed for project {}: {}", project.getId(), msg);
+
+            // Detect SQL Server connection issues and return a helpful message
+            if (msg != null && (msg.contains("Connection refused") || msg.contains("TCP/IP connection")
+                    || msg.contains("Cannot open database") || msg.contains("Login failed"))) {
+                return ResponseEntity.ok(Map.of(
+                        "id", upload.getId(),
+                        "originalFilename", filename,
+                        "uploaded", true,
+                        "needsTableSelection", true,
+                        "tables", List.of(),
+                        "sqlServerError", "SQL Server is not available at "
+                                + bakFileService.getConnectionInfo()
+                                + ". The .bak file has been stored. "
+                                + "Start SQL Server and use 'Re-extract Schema' to parse the backup."));
+            }
+            throw e; // re-throw for other IO errors
+        }
+
+        List<TableDto> tableDtos = bakResult.tables().stream()
+                .map(t -> new TableDto(t.tableName(), t.schemaName(), t.columns().size()))
+                .toList();
+
+        FileParsingService.ParsedFileResult parseResult = bakFileService.toParseResult(bakResult);
+        upload.setRowCount(bakResult.tables().size());
+        upload.setSourceColumns(parseResult.sourceColumns());
+        uploadRepository.save(upload);
+
+        log.info("Backup uploaded for project {}: {} ({} tables from database '{}')",
+                project.getId(), filename, bakResult.tables().size(), bakResult.databaseName());
+
+        return ResponseEntity.ok(new UploadResultDto(
+                upload.getId(), filename, bakResult.tables().size(),
+                parseResult.sourceColumns(), false, List.of(),
+                true, tableDtos, existingFinalized > 0, existingFinalized));
+    }
+
     private String getUploadPath(Project project) {
         return uploadRepository.findFirstByProjectIdOrderByCreatedAtDesc(project.getId())
                 .map(ProjectDataUpload::getStoragePath)
@@ -1063,50 +1404,7 @@ public class TenantOnboardingController {
 
     // --- Auto-mapping logic ---
 
-    private static final List<TargetFieldDef> TARGET_FIELDS = List.of(
-            new TargetFieldDef("Contact", "firstName", "First name",
-                    Set.of("firstname", "first", "fname", "givenname")),
-            new TargetFieldDef("Contact", "lastName", "Last name",
-                    Set.of("lastname", "last", "lname", "surname", "familyname")),
-            new TargetFieldDef("Contact", "email", "Email address",
-                    Set.of("email", "emailaddress", "mail", "contactemail", "primaryemail")),
-            new TargetFieldDef("Contact", "phone", "Phone number",
-                    Set.of("phone", "phonenumber", "telephone", "tel", "primaryphone", "mobile",
-                            "cellphone", "cell", "workphone")),
-            new TargetFieldDef("Contact", "company", "Company / Organization",
-                    Set.of("company", "companyname", "organization", "organisation", "org",
-                            "employer", "business", "firm")),
-            new TargetFieldDef("Contact", "title", "Job title",
-                    Set.of("title", "jobtitle", "position", "role", "designation")),
-            new TargetFieldDef("Contact", "address1", "Street address line 1",
-                    Set.of("address1", "address", "streetaddress", "street", "addressline1",
-                            "mailingaddress", "primaryaddress")),
-            new TargetFieldDef("Contact", "address2", "Street address line 2",
-                    Set.of("address2", "addressline2", "suite", "apt", "unit")),
-            new TargetFieldDef("Contact", "city", "City",
-                    Set.of("city", "town", "locality")),
-            new TargetFieldDef("Contact", "state", "State / Province",
-                    Set.of("state", "province", "region", "stateprovince")),
-            new TargetFieldDef("Contact", "zip", "Zip / Postal code",
-                    Set.of("zip", "zipcode", "postalcode", "postal", "postcode")),
-            new TargetFieldDef("Contact", "country", "Country",
-                    Set.of("country", "countrycode", "nation")),
-            new TargetFieldDef("Membership", "memberType", "Membership type",
-                    Set.of("membertype", "membershiptype", "membership", "type", "category",
-                            "memberlevel", "membershiplevel", "level")),
-            new TargetFieldDef("Membership", "joinDate", "Join / Start date",
-                    Set.of("joindate", "startdate", "datejoined", "membershipstart", "membersince",
-                            "enrollmentdate", "activationdate", "signupdate")),
-            new TargetFieldDef("Membership", "expirationDate", "Expiration date",
-                    Set.of("expirationdate", "expdate", "expiration", "enddate", "renewaldate",
-                            "membershipend", "expiry", "expirydate")),
-            new TargetFieldDef("Membership", "notes", "Notes / Comments",
-                    Set.of("notes", "comments", "description", "memo", "remarks", "note", "comment"))
-    );
-
-    private record TargetFieldDef(String entity, String field, String description, Set<String> aliases) {}
-
-    private record FieldMatch(TargetFieldDef target, BigDecimal confidence) {}
+    private record FieldMatch(TargetSchemaService.TargetFieldDef target, BigDecimal confidence) {}
 
     private void createAutoMappings(Project project, FileParsingService.ParsedFileResult result) {
         // If headers haven't changed, just update sample values — don't re-map
@@ -1194,7 +1492,7 @@ public class TenantOnboardingController {
             sampleValues.put(header, sampleValue);
         }
 
-        List<AiMappingService.TargetFieldDef> targetDefs = TARGET_FIELDS.stream()
+        List<AiMappingService.TargetFieldDef> targetDefs = targetSchemaService.getTargetFieldDefs().stream()
                 .map(t -> new AiMappingService.TargetFieldDef(t.entity(), t.field(), t.description()))
                 .toList();
 
@@ -1212,9 +1510,10 @@ public class TenantOnboardingController {
             entry.setSourceField(aim.sourceField());
             entry.setSampleValue(sampleValues.get(aim.sourceField()));
 
-            if (aim.targetField() != null && !usedTargets.contains(aim.targetField())
+            String aiTargetKey = aim.targetEntity() + "." + aim.targetField();
+            if (aim.targetField() != null && !usedTargets.contains(aiTargetKey)
                     && aim.confidence().compareTo(BigDecimal.valueOf(40)) > 0) {
-                usedTargets.add(aim.targetField());
+                usedTargets.add(aiTargetKey);
                 entry.setTargetEntity(aim.targetEntity());
                 entry.setTargetField(aim.targetField());
                 entry.setConfidencePct(aim.confidence());
@@ -1227,9 +1526,11 @@ public class TenantOnboardingController {
                 List<FieldMatch> ruleMatches = findMatches(normalized);
                 int order = 0;
                 for (FieldMatch m : ruleMatches) {
-                    if (m.target().field().equals(aim.targetField())) continue;
+                    String candidateKey = m.target().entity() + "." + m.target().field();
+                    if (candidateKey.equals(aim.targetEntity() + "." + aim.targetField())) continue;
                     MappingCandidate candidate = new MappingCandidate();
                     candidate.setFieldMapping(entry);
+                    candidate.setTargetEntity(m.target().entity());
                     candidate.setTargetField(m.target().field());
                     candidate.setMatchPct(m.confidence());
                     candidate.setDescription(m.target().description());
@@ -1278,14 +1579,15 @@ public class TenantOnboardingController {
                 // Pick best match that hasn't been used
                 FieldMatch best = null;
                 for (FieldMatch m : matches) {
-                    if (!usedTargets.contains(m.target().field())) {
+                    String targetKey = m.target().entity() + "." + m.target().field();
+                    if (!usedTargets.contains(targetKey)) {
                         best = m;
                         break;
                     }
                 }
 
                 if (best != null) {
-                    usedTargets.add(best.target().field());
+                    usedTargets.add(best.target().entity() + "." + best.target().field());
                     entry.setTargetEntity(best.target().entity());
                     entry.setTargetField(best.target().field());
                     entry.setConfidencePct(best.confidence());
@@ -1294,10 +1596,13 @@ public class TenantOnboardingController {
                     // Add other matches as candidates
                     entry = mappingRepository.save(entry);
                     int order = 0;
+                    String bestKey = best.target().entity() + "." + best.target().field();
                     for (FieldMatch m : matches) {
-                        if (m.target().field().equals(best.target().field())) continue;
+                        String candidateKey = m.target().entity() + "." + m.target().field();
+                        if (candidateKey.equals(bestKey)) continue;
                         MappingCandidate candidate = new MappingCandidate();
                         candidate.setFieldMapping(entry);
+                        candidate.setTargetEntity(m.target().entity());
                         candidate.setTargetField(m.target().field());
                         candidate.setMatchPct(m.confidence());
                         candidate.setDescription(m.target().description());
@@ -1349,7 +1654,7 @@ public class TenantOnboardingController {
                     || existing.getMappingStatus() == MappingStatus.REJECTED)) {
                 matchedExisting.add(normalized);
                 if (existing.getTargetField() != null) {
-                    usedTargets.add(existing.getTargetField());
+                    usedTargets.add(existing.getTargetEntity() + "." + existing.getTargetField());
                 }
             }
         }
@@ -1395,14 +1700,15 @@ public class TenantOnboardingController {
                 if (!matches.isEmpty()) {
                     FieldMatch best = null;
                     for (FieldMatch m : matches) {
-                        if (!usedTargets.contains(m.target().field())) {
+                        String targetKey = m.target().entity() + "." + m.target().field();
+                        if (!usedTargets.contains(targetKey)) {
                             best = m;
                             break;
                         }
                     }
 
                     if (best != null) {
-                        usedTargets.add(best.target().field());
+                        usedTargets.add(best.target().entity() + "." + best.target().field());
                         entry.setTargetEntity(best.target().entity());
                         entry.setTargetField(best.target().field());
                         entry.setConfidencePct(best.confidence());
@@ -1410,10 +1716,13 @@ public class TenantOnboardingController {
 
                         entry = mappingRepository.save(entry);
                         int order = 0;
+                        String bestKey = best.target().entity() + "." + best.target().field();
                         for (FieldMatch m : matches) {
-                            if (m.target().field().equals(best.target().field())) continue;
+                            String candidateKey = m.target().entity() + "." + m.target().field();
+                            if (candidateKey.equals(bestKey)) continue;
                             MappingCandidate candidate = new MappingCandidate();
                             candidate.setFieldMapping(entry);
+                            candidate.setTargetEntity(m.target().entity());
                             candidate.setTargetField(m.target().field());
                             candidate.setMatchPct(m.confidence());
                             candidate.setDescription(m.target().description());
@@ -1454,7 +1763,7 @@ public class TenantOnboardingController {
 
     private List<FieldMatch> findMatches(String normalized) {
         List<FieldMatch> matches = new ArrayList<>();
-        for (TargetFieldDef target : TARGET_FIELDS) {
+        for (TargetSchemaService.TargetFieldDef target : targetSchemaService.getTargetFieldDefs()) {
             // Tier 1: Exact alias match → 95%
             if (target.aliases().contains(normalized)) {
                 matches.add(new FieldMatch(target, new BigDecimal("95.00")));

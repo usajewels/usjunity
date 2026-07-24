@@ -42,8 +42,8 @@ spring:
 
   servlet:
     multipart:
-      max-file-size: 50MB
-      max-request-size: 50MB
+      max-file-size: 2048MB
+      max-request-size: 2048MB
 
 # Actuator + Observability
 management:
@@ -128,8 +128,37 @@ mxsuite:
   app:
     base-url: ${MXSUITE_BASE_URL:http://localhost:3000}
   ai:
-    anthropic-api-key: ${ANTHROPIC_API_KEY:}
-    model: ${ANTHROPIC_MODEL:claude-sonnet-4-20250514}
+    providers:
+      anthropic:
+        api-key: ${ANTHROPIC_API_KEY:}
+        model: ${ANTHROPIC_MODEL:claude-sonnet-4-20250514}
+        base-url: https://api.anthropic.com
+      groq:
+        api-key: ${GROQ_API_KEY:}
+        model: ${GROQ_MODEL:llama-3.3-70b-versatile}
+        base-url: https://api.groq.com/openai
+      grok:
+        api-key: ${XAI_API_KEY:}
+        model: ${GROK_MODEL:grok-3-mini}
+        base-url: https://api.x.ai
+    tasks:
+      mapping: ${AI_MAPPING_PROVIDER:anthropic}
+      chat: ${AI_CHAT_PROVIDER:groq}
+  mssql:
+    host: ${MSSQL_HOST:localhost}
+    port: ${MSSQL_PORT:1433}
+    username: ${MSSQL_USER:sa}
+    password: ${MSSQL_PASSWORD:}
+    backup-restore-path: ${MSSQL_BACKUP_PATH:C:/temp/mxsuite-backups}
+    backup-restore-path-sql: ${MSSQL_BACKUP_PATH_SQL:/var/backups}
+  analytics:
+    phase-thresholds-minutes:
+      DISCOVER: 10080     # 7 days
+      MAP: 20160          # 14 days
+      GENERATE: 7200      # 5 days
+      DRY_RUN: 10080      # 7 days
+      MIGRATE: 14400      # 10 days
+      CUT_OVER: 7200      # 5 days
   bootstrap:
     admin-email: ${MXSUITE_ADMIN_EMAIL:admin@mxsuite.com}
     admin-password: ${MXSUITE_ADMIN_PASSWORD:}

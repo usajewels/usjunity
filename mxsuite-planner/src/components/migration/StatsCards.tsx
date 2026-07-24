@@ -4,18 +4,23 @@ import {
   SafetyCertificateOutlined,
   ClockCircleOutlined,
   CheckCircleOutlined,
+  WarningOutlined,
 } from '@ant-design/icons';
 import type { MigrationStats } from '@mxsuite/shared';
 
 interface Props {
   stats: MigrationStats;
   loading?: boolean;
+  alertCount?: number;
 }
 
-export default function StatsCards({ stats, loading }: Props) {
+export default function StatsCards({ stats, loading, alertCount }: Props) {
+  const showAlerts = alertCount != null && alertCount > 0;
+  const colSpan = showAlerts ? { xs: 12, sm: 4 } : { xs: 12, sm: 6 };
+
   return (
     <Row gutter={16} style={{ marginBottom: 24 }}>
-      <Col xs={12} sm={6}>
+      <Col {...colSpan}>
         <Card size="small" loading={loading} style={{ borderTop: '3px solid #2d1854', borderColor: '#e0d4f5' }}>
           <Statistic
             title="Active Migrations"
@@ -25,7 +30,7 @@ export default function StatsCards({ stats, loading }: Props) {
           />
         </Card>
       </Col>
-      <Col xs={12} sm={6}>
+      <Col {...colSpan}>
         <Card size="small" loading={loading} style={{ borderTop: '3px solid #2d1854', borderColor: '#e0d4f5' }}>
           <Statistic
             title="Gates Awaiting Approval"
@@ -35,7 +40,7 @@ export default function StatsCards({ stats, loading }: Props) {
           />
         </Card>
       </Col>
-      <Col xs={12} sm={6}>
+      <Col {...colSpan}>
         <Card size="small" loading={loading} style={{ borderTop: '3px solid #2d1854', borderColor: '#e0d4f5' }}>
           <Statistic
             title="Avg Cycle Time"
@@ -47,7 +52,7 @@ export default function StatsCards({ stats, loading }: Props) {
           />
         </Card>
       </Col>
-      <Col xs={12} sm={6}>
+      <Col {...colSpan}>
         <Card size="small" loading={loading} style={{ borderTop: '3px solid #2d1854', borderColor: '#e0d4f5' }}>
           <Statistic
             title="Reconciliation Pass Rate"
@@ -59,6 +64,18 @@ export default function StatsCards({ stats, loading }: Props) {
           />
         </Card>
       </Col>
+      {showAlerts && (
+        <Col {...colSpan}>
+          <Card size="small" loading={loading} style={{ borderTop: '3px solid #fa8c16', borderColor: '#ffe58f' }}>
+            <Statistic
+              title="Stuck Projects"
+              value={alertCount}
+              prefix={<WarningOutlined style={{ color: '#fa8c16' }} />}
+              valueStyle={{ color: '#fa8c16' }}
+            />
+          </Card>
+        </Col>
+      )}
     </Row>
   );
 }

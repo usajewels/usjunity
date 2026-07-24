@@ -3,12 +3,14 @@ package com.mxsuite.controller;
 import com.mxsuite.audit.AuditService;
 import com.mxsuite.model.MigrationBlueprint;
 import com.mxsuite.model.PhaseGate;
+import com.mxsuite.model.PhaseTimeEntry;
 import com.mxsuite.model.Project;
 import com.mxsuite.model.enums.GateStatus;
 import com.mxsuite.model.enums.MigrationPhase;
 import com.mxsuite.model.enums.MigrationStatus;
 import com.mxsuite.repository.MigrationBlueprintRepository;
 import com.mxsuite.repository.PhaseGateRepository;
+import com.mxsuite.repository.PhaseTimeEntryRepository;
 import com.mxsuite.repository.PlatformAssignmentRepository;
 import com.mxsuite.repository.ProjectRepository;
 import com.mxsuite.repository.TenantRepository;
@@ -37,6 +39,7 @@ public class MigrationDashboardController {
 
     private final ProjectRepository projectRepository;
     private final PhaseGateRepository phaseGateRepository;
+    private final PhaseTimeEntryRepository phaseTimeEntryRepository;
     private final MigrationBlueprintRepository blueprintRepository;
     private final PlatformAssignmentRepository assignmentRepository;
     private final TenantRepository tenantRepository;
@@ -44,12 +47,14 @@ public class MigrationDashboardController {
 
     public MigrationDashboardController(ProjectRepository projectRepository,
                                          PhaseGateRepository phaseGateRepository,
+                                         PhaseTimeEntryRepository phaseTimeEntryRepository,
                                          MigrationBlueprintRepository blueprintRepository,
                                          PlatformAssignmentRepository assignmentRepository,
                                          TenantRepository tenantRepository,
                                          AuditService auditService) {
         this.projectRepository = projectRepository;
         this.phaseGateRepository = phaseGateRepository;
+        this.phaseTimeEntryRepository = phaseTimeEntryRepository;
         this.blueprintRepository = blueprintRepository;
         this.assignmentRepository = assignmentRepository;
         this.tenantRepository = tenantRepository;
@@ -62,7 +67,8 @@ public class MigrationDashboardController {
             UUID id, String name, String sourceSystem, String targetSystem,
             MigrationPhase migrationPhase, MigrationStatus migrationStatus,
             BigDecimal reconciliationPct, String ownerName, String tenantName,
-            List<PhaseGateDto> phaseGates, Instant createdAt) {}
+            List<PhaseGateDto> phaseGates, List<PhaseTimeDto> phaseTimes,
+            Instant createdAt) {}
 
     public record PhaseGateDto(
             UUID id, MigrationPhase phase, GateStatus gateStatus,
@@ -80,6 +86,10 @@ public class MigrationDashboardController {
     public record UpdateMigrationRequest(
             String sourceSystem, String targetSystem,
             MigrationPhase migrationPhase, MigrationStatus migrationStatus) {}
+
+    public record PhaseTimeDto(
+            MigrationPhase phase, Instant startedAt, Instant completedAt,
+            long durationMinutes, boolean active) {}
 
     // --- Endpoints ---
 
@@ -120,8 +130,8 @@ public class MigrationDashboardController {
             gatesPending = phaseGateRepository.countByProject_Tenant_IdAndGateStatus(tenantId, GateStatus.PENDING);
         }
 
-        // TODO: compute real avg cycle time from completed migrations
-        double avgCycleTime = 0.0;
+        Double avgDays = phaseTimeEntryRepository.computeAvgCycleTimeDays();
+        double avgCycleTime = avgDays != null ? avgDays : 0.0;
         // TODO: compute real reconciliation pass rate
         double reconPassRate = 0.0;
 
@@ -167,6 +177,27 @@ public class MigrationDashboardController {
 
                     project.setMigrationPhase(phases[idx + 1]);
                     projectRepository.save(project);
+
+                    // Phase time tracking: complete current phase timer, start next
+                    Instant now = Instant.now();
+                    phaseTimeEntryRepository.findByProjectIdAndPhase(id, current)
+                            .ifPresentOrElse(
+                                    entry -> { entry.setCompletedAt(now); phaseTimeEntryRepository.save(entry); },
+                                    () -> {
+                                        // Backfill for pre-existing projects without a timer
+                                        PhaseTimeEntry backfill = new PhaseTimeEntry();
+                                        backfill.setProject(project);
+                                        backfill.setPhase(current);
+                                        backfill.setStartedAt(project.getCreatedAt());
+                                        backfill.setCompletedAt(now);
+                                        phaseTimeEntryRepository.save(backfill);
+                                    });
+                    PhaseTimeEntry nextEntry = new PhaseTimeEntry();
+                    nextEntry.setProject(project);
+                    nextEntry.setPhase(phases[idx + 1]);
+                    nextEntry.setStartedAt(now);
+                    phaseTimeEntryRepository.save(nextEntry);
+
                     auditService.log("ADVANCE_PHASE", "Project", project.getId(),
                             current + " → " + phases[idx + 1]);
                     return ResponseEntity.ok(toMigrationProjectDto(project));
@@ -192,11 +223,46 @@ public class MigrationDashboardController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @GetMapping("/projects/{id}/phase-times")
+    public ResponseEntity<?> getProjectPhaseTimes(@PathVariable UUID id,
+                                                    @AuthenticationPrincipal UserPrincipal principal) {
+        return projectRepository.findById(id)
+                .map(project -> {
+                    if (!hasAccess(project, principal)) {
+                        return ResponseEntity.status(403).body(Map.of("message", "Access denied"));
+                    }
+                    Instant now = Instant.now();
+                    List<PhaseTimeDto> times = phaseTimeEntryRepository
+                            .findByProjectIdOrderByStartedAt(id).stream()
+                            .map(entry -> {
+                                boolean active = entry.getCompletedAt() == null;
+                                Instant end = active ? now : entry.getCompletedAt();
+                                long minutes = java.time.Duration.between(entry.getStartedAt(), end).toMinutes();
+                                return new PhaseTimeDto(entry.getPhase(), entry.getStartedAt(),
+                                        entry.getCompletedAt(), minutes, active);
+                            })
+                            .toList();
+                    return ResponseEntity.ok(times);
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
     // --- Helpers ---
 
     private MigrationProjectDto toMigrationProjectDto(Project project) {
         List<PhaseGateDto> gates = phaseGateRepository.findByProjectIdOrderByPhase(project.getId())
                 .stream().map(this::toPhaseGateDto).toList();
+        Instant now = Instant.now();
+        List<PhaseTimeDto> times = phaseTimeEntryRepository
+                .findByProjectIdOrderByStartedAt(project.getId()).stream()
+                .map(entry -> {
+                    boolean active = entry.getCompletedAt() == null;
+                    Instant end = active ? now : entry.getCompletedAt();
+                    long minutes = java.time.Duration.between(entry.getStartedAt(), end).toMinutes();
+                    return new PhaseTimeDto(entry.getPhase(), entry.getStartedAt(),
+                            entry.getCompletedAt(), minutes, active);
+                })
+                .toList();
         String ownerName = project.getOwner() != null
                 ? project.getOwner().getFirstName() + " " + project.getOwner().getLastName()
                 : null;
@@ -206,7 +272,7 @@ public class MigrationDashboardController {
                 project.getSourceSystem(), project.getTargetSystem(),
                 project.getMigrationPhase(), project.getMigrationStatus(),
                 project.getReconciliationPct(), ownerName, tenantName,
-                gates, project.getCreatedAt());
+                gates, times, project.getCreatedAt());
     }
 
     private PhaseGateDto toPhaseGateDto(PhaseGate gate) {

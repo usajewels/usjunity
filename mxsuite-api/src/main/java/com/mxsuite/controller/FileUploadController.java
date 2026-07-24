@@ -47,7 +47,8 @@ public class FileUploadController {
             "application/json",
             "text/plain",
             "text/xml",
-            "application/xml"
+            "application/xml",
+            "application/octet-stream"
     );
 
     private final ProjectAssetRepository assetRepository;
@@ -111,7 +112,16 @@ public class FileUploadController {
             log.warn("Rejected file upload with content type: {} from user {}", contentType, principal.email());
             return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE).body(Map.of(
                     "status", 415,
-                    "message", "File type not allowed. Accepted: CSV, Excel, JSON, XML, text"));
+                    "message", "File type not allowed. Accepted: CSV, Excel, JSON, XML, text, SQL Server backup (.bak)"));
+        }
+        // application/octet-stream is only allowed for .bak files
+        if ("application/octet-stream".equals(contentType)) {
+            String fname = file.getOriginalFilename();
+            if (fname == null || !fname.toLowerCase().endsWith(".bak")) {
+                return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE).body(Map.of(
+                        "status", 415,
+                        "message", "Binary files are only accepted for SQL Server backup (.bak) format"));
+            }
         }
 
         // Validate asset type

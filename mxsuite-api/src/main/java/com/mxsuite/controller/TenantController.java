@@ -38,6 +38,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import jakarta.persistence.EntityManager;
+
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
@@ -72,6 +74,7 @@ public class TenantController {
     private final AuditService auditService;
     private final PasswordEncoder passwordEncoder;
     private final Environment environment;
+    private final EntityManager entityManager;
     private final String basePath;
 
     private static final String DEV_DEFAULT_PASSWORD = "Admin123!";
@@ -83,6 +86,7 @@ public class TenantController {
                             AuditService auditService,
                             PasswordEncoder passwordEncoder,
                             Environment environment,
+                            EntityManager entityManager,
                             @Value("${mxsuite.storage.local.base-path}") String basePath) {
         this.tenantRepository = tenantRepository;
         this.userRepository = userRepository;
@@ -92,6 +96,7 @@ public class TenantController {
         this.auditService = auditService;
         this.passwordEncoder = passwordEncoder;
         this.environment = environment;
+        this.entityManager = entityManager;
         this.basePath = basePath;
     }
 
@@ -405,6 +410,113 @@ public class TenantController {
                 }
             });
         }
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    @Transactional
+    public ResponseEntity<?> delete(@PathVariable UUID id) {
+        if (!isDevLoginEnabled()) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
+                    "message", "Organization deletion is only available in dev mode"));
+        }
+        var tenant = tenantRepository.findById(id).orElse(null);
+        if (tenant == null) return ResponseEntity.notFound().build();
+
+        if (tenant.getTenantType() == TenantType.PLATFORM) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
+                    "message", "Cannot delete the platform organization"));
+        }
+
+        String name = tenant.getName();
+
+        // Clear onboarding project FK on tenant before deleting projects
+        entityManager.createNativeQuery("UPDATE tenants SET onboarding_project_id = NULL WHERE id = :tid")
+                .setParameter("tid", id).executeUpdate();
+        entityManager.flush();
+
+        // Delete all related records in dependency order
+        // 1. Records referencing projects owned by this tenant
+        entityManager.createNativeQuery(
+                "DELETE FROM mapping_candidates WHERE mapping_entry_id IN " +
+                "(SELECT id FROM field_mapping_entries WHERE project_id IN (SELECT id FROM projects WHERE tenant_id = :tid))")
+                .setParameter("tid", id).executeUpdate();
+        entityManager.createNativeQuery(
+                "DELETE FROM mapping_versions WHERE project_id IN (SELECT id FROM projects WHERE tenant_id = :tid)")
+                .setParameter("tid", id).executeUpdate();
+        entityManager.createNativeQuery(
+                "DELETE FROM field_mapping_entries WHERE project_id IN (SELECT id FROM projects WHERE tenant_id = :tid)")
+                .setParameter("tid", id).executeUpdate();
+        entityManager.createNativeQuery(
+                "DELETE FROM source_schema_nodes WHERE project_id IN (SELECT id FROM projects WHERE tenant_id = :tid)")
+                .setParameter("tid", id).executeUpdate();
+        entityManager.createNativeQuery(
+                "DELETE FROM project_data_uploads WHERE project_id IN (SELECT id FROM projects WHERE tenant_id = :tid)")
+                .setParameter("tid", id).executeUpdate();
+        entityManager.createNativeQuery(
+                "DELETE FROM project_assets WHERE project_id IN (SELECT id FROM projects WHERE tenant_id = :tid)")
+                .setParameter("tid", id).executeUpdate();
+        entityManager.createNativeQuery(
+                "DELETE FROM project_access WHERE project_id IN (SELECT id FROM projects WHERE tenant_id = :tid)")
+                .setParameter("tid", id).executeUpdate();
+        entityManager.createNativeQuery(
+                "DELETE FROM phase_gates WHERE project_id IN (SELECT id FROM projects WHERE tenant_id = :tid)")
+                .setParameter("tid", id).executeUpdate();
+        entityManager.createNativeQuery(
+                "DELETE FROM plan_runs WHERE plan_id IN " +
+                "(SELECT id FROM plans WHERE project_id IN (SELECT id FROM projects WHERE tenant_id = :tid))")
+                .setParameter("tid", id).executeUpdate();
+        entityManager.createNativeQuery(
+                "DELETE FROM plans WHERE project_id IN (SELECT id FROM projects WHERE tenant_id = :tid)")
+                .setParameter("tid", id).executeUpdate();
+        entityManager.createNativeQuery(
+                "DELETE FROM approval_requests WHERE project_id IN (SELECT id FROM projects WHERE tenant_id = :tid)")
+                .setParameter("tid", id).executeUpdate();
+
+        // 2. Records referencing tenant directly
+        entityManager.createNativeQuery("DELETE FROM reconciliation_reports WHERE tenant_id = :tid")
+                .setParameter("tid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM semantic_decisions WHERE tenant_id = :tid")
+                .setParameter("tid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM migration_blueprints WHERE tenant_id = :tid")
+                .setParameter("tid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM onboardings WHERE tenant_id = :tid")
+                .setParameter("tid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM invitations WHERE tenant_id = :tid")
+                .setParameter("tid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM platform_assignments WHERE tenant_id = :tid")
+                .setParameter("tid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM notifications WHERE tenant_id = :tid")
+                .setParameter("tid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM audit_events WHERE tenant_id = :tid")
+                .setParameter("tid", id).executeUpdate();
+
+        // 3. User-owned records, then users
+        entityManager.createNativeQuery(
+                "DELETE FROM password_reset_tokens WHERE user_id IN (SELECT id FROM users WHERE tenant_id = :tid)")
+                .setParameter("tid", id).executeUpdate();
+        entityManager.createNativeQuery(
+                "DELETE FROM workspace_access WHERE user_id IN (SELECT id FROM users WHERE tenant_id = :tid)")
+                .setParameter("tid", id).executeUpdate();
+        entityManager.createNativeQuery(
+                "DELETE FROM workspace_access WHERE workspace_id IN " +
+                "(SELECT id FROM workspaces WHERE tenant_id = :tid)")
+                .setParameter("tid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM workspaces WHERE tenant_id = :tid")
+                .setParameter("tid", id).executeUpdate();
+
+        // 4. Projects and users (cascade from Tenant entity)
+        entityManager.createNativeQuery("DELETE FROM projects WHERE tenant_id = :tid")
+                .setParameter("tid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM users WHERE tenant_id = :tid")
+                .setParameter("tid", id).executeUpdate();
+
+        // 5. Finally delete the tenant
+        entityManager.createNativeQuery("DELETE FROM tenants WHERE id = :tid")
+                .setParameter("tid", id).executeUpdate();
+
+        log.info("DEV MODE: Deleted organization '{}' ({}) and all related data", name, id);
+        return ResponseEntity.ok(Map.of("deleted", name));
     }
 
     private boolean isDevLoginEnabled() {

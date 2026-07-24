@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import com.mxsuite.model.enums.MigrationStatus;
+
 import java.util.List;
 import java.util.UUID;
 
@@ -42,4 +44,18 @@ public interface ProjectRepository extends JpaRepository<Project, UUID> {
 
     @Query("SELECT COUNT(p) FROM Project p WHERE p.tenant.id IN :tenantIds AND p.migrationStatus = com.mxsuite.model.enums.MigrationStatus.ACTIVE AND p.migrationPhase IS NOT NULL")
     long countActiveMigrationsByTenantIds(@Param("tenantIds") List<UUID> tenantIds);
+
+    // Analytics
+    long countByMigrationStatus(MigrationStatus status);
+
+    @Query("SELECT p.migrationPhase, COUNT(p) FROM Project p WHERE p.migrationStatus = com.mxsuite.model.enums.MigrationStatus.ACTIVE AND p.migrationPhase IS NOT NULL GROUP BY p.migrationPhase")
+    List<Object[]> countActiveProjectsByPhase();
+
+    long countByOwnerIdAndMigrationStatus(UUID ownerId, MigrationStatus status);
+
+    @Query("SELECT COUNT(p) FROM Project p WHERE p.owner.id = :ownerId AND p.migrationStatus = com.mxsuite.model.enums.MigrationStatus.ACTIVE AND p.migrationPhase IS NOT NULL")
+    long countActiveByOwnerId(@Param("ownerId") UUID ownerId);
+
+    @Query("SELECT p FROM Project p JOIN FETCH p.tenant JOIN FETCH p.owner WHERE p.migrationPhase IS NOT NULL ORDER BY p.createdAt DESC")
+    List<Project> findAllMigrationProjectsUnpaged();
 }

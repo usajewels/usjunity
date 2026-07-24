@@ -211,6 +211,7 @@ export interface SourceColumn {
 }
 
 export interface TargetField {
+  entity?: string;
   name: string;
   type: string;
   required: boolean;
@@ -276,6 +277,14 @@ export interface PhaseGateDto {
   blockedReason?: string;
 }
 
+export interface PhaseTimeDto {
+  phase: string;
+  startedAt: string;
+  completedAt: string | null;
+  durationMinutes: number;
+  active: boolean;
+}
+
 export interface MigrationProject {
   id: string;
   name: string;
@@ -287,6 +296,7 @@ export interface MigrationProject {
   ownerName?: string;
   tenantName?: string;
   phaseGates: PhaseGateDto[];
+  phaseTimes?: PhaseTimeDto[];
   createdAt: string;
 }
 
@@ -533,9 +543,11 @@ export interface UploadResultDto {
   id: string;
   originalFilename: string;
   rowCount: number;
-  sourceColumns: { name: string; sampleValues: string[] }[];
+  sourceColumns: { name: string; sampleValues: string[]; tableName?: string; dataType?: string }[];
   needsSheetSelection?: boolean;
   sheets?: { name: string; rowCount: number }[];
+  needsTableSelection?: boolean;
+  tables?: { name: string; schema: string; columnCount: number }[];
   hasExistingMappings?: boolean;
   existingMappedCount?: number;
   totalFileSize?: number;
@@ -696,6 +708,64 @@ export interface LoggerDto {
   name: string;
   configuredLevel: string | null;
   effectiveLevel: string | null;
+}
+
+// Analytics types
+export interface PhaseAvgDurationDto {
+  phase: string;
+  avgMinutes: number;
+  medianMinutes: number;
+  projectCount: number;
+}
+
+export interface CycleTimeTrendPointDto {
+  month: string;
+  avgCycleTimeDays: number;
+  completedCount: number;
+}
+
+export interface CrossOrgAnalyticsDto {
+  totalCompleted: number;
+  totalInFlight: number;
+  totalCancelled: number;
+  avgCycleTimeDays: number;
+  avgDurationPerPhase: PhaseAvgDurationDto[];
+  phaseDistribution: Record<string, number>;
+  cycleTimeTrend: CycleTimeTrendPointDto[];
+}
+
+export interface PhaseBenchmarkDto {
+  phase: string;
+  projectDurationMinutes: number;
+  platformAvgMinutes: number;
+  percentAboveAvg: number;
+  significantlySlower: boolean;
+}
+
+export interface SlaAlertDto {
+  projectId: string;
+  projectName: string;
+  tenantName: string;
+  ownerName: string;
+  phase: string;
+  minutesInPhase: number;
+  thresholdMinutes: number;
+  percentOverThreshold: number;
+}
+
+export interface CoachPerformanceDto {
+  coachId: string;
+  coachName: string;
+  coachEmail: string;
+  projectsCompleted: number;
+  projectsInFlight: number;
+  avgCycleTimeDays: number;
+  phaseBreakdown: PhaseAvgDurationDto[];
+}
+
+export interface CoachLeaderboardDto {
+  coaches: CoachPerformanceDto[];
+  overallAvgCycleTimeDays: number;
 }
 
 // WebSocket event types

@@ -143,11 +143,11 @@ public class InvitationController {
                     "status", 403, "message", "Cannot assign platform roles"));
         }
 
-        // COACH_ADMIN can only invite PLATFORM_SUPPORT (coach) roles
+        // COACH_ADMIN can invite coaches and tenant members, but not platform admins
         if (principal.role() == UserRole.COACH_ADMIN
-                && request.role() != UserRole.PLATFORM_SUPPORT) {
+                && request.role() == UserRole.PLATFORM_ADMIN) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
-                    "status", 403, "message", "Coach admins can only invite coaches"));
+                    "status", 403, "message", "Coach admins cannot assign platform admin roles"));
         }
 
         String email = request.email().toLowerCase().trim();

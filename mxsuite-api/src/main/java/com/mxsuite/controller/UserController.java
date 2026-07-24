@@ -13,6 +13,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.env.Environment;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -21,6 +22,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
+
+import jakarta.persistence.EntityManager;
 
 import java.net.URI;
 import java.util.List;
@@ -39,13 +42,18 @@ public class UserController {
     private final TenantRepository tenantRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuditService auditService;
+    private final Environment environment;
+    private final EntityManager entityManager;
 
     public UserController(UserRepository userRepository, TenantRepository tenantRepository,
-                          PasswordEncoder passwordEncoder, AuditService auditService) {
+                          PasswordEncoder passwordEncoder, AuditService auditService,
+                          Environment environment, EntityManager entityManager) {
         this.userRepository = userRepository;
         this.tenantRepository = tenantRepository;
         this.passwordEncoder = passwordEncoder;
         this.auditService = auditService;
+        this.environment = environment;
+        this.entityManager = entityManager;
     }
 
     public record CreateUserRequest(
@@ -158,6 +166,60 @@ public class UserController {
                     return ResponseEntity.ok(toResponse(user));
                 })
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    @Transactional
+    public ResponseEntity<?> delete(@PathVariable UUID id) {
+        if (!isDevLoginEnabled()) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
+                    "message", "User deletion is only available in dev mode"));
+        }
+        var user = userRepository.findById(id).orElse(null);
+        if (user == null) return ResponseEntity.notFound().build();
+
+        String email = user.getEmail();
+
+        // Nullify FK references to this user
+        entityManager.createNativeQuery("UPDATE invitations SET invited_by_id = NULL WHERE invited_by_id = :uid")
+                .setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("UPDATE projects SET owner_id = NULL WHERE owner_id = :uid")
+                .setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("UPDATE onboardings SET assigned_to_id = NULL WHERE assigned_to_id = :uid")
+                .setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("UPDATE project_assets SET uploaded_by_id = NULL WHERE uploaded_by_id = :uid")
+                .setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("UPDATE plan_runs SET triggered_by_id = NULL WHERE triggered_by_id = :uid")
+                .setParameter("uid", id).executeUpdate();
+
+        // Delete owned records
+        entityManager.createNativeQuery("DELETE FROM password_reset_tokens WHERE user_id = :uid")
+                .setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM platform_assignments WHERE user_id = :uid")
+                .setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM workspace_access WHERE user_id = :uid")
+                .setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM project_access WHERE user_id = :uid")
+                .setParameter("uid", id).executeUpdate();
+        // Workspaces owned by this user — delete access first, then workspace
+        entityManager.createNativeQuery(
+                "DELETE FROM workspace_access WHERE workspace_id IN (SELECT id FROM workspaces WHERE owner_id = :uid)")
+                .setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM workspaces WHERE owner_id = :uid")
+                .setParameter("uid", id).executeUpdate();
+
+        userRepository.delete(user);
+
+        log.info("DEV MODE: Deleted user {} ({})", email, id);
+        return ResponseEntity.ok(Map.of("deleted", email));
+    }
+
+    private boolean isDevLoginEnabled() {
+        for (String profile : environment.getActiveProfiles()) {
+            if ("devlogin".equals(profile)) return true;
+        }
+        return false;
     }
 
     private UserResponse toResponse(User user) {

@@ -12,6 +12,7 @@ import ApprovalsPage from './pages/migration/ApprovalsPage';
 import MigrationProjectsPage from './pages/migration/MigrationProjectsPage';
 import GlobalMappingsPage from './pages/migration/GlobalMappingsPage';
 import ReconciliationPage from './pages/migration/ReconciliationPage';
+import ProjectMetricsPage from './pages/migration/ProjectMetricsPage';
 import TenantOnboardingLayout from './layouts/TenantOnboardingLayout';
 import TenantOverviewPage from './pages/tenant-onboarding/TenantOverviewPage';
 import TenantUploadPage from './pages/tenant-onboarding/TenantUploadPage';
@@ -33,6 +34,7 @@ export default function PlannerApp() {
         <Route path="projects" element={<MigrationProjectsPage />} />
         <Route path="projects/:projectId/mappings" element={<MappingsPage />} />
         <Route path="projects/:projectId/reconciliation" element={<ReconciliationPage />} />
+        <Route path="projects/:projectId/metrics" element={<ProjectMetricsPage />} />
         <Route path="decisions" element={<DecisionsPage />} />
         <Route path="approvals" element={<ApprovalsPage />} />
       </Route>

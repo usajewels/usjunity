@@ -26,6 +26,9 @@ public class MappingCandidate {
     @JoinColumn(name = "field_mapping_id", nullable = false)
     private FieldMappingEntry fieldMapping;
 
+    @Column(name = "target_entity", length = 200)
+    private String targetEntity;
+
     @Column(name = "target_field", nullable = false, length = 200)
     private String targetField;
 

@@ -21,6 +21,15 @@ export const tenantOnboardingApi = {
   selectSheet: (sheetIndex: number) =>
     api.post<UploadResultDto>('/my-onboarding/select-sheet', { sheetIndex }),
 
+  selectTables: (tableNames: string[]) =>
+    api.post<UploadResultDto>('/my-onboarding/select-tables', { tableNames }),
+
+  uploadBackupPath: (filePath: string) =>
+    api.post<UploadResultDto>('/my-onboarding/upload-backup-path', { filePath }),
+
+  reExtractSchema: () =>
+    api.post<UploadResultDto>('/my-onboarding/re-extract'),
+
   confirmUpload: (preserveApproved: boolean) =>
     api.post<UploadResultDto>('/my-onboarding/upload/confirm', { preserveApproved }),
 
@@ -52,6 +61,11 @@ export const tenantOnboardingApi = {
   getImportStatus: () =>
     api.get<ImportStatusDto>('/my-onboarding/import/status'),
 
+  // Schema
+  getSchema: () =>
+    api.get<{ targetSchema: Array<{ entity?: string; name: string; type: string; required: boolean; description?: string }> }>(
+      '/my-onboarding/schema'),
+
   // Mappings
   listMappings: (params?: Record<string, unknown>) =>
     api.get('/my-onboarding/mappings', { params }),
@@ -61,6 +75,9 @@ export const tenantOnboardingApi = {
 
   approveMapping: (id: string) =>
     api.post(`/my-onboarding/mappings/${id}/approve`),
+
+  cloneMapping: (id: string, data: { targetField: string; targetEntity: string }) =>
+    api.post(`/my-onboarding/mappings/${id}/clone`, data),
 
   getMappingStats: () =>
     api.get('/my-onboarding/mappings/stats'),

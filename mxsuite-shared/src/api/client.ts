@@ -13,7 +13,7 @@ function attachInterceptors(instance: AxiosInstance): void {
       config.headers.Authorization = `Bearer ${token}`;
     }
     const tenantId = localStorage.getItem(TENANT_KEY);
-    if (tenantId) {
+    if (tenantId && !config.headers['X-Tenant-Id']) {
       config.headers['X-Tenant-Id'] = tenantId;
     }
     return config;

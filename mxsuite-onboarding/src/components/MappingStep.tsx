@@ -1,6 +1,6 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
-  Card, Select, Typography, Button, Space, Tag, Table, Tooltip,
+  Card, Select, Typography, Button, Space, Tag, Table, Tooltip, Collapse,
   Modal, Form, Input, Switch, Popconfirm, Dropdown, Grid, message,
 } from 'antd';
 import {
@@ -18,26 +18,6 @@ const a11yStyles = `
   .mapping-table .ant-select-selection-placeholder { color: rgba(0,0,0,0.55) !important; }
 `;
 
-// Default MemberSuite target fields — can be customized per tenant
-const DEFAULT_TARGET_FIELDS = [
-  { name: 'firstName', type: 'string', required: true, description: 'First name' },
-  { name: 'lastName', type: 'string', required: true, description: 'Last name' },
-  { name: 'email', type: 'string', required: true, description: 'Email address' },
-  { name: 'phone', type: 'string', required: false, description: 'Phone number' },
-  { name: 'company', type: 'string', required: false, description: 'Company / Organization' },
-  { name: 'title', type: 'string', required: false, description: 'Job title' },
-  { name: 'address1', type: 'string', required: false, description: 'Street address line 1' },
-  { name: 'address2', type: 'string', required: false, description: 'Street address line 2' },
-  { name: 'city', type: 'string', required: false, description: 'City' },
-  { name: 'state', type: 'string', required: false, description: 'State / Province' },
-  { name: 'zip', type: 'string', required: false, description: 'Zip / Postal code' },
-  { name: 'country', type: 'string', required: false, description: 'Country' },
-  { name: 'memberType', type: 'string', required: false, description: 'Membership type' },
-  { name: 'joinDate', type: 'date', required: false, description: 'Join / Start date' },
-  { name: 'expirationDate', type: 'date', required: false, description: 'Expiration date' },
-  { name: 'notes', type: 'string', required: false, description: 'Notes / Comments' },
-];
-
 const TRANSFORMATIONS = [
   { value: '', label: 'None (direct copy)' },
   { value: 'UPPERCASE', label: 'UPPERCASE' },
@@ -53,8 +33,6 @@ interface Props {
   onBack: () => void;
 }
 
-const DEFAULT_FIELD_NAMES = new Set(DEFAULT_TARGET_FIELDS.map((f) => f.name));
-
 const CUSTOM_FIELD_TYPES = [
   { value: 'string', label: 'Text' },
   { value: 'number', label: 'Number' },
@@ -64,22 +42,49 @@ const CUSTOM_FIELD_TYPES = [
   { value: 'phone', label: 'Phone' },
 ];
 
+/** Build a unique mapping key for a target field */
+function fieldKey(field: TargetField): string {
+  return field.entity ? `${field.entity}.${field.name}` : field.name;
+}
+
 export default function MappingStep({ onboarding, onUpdate, onNext, onBack }: Props) {
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.md;
   const sourceColumns: SourceColumn[] = onboarding.sourceColumns || [];
   const [targetFields, setTargetFields] = useState<TargetField[]>(
-    () => onboarding.targetSchema || DEFAULT_TARGET_FIELDS,
+    () => onboarding.targetSchema || [],
   );
   const [customFieldModalOpen, setCustomFieldModalOpen] = useState(false);
   const [customFieldForm] = Form.useForm();
 
+  // Set of keys for fields that came from the schema (not custom-added)
+  const schemaFieldKeys = useMemo(() => {
+    const keys = new Set<string>();
+    (onboarding.targetSchema || []).forEach((f: TargetField) => keys.add(fieldKey(f)));
+    return keys;
+  }, [onboarding.targetSchema]);
+
+  // Group fields by entity
+  const grouped = useMemo(() => {
+    const map = new Map<string, TargetField[]>();
+    targetFields.forEach((f) => {
+      const entity = f.entity || 'Other';
+      if (!map.has(entity)) map.set(entity, []);
+      map.get(entity)!.push(f);
+    });
+    return map;
+  }, [targetFields]);
+
+  const entityNames = useMemo(() => Array.from(grouped.keys()), [grouped]);
+
   // Initialize mappings from onboarding or empty
+  // Mapping key is entity.fieldName (or just fieldName for legacy)
   const [mappings, setMappings] = useState<Record<string, { sourceField: string; transformation: string }>>(
     () => {
       const map: Record<string, { sourceField: string; transformation: string }> = {};
       (onboarding.mappings || []).forEach((m: any) => {
-        map[m.targetField] = { sourceField: m.sourceField, transformation: m.transformation || '' };
+        const key = m.targetEntity ? `${m.targetEntity}.${m.targetField}` : m.targetField;
+        map[key] = { sourceField: m.sourceField, transformation: m.transformation || '' };
       });
       return map;
     }
@@ -94,6 +99,7 @@ export default function MappingStep({ onboarding, onUpdate, onNext, onBack }: Pr
   const handleAutoMap = () => {
     const newMappings = { ...mappings };
     for (const target of targetFields) {
+      const key = fieldKey(target);
       const targetLower = target.name.toLowerCase();
       const match = sourceColumns.find(sc => {
         const sourceLower = sc.name.toLowerCase().replace(/[_\s-]/g, '');
@@ -101,8 +107,8 @@ export default function MappingStep({ onboarding, onUpdate, onNext, onBack }: Pr
                sourceLower.includes(targetLower) ||
                targetLower.includes(sourceLower);
       });
-      if (match && !newMappings[target.name]?.sourceField) {
-        newMappings[target.name] = { sourceField: match.name, transformation: '' };
+      if (match && !newMappings[key]?.sourceField) {
+        newMappings[key] = { sourceField: match.name, transformation: '' };
       }
     }
     setMappings(newMappings);
@@ -114,12 +120,18 @@ export default function MappingStep({ onboarding, onUpdate, onNext, onBack }: Pr
     try {
       const mappingList = Object.entries(mappings)
         .filter(([, v]) => v.sourceField)
-        .map(([targetField, v]) => ({
-          id: `${Date.now()}-${targetField}`,
-          sourceField: v.sourceField,
-          targetField,
-          transformation: v.transformation || undefined,
-        }));
+        .map(([key, v]) => {
+          const dotIdx = key.indexOf('.');
+          const targetEntity = dotIdx > 0 ? key.substring(0, dotIdx) : undefined;
+          const targetField = dotIdx > 0 ? key.substring(dotIdx + 1) : key;
+          return {
+            id: `${Date.now()}-${key}`,
+            sourceField: v.sourceField,
+            targetEntity,
+            targetField,
+            transformation: v.transformation || undefined,
+          };
+        });
 
       const { data } = await onboardingApi.update(onboarding.id, {
         mappings: mappingList,
@@ -134,12 +146,19 @@ export default function MappingStep({ onboarding, onUpdate, onNext, onBack }: Pr
     }
   };
 
-  const handleAddCustomField = async (values: { name: string; type: string; description: string; required?: boolean }) => {
-    if (targetFields.some((f) => f.name === values.name)) {
-      message.error(`Field "${values.name}" already exists`);
+  const handleAddCustomField = async (values: { entity: string; name: string; type: string; description: string; required?: boolean }) => {
+    const key = values.entity ? `${values.entity}.${values.name}` : values.name;
+    if (targetFields.some((f) => fieldKey(f) === key)) {
+      message.error(`Field "${key}" already exists`);
       return;
     }
-    const newField = { name: values.name, type: values.type, description: values.description, required: !!values.required };
+    const newField: TargetField = {
+      entity: values.entity || undefined,
+      name: values.name,
+      type: values.type,
+      description: values.description,
+      required: !!values.required,
+    };
     const updated = [...targetFields, newField];
     setTargetFields(updated);
     setCustomFieldModalOpen(false);
@@ -154,13 +173,14 @@ export default function MappingStep({ onboarding, onUpdate, onNext, onBack }: Pr
     }
   };
 
-  const handleDeleteCustomField = async (fieldName: string) => {
-    const updated = targetFields.filter((f) => f.name !== fieldName);
+  const handleDeleteCustomField = async (field: TargetField) => {
+    const key = fieldKey(field);
+    const updated = targetFields.filter((f) => fieldKey(f) !== key);
     setTargetFields(updated);
     // Remove mapping for deleted field
     setMappings((prev) => {
       const copy = { ...prev };
-      delete copy[fieldName];
+      delete copy[key];
       return copy;
     });
     try {
@@ -176,14 +196,18 @@ export default function MappingStep({ onboarding, onUpdate, onNext, onBack }: Pr
   const handleExportMapping = () => {
     const activeMappings = Object.entries(mappings)
       .filter(([, v]) => v.sourceField)
-      .map(([targetField, v]) => ({
-        targetField,
-        sourceField: v.sourceField,
-        transformation: v.transformation || undefined,
-      }));
+      .map(([key, v]) => {
+        const dotIdx = key.indexOf('.');
+        return {
+          targetEntity: dotIdx > 0 ? key.substring(0, dotIdx) : undefined,
+          targetField: dotIdx > 0 ? key.substring(dotIdx + 1) : key,
+          sourceField: v.sourceField,
+          transformation: v.transformation || undefined,
+        };
+      });
 
     const exportData = {
-      version: 1,
+      version: 2,
       exportedAt: new Date().toISOString(),
       targetSchema: targetFields,
       mappings: activeMappings,
@@ -214,10 +238,11 @@ export default function MappingStep({ onboarding, onUpdate, onNext, onBack }: Pr
         let matched = 0;
         for (const m of data.mappings) {
           if (m.targetField && m.sourceField) {
+            const key = m.targetEntity ? `${m.targetEntity}.${m.targetField}` : m.targetField;
             // Only apply if the source column exists in current file
             const sourceExists = sourceColumns.some((sc) => sc.name === m.sourceField);
             if (sourceExists) {
-              newMappings[m.targetField] = {
+              newMappings[key] = {
                 sourceField: m.sourceField,
                 transformation: m.transformation || '',
               };
@@ -228,15 +253,12 @@ export default function MappingStep({ onboarding, onUpdate, onNext, onBack }: Pr
 
         // Import custom target fields if present
         if (data.targetSchema && Array.isArray(data.targetSchema)) {
-          const customFields = data.targetSchema.filter(
-            (f: TargetField) => !DEFAULT_FIELD_NAMES.has(f.name),
+          const existing = new Set(targetFields.map((f) => fieldKey(f)));
+          const newFields = data.targetSchema.filter(
+            (f: TargetField) => !existing.has(fieldKey(f)),
           );
-          if (customFields.length > 0) {
-            const existing = new Set(targetFields.map((f) => f.name));
-            const newFields = customFields.filter((f: TargetField) => !existing.has(f.name));
-            if (newFields.length > 0) {
-              setTargetFields((prev) => [...prev, ...newFields]);
-            }
+          if (newFields.length > 0) {
+            setTargetFields((prev) => [...prev, ...newFields]);
           }
         }
 
@@ -251,8 +273,8 @@ export default function MappingStep({ onboarding, onUpdate, onNext, onBack }: Pr
 
   const getUnmappedRequired = () => {
     return targetFields
-      .filter((f: any) => f.required && !mappings[f.name]?.sourceField)
-      .map((f: any) => f.description || f.name);
+      .filter((f) => f.required && !mappings[fieldKey(f)]?.sourceField)
+      .map((f) => f.description || f.name);
   };
 
   const handleNext = async () => {
@@ -265,27 +287,17 @@ export default function MappingStep({ onboarding, onUpdate, onNext, onBack }: Pr
     onNext();
   };
 
-  const tableData = targetFields.map((field: any) => ({
-    key: field.name,
-    targetField: field.name,
-    description: field.description,
-    required: field.required,
-    sourceField: mappings[field.name]?.sourceField || '',
-    transformation: mappings[field.name]?.transformation || '',
-  }));
-
-  const columns = [
+  const buildColumns = () => [
     {
-      title: 'MemberSuite Field',
-      dataIndex: 'targetField',
+      title: 'GrowthZone Field',
       key: 'targetField',
       width: isMobile ? 140 : 180,
-      render: (val: string, record: any) => (
+      render: (_: any, record: any) => (
         <Space direction={isMobile ? 'vertical' : 'horizontal'} size={2}>
-          <Text strong style={isMobile ? { fontSize: 13 } : undefined}>{val}</Text>
+          <Text strong style={isMobile ? { fontSize: 13 } : undefined}>{record.name}</Text>
           <Space size={2}>
             {record.required && <Tag color="red">Required</Tag>}
-            {!DEFAULT_FIELD_NAMES.has(val) && <Tag color="orange">Custom</Tag>}
+            {!schemaFieldKeys.has(record._key) && <Tag color="orange">Custom</Tag>}
           </Space>
         </Space>
       ),
@@ -293,27 +305,25 @@ export default function MappingStep({ onboarding, onUpdate, onNext, onBack }: Pr
     // Description — desktop only
     ...(!isMobile ? [{
       title: 'Description',
-      dataIndex: 'description',
       key: 'description',
       width: 200,
-      render: (val: string) => <Text style={{ color: 'rgba(0,0,0,0.65)' }}>{val}</Text>,
+      render: (_: any, record: any) => <Text style={{ color: 'rgba(0,0,0,0.65)' }}>{record.description}</Text>,
     }] : []),
     {
       title: 'Source Column',
-      dataIndex: 'sourceField',
       key: 'sourceField',
       width: isMobile ? 160 : 220,
       render: (_: any, record: any) => (
         <Select
           style={{ width: '100%' }}
           placeholder={isMobile ? 'Select...' : 'Select source column'}
-          aria-label={`Source column for ${record.description || record.targetField}`}
+          aria-label={`Source column for ${record.description || record.name}`}
           allowClear
-          value={mappings[record.targetField]?.sourceField || undefined}
+          value={mappings[record._key]?.sourceField || undefined}
           onChange={(val) => {
             setMappings(prev => ({
               ...prev,
-              [record.targetField]: { ...prev[record.targetField], sourceField: val || '', transformation: prev[record.targetField]?.transformation || '' },
+              [record._key]: { ...prev[record._key], sourceField: val || '', transformation: prev[record._key]?.transformation || '' },
             }));
           }}
           options={sourceOptions}
@@ -326,7 +336,7 @@ export default function MappingStep({ onboarding, onUpdate, onNext, onBack }: Pr
       key: 'samples',
       width: 200,
       render: (_: any, record: any) => {
-        const src = sourceColumns.find((s: SourceColumn) => s.name === mappings[record.targetField]?.sourceField);
+        const src = sourceColumns.find((s: SourceColumn) => s.name === mappings[record._key]?.sourceField);
         if (!src) return <Text style={{ color: 'rgba(0,0,0,0.65)' }}>—</Text>;
         return (
           <Tooltip title={src.sampleValues.join(', ')}>
@@ -344,12 +354,12 @@ export default function MappingStep({ onboarding, onUpdate, onNext, onBack }: Pr
       render: (_: any, record: any) => (
         <Select
           style={{ width: '100%' }}
-          aria-label={`Transformation for ${record.description || record.targetField}`}
-          value={mappings[record.targetField]?.transformation || ''}
+          aria-label={`Transformation for ${record.description || record.name}`}
+          value={mappings[record._key]?.transformation || ''}
           onChange={(val) => {
             setMappings(prev => ({
               ...prev,
-              [record.targetField]: { ...prev[record.targetField], sourceField: prev[record.targetField]?.sourceField || '', transformation: val },
+              [record._key]: { ...prev[record._key], sourceField: prev[record._key]?.sourceField || '', transformation: val },
             }));
           }}
           options={TRANSFORMATIONS}
@@ -361,11 +371,11 @@ export default function MappingStep({ onboarding, onUpdate, onNext, onBack }: Pr
       key: 'actions',
       width: 48,
       render: (_: any, record: any) => {
-        if (DEFAULT_FIELD_NAMES.has(record.targetField)) return null;
+        if (schemaFieldKeys.has(record._key)) return null;
         return (
           <Popconfirm
             title="Remove custom field?"
-            onConfirm={() => handleDeleteCustomField(record.targetField)}
+            onConfirm={() => handleDeleteCustomField(record._field)}
             okText="Remove"
             okButtonProps={{ danger: true }}
           >
@@ -375,6 +385,47 @@ export default function MappingStep({ onboarding, onUpdate, onNext, onBack }: Pr
       },
     },
   ];
+
+  const columns = buildColumns();
+
+  // Build collapse items for each entity
+  const collapseItems = entityNames.map((entity) => {
+    const fields = grouped.get(entity)!;
+    const mappedCount = fields.filter((f) => mappings[fieldKey(f)]?.sourceField).length;
+    const tableData = fields.map((f) => ({
+      key: fieldKey(f),
+      _key: fieldKey(f),
+      _field: f,
+      name: f.name,
+      description: f.description,
+      required: f.required,
+    }));
+
+    return {
+      key: entity,
+      label: (
+        <Space>
+          <Text strong>{entity}</Text>
+          <Tag>{mappedCount}/{fields.length} mapped</Tag>
+        </Space>
+      ),
+      children: (
+        <Table
+          columns={columns}
+          dataSource={tableData}
+          pagination={false}
+          size={isMobile ? 'small' : 'middle'}
+          scroll={{ x: 'max-content' }}
+        />
+      ),
+    };
+  });
+
+  // Default open: entities that have required fields or existing mappings
+  const defaultActive = entityNames.filter((entity) => {
+    const fields = grouped.get(entity)!;
+    return fields.some((f) => f.required || mappings[fieldKey(f)]?.sourceField);
+  });
 
   return (
     <div className="mapping-table">
@@ -388,11 +439,11 @@ export default function MappingStep({ onboarding, onUpdate, onNext, onBack }: Pr
           <div>
             <Title level={4} style={{ margin: 0 }}>Column Mapping</Title>
             <Text style={{ color: 'rgba(0,0,0,0.65)' }}>
-              Map your columns to MemberSuite fields.{!isMobile && ` ${sourceColumns.length} source columns detected.`}
+              Map your columns to GrowthZone fields.{!isMobile && ` ${sourceColumns.length} source columns across ${entityNames.length} entities.`}
             </Text>
           </div>
           <Space wrap>
-            <Button icon={<PlusOutlined />} onClick={() => { customFieldForm.resetFields(); customFieldForm.setFieldsValue({ type: 'string' }); setCustomFieldModalOpen(true); }}>
+            <Button icon={<PlusOutlined />} onClick={() => { customFieldForm.resetFields(); customFieldForm.setFieldsValue({ entity: entityNames[0] || 'Contact', type: 'string' }); setCustomFieldModalOpen(true); }}>
               {isMobile ? 'Custom Field' : 'Add Custom Field'}
             </Button>
             <Button icon={<ThunderboltOutlined />} onClick={handleAutoMap}>Auto-Map</Button>
@@ -422,12 +473,9 @@ export default function MappingStep({ onboarding, onUpdate, onNext, onBack }: Pr
           </Space>
         </div>
 
-        <Table
-          columns={columns}
-          dataSource={tableData}
-          pagination={false}
-          size={isMobile ? 'small' : 'middle'}
-          scroll={{ x: 'max-content' }}
+        <Collapse
+          defaultActiveKey={defaultActive.length > 0 ? defaultActive : [entityNames[0]]}
+          items={collapseItems}
         />
 
       </Card>
@@ -468,6 +516,17 @@ export default function MappingStep({ onboarding, onUpdate, onNext, onBack }: Pr
         okText="Add Field"
       >
         <Form form={customFieldForm} layout="vertical" onFinish={handleAddCustomField} style={{ marginTop: 16 }}>
+          <Form.Item
+            name="entity"
+            label="Entity"
+            rules={[{ required: true, message: 'Please select an entity' }]}
+          >
+            <Select
+              placeholder="e.g. Contact"
+              showSearch
+              options={entityNames.map((e) => ({ value: e, label: e }))}
+            />
+          </Form.Item>
           <Form.Item
             name="name"
             label="Field Name"

@@ -5,7 +5,7 @@ import {
   SettingOutlined, MessageOutlined, BellOutlined, LogoutOutlined,
   UserOutlined, MenuFoldOutlined, MenuUnfoldOutlined, MenuOutlined,
   SwapOutlined, ImportOutlined, TeamOutlined,
-  CodeOutlined, HistoryOutlined,
+  CodeOutlined, HistoryOutlined, BarChartOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../store/AuthContext';
@@ -13,6 +13,22 @@ import { api } from '@mxsuite/shared';
 
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
+
+const ROLE_AVATAR_COLORS: Record<string, string> = {
+  PLATFORM_ADMIN: '#2d1854',
+  COACH_ADMIN: '#44336b',
+  PLATFORM_SUPPORT: '#6b4fa0',
+  TENANT_ADMIN: '#9b7fd4',
+  TENANT_USER: '#a0a0a0',
+};
+
+const ROLE_SHORT_LABELS: Record<string, string> = {
+  PLATFORM_ADMIN: 'Admin',
+  COACH_ADMIN: 'Coach Admin',
+  PLATFORM_SUPPORT: 'Coach',
+  TENANT_ADMIN: 'Member Admin',
+  TENANT_USER: 'Member',
+};
 
 export default function AppLayout({ children }: { children?: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -48,8 +64,8 @@ export default function AppLayout({ children }: { children?: React.ReactNode }) 
       // Silently fail
     }
 
-    // Fetch pending invitations count (admin only)
-    if (isPlatformAdmin) {
+    // Fetch pending invitations count (platform users)
+    if (isPlatformUser) {
       try {
         const { data } = await api.get<{ content: unknown[]; totalElements: number }>(
           '/invitations', { params: { page: 0, size: 1, status: 'PENDING' } }
@@ -59,7 +75,7 @@ export default function AppLayout({ children }: { children?: React.ReactNode }) 
         // Silently fail
       }
     }
-  }, [isPlatformAdmin]);
+  }, [isPlatformUser]);
 
   const fetchUnreadCount = useCallback(async () => {
     try {
@@ -175,7 +191,14 @@ export default function AppLayout({ children }: { children?: React.ReactNode }) 
     }] : []),
     ...(isTenantAdmin ? [{ key: '/team', icon: <TeamOutlined />, label: 'Team Members' }] : []),
     { key: '/chat', icon: <MessageOutlined />, label: 'Chat' },
-    ...(isPlatformAdmin ? [
+    ...(isPlatformUser ? [{
+      key: 'sub:analytics', icon: <BarChartOutlined />, label: 'Analytics',
+      children: [
+        { key: '/admin/analytics', label: 'Dashboard' },
+        ...(isPlatformAdmin ? [{ key: '/admin/analytics/coaches', label: 'Coach Performance' }] : []),
+      ],
+    }] : []),
+    ...(isPlatformUser ? [
       { type: 'divider' as const },
       { key: '/admin', icon: <SettingOutlined />, label: 'Administration',
         children: [
@@ -193,7 +216,7 @@ export default function AppLayout({ children }: { children?: React.ReactNode }) 
           },
           { key: '/admin/assignments', label: 'Assignments' },
           { key: '/admin/activity', label: 'Activity Log' },
-          { key: '/admin/logs', icon: <CodeOutlined />, label: 'System Logs' },
+          ...(isPlatformAdmin ? [{ key: '/admin/logs', icon: <CodeOutlined />, label: 'System Logs' }] : []),
         ],
       },
     ] : []),
@@ -347,7 +370,7 @@ export default function AppLayout({ children }: { children?: React.ReactNode }) 
         </Drawer>
       )}
 
-      <Layout>
+      <Layout style={{ overflow: 'visible' }}>
         <Header style={{
           background: '#fff',
           padding: isMobile ? '0 12px' : '0 24px',
@@ -435,8 +458,24 @@ export default function AppLayout({ children }: { children?: React.ReactNode }) 
               },
             }} trigger={['click']}>
               <Space style={{ cursor: 'pointer' }}>
-                <Avatar style={{ backgroundColor: '#2d1854' }} icon={<UserOutlined />} />
-                {!isMobile && <Text>{user?.firstName} {user?.lastName}</Text>}
+                {user?.avatarUrl ? (
+                  <Avatar src={user.avatarUrl} />
+                ) : (
+                  <Avatar style={{ backgroundColor: ROLE_AVATAR_COLORS[user?.role ?? ''] || '#2d1854' }} icon={<UserOutlined />} />
+                )}
+                {!isMobile && (
+                  <div style={{ lineHeight: 1.3 }}>
+                    <Text>{user?.firstName} {user?.lastName}</Text>
+                    <div>
+                      <Text style={{
+                        fontSize: 11,
+                        color: ROLE_AVATAR_COLORS[user?.role ?? ''] || '#888',
+                      }}>
+                        {ROLE_SHORT_LABELS[user?.role ?? ''] || user?.role}
+                      </Text>
+                    </div>
+                  </div>
+                )}
               </Space>
             </Dropdown>
           </Space>

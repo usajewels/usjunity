@@ -14,7 +14,7 @@ export type {
   WsEvent,
   FeatureKey, FeatureConfig,
   MigrationPhase, MigrationStatus, GateStatus,
-  PhaseGateDto, MigrationProject, MigrationStats, MigrationBlueprint,
+  PhaseGateDto, PhaseTimeDto, MigrationProject, MigrationStats, MigrationBlueprint,
   MappingStatus, MappingCandidateDto, FieldMappingEntryDto, SchemaNodeDto, MappingStatsDto,
   MappingVersionSource, MappingVersionDto, MappingVersionChangeDto, MappingVersionDetailDto, MappingVersionDiffDto, FieldChangeHistoryDto,
   DecisionStatus, ApprovalStatus, DecisionOptionDto, SemanticDecisionDto, DecisionStatsDto,
@@ -26,6 +26,8 @@ export type {
   ActiveSessionDto, ApiMetricsDto, EndpointMetricDto,
   StorageDto, AuditStatsDto, InvitationStatsDto,
   LogEntryDto, LogPageDto, LoggerDto,
+  PhaseAvgDurationDto, CycleTimeTrendPointDto, CrossOrgAnalyticsDto,
+  PhaseBenchmarkDto, SlaAlertDto, CoachPerformanceDto, CoachLeaderboardDto,
 } from './types';
 
 // API

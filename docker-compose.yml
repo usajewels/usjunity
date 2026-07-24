@@ -75,6 +75,15 @@ services:
       MXSUITE_ADMIN_PASSWORD: ${MXSUITE_ADMIN_PASSWORD}
       MXSUITE_ADMIN_FIRST_NAME: ${MXSUITE_ADMIN_FIRST_NAME:-Platform}
       MXSUITE_ADMIN_LAST_NAME: ${MXSUITE_ADMIN_LAST_NAME:-Admin}
+      # AI Providers
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-4-20250514}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-llama-3.3-70b-versatile}
+      XAI_API_KEY: ${XAI_API_KEY:-}
+      GROK_MODEL: ${GROK_MODEL:-grok-3-mini}
+      AI_MAPPING_PROVIDER: ${AI_MAPPING_PROVIDER:-anthropic}
+      AI_CHAT_PROVIDER: ${AI_CHAT_PROVIDER:-groq}
     volumes:
       - ${FILE_STORAGE_PATH:-file_storage}:/data/files
     depends_on:

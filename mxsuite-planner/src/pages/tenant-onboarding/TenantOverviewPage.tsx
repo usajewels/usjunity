@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Card, Typography, Spin, Button, Progress, Tag, Row, Col, Space, Steps, message,
+  Card, Typography, Spin, Button, Progress, Tag, Row, Col, Space, Steps, message, Tooltip,
 } from 'antd';
 import {
   UploadOutlined, CheckCircleOutlined, ClockCircleOutlined,
@@ -189,10 +189,13 @@ export default function TenantOverviewPage() {
             style={{ borderColor: '#2d1854', color: '#2d1854', background: '#f3eeff' }}>
             Upload Data
           </Button>
-          <Button icon={<FileTextOutlined />} onClick={() => navigate('/plans/my-onboarding/mappings')}
-            style={{ borderColor: '#2d1854', color: '#2d1854', background: '#f3eeff' }}>
-            Review Mappings
-          </Button>
+          <Tooltip title={data.uploadStatus === 'NONE' ? 'Upload your data first' : undefined}>
+            <Button icon={<FileTextOutlined />} onClick={() => navigate('/plans/my-onboarding/mappings')}
+              disabled={data.uploadStatus === 'NONE'}
+              style={{ borderColor: '#2d1854', color: '#2d1854', background: '#f3eeff' }}>
+              Review Mappings
+            </Button>
+          </Tooltip>
           <Button icon={<BulbOutlined />} onClick={() => navigate('/plans/my-onboarding/decisions')}
             style={{ borderColor: '#2d1854', color: '#2d1854', background: '#f3eeff' }}>
             Decisions

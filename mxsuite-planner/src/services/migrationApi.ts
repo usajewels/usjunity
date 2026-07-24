@@ -7,6 +7,7 @@ import type {
   ReconciliationReportDto,
   MappingVersionDto, MappingVersionDetailDto, MappingVersionDiffDto,
   FieldChangeHistoryDto,
+  PhaseBenchmarkDto, SlaAlertDto,
 } from '@mxsuite/shared';
 
 export const migrationApi = {
@@ -25,6 +26,9 @@ export const migrationApi = {
 
   advancePhase: (projectId: string) =>
     api.post<MigrationProject>(`/migration/projects/${projectId}/advance-phase`),
+
+  getProjectPhaseTimes: (projectId: string) =>
+    api.get<PhaseTimeDto[]>(`/migration/projects/${projectId}/phase-times`),
 
   updateMigration: (projectId: string, data: {
     sourceSystem?: string;
@@ -56,6 +60,12 @@ export const migrationApi = {
 
   getMappingStats: (projectId: string) =>
     api.get<MappingStatsDto>(`/projects/${projectId}/mappings/stats`),
+
+  getTargetSchema: (projectId: string) =>
+    api.get<{ targetSchema: any[] }>(`/projects/${projectId}/mappings/target-schema`),
+
+  cloneMapping: (projectId: string, mappingId: string, data: { targetField: string; targetEntity: string }) =>
+    api.post<FieldMappingEntryDto>(`/projects/${projectId}/mappings/${mappingId}/clone`, data),
 
   // Mapping Versions
   listVersions: (projectId: string, params?: { page?: number; size?: number; search?: string }) =>
@@ -136,7 +146,25 @@ export const migrationApi = {
   // Recent activity feed — all audit events for current tenant context
   getRecentActivity: (params?: { page?: number; size?: number }) =>
     api.get<{ content: AuditEventDto[]; totalElements: number }>('/audit', { params }),
+
+  // Analytics
+  getProjectBenchmarks: (projectId: string) =>
+    api.get<PhaseBenchmarkDto[]>(`/admin/analytics/projects/${projectId}/benchmarks`),
+
+  getAlerts: () =>
+    api.get<SlaAlertDto[]>('/admin/analytics/alerts'),
+
+  getAlertCount: () =>
+    api.get<{ count: number }>('/admin/analytics/alerts/count'),
 };
+
+export interface PhaseTimeDto {
+  phase: string;
+  startedAt: string;
+  completedAt: string | null;
+  durationMinutes: number;
+  active: boolean;
+}
 
 export interface AuditEventDto {
   id: string;

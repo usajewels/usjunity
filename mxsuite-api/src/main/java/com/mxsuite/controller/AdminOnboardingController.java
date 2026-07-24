@@ -11,6 +11,7 @@ import com.mxsuite.repository.OnboardingRepository;
 import com.mxsuite.repository.TenantRepository;
 import com.mxsuite.repository.UserRepository;
 import com.mxsuite.service.MappingVersionService;
+import com.mxsuite.service.TargetSchemaService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
@@ -42,19 +43,22 @@ public class AdminOnboardingController {
     private final FieldMappingEntryRepository mappingRepository;
     private final AuditService auditService;
     private final MappingVersionService versionService;
+    private final TargetSchemaService targetSchemaService;
 
     public AdminOnboardingController(OnboardingRepository onboardingRepository,
                                      TenantRepository tenantRepository,
                                      UserRepository userRepository,
                                      FieldMappingEntryRepository mappingRepository,
                                      AuditService auditService,
-                                     MappingVersionService versionService) {
+                                     MappingVersionService versionService,
+                                     TargetSchemaService targetSchemaService) {
         this.onboardingRepository = onboardingRepository;
         this.tenantRepository = tenantRepository;
         this.userRepository = userRepository;
         this.mappingRepository = mappingRepository;
         this.auditService = auditService;
         this.versionService = versionService;
+        this.targetSchemaService = targetSchemaService;
     }
 
     // --- DTOs ---
@@ -74,34 +78,6 @@ public class AdminOnboardingController {
 
     // ---- Schema / legacy onboarding endpoints ----
 
-    private static final List<Map<String, Object>> DEFAULT_TARGET_FIELDS = List.of(
-        field("firstName", "string", true, "First name"),
-        field("lastName", "string", true, "Last name"),
-        field("email", "string", true, "Email address"),
-        field("phone", "string", false, "Phone number"),
-        field("company", "string", false, "Company / Organization"),
-        field("title", "string", false, "Job title"),
-        field("address1", "string", false, "Street address line 1"),
-        field("address2", "string", false, "Street address line 2"),
-        field("city", "string", false, "City"),
-        field("state", "string", false, "State / Province"),
-        field("zip", "string", false, "Zip / Postal code"),
-        field("country", "string", false, "Country"),
-        field("memberType", "string", false, "Membership type"),
-        field("joinDate", "date", false, "Join / Start date"),
-        field("expirationDate", "date", false, "Expiration date"),
-        field("notes", "string", false, "Notes / Comments")
-    );
-
-    private static Map<String, Object> field(String name, String type, boolean required, String description) {
-        var m = new LinkedHashMap<String, Object>();
-        m.put("name", name);
-        m.put("type", type);
-        m.put("required", required);
-        m.put("description", description);
-        return m;
-    }
-
     @GetMapping
     public ResponseEntity<?> getByTenant(@PathVariable("tenantId") UUID tenantId) {
         var onboarding = onboardingRepository.findByTenantId(tenantId).orElse(null);
@@ -117,17 +93,22 @@ public class AdminOnboardingController {
         var onboarding = onboardingRepository.findByTenantId(tenantId).orElse(null);
         List<Map<String, Object>> schema = (onboarding != null && onboarding.getTargetSchema() != null)
                 ? onboarding.getTargetSchema()
-                : DEFAULT_TARGET_FIELDS;
+                : targetSchemaService.getFlatFields();
         return ResponseEntity.ok(Map.of(
                 "targetSchema", schema,
                 "hasOnboarding", onboarding != null
         ));
     }
 
+    @GetMapping("/schema/v2")
+    public ResponseEntity<?> getSchemaV2(@PathVariable("tenantId") UUID tenantId) {
+        return ResponseEntity.ok(targetSchemaService.getHierarchicalSchema());
+    }
+
     public record UpdateSchemaRequest(List<Map<String, Object>> targetSchema) {}
 
     @PutMapping("/schema")
-    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN', 'COACH_ADMIN', 'PLATFORM_SUPPORT')")
     @Transactional
     public ResponseEntity<?> updateSchema(@PathVariable("tenantId") UUID tenantId,
                                           @RequestBody UpdateSchemaRequest request) {
@@ -311,6 +292,34 @@ public class AdminOnboardingController {
         auditService.log("APPROVE", "FieldMapping", mappingId,
                 mapping.getSourceField() + " → " + mapping.getTargetField());
         return ResponseEntity.ok(toDto(mapping));
+    }
+
+    @DeleteMapping("/project/mappings")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    @Transactional
+    public ResponseEntity<?> clearMappings(@PathVariable("tenantId") UUID tenantId) {
+        var tenant = tenantRepository.findById(tenantId).orElse(null);
+        if (tenant == null) return ResponseEntity.notFound().build();
+
+        Project project = tenant.getOnboardingProject();
+        if (project == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("message", "Tenant has no onboarding project"));
+        }
+
+        long count = mappingRepository.countByProjectIdAndMappingStatus(project.getId(), MappingStatus.MAPPED)
+                + mappingRepository.countByProjectIdAndMappingStatus(project.getId(), MappingStatus.NEEDS_REVIEW)
+                + mappingRepository.countByProjectIdAndMappingStatus(project.getId(), MappingStatus.UNMAPPED)
+                + mappingRepository.countByProjectIdAndMappingStatus(project.getId(), MappingStatus.REJECTED)
+                + mappingRepository.countByProjectIdAndMappingStatus(project.getId(), MappingStatus.CFV_PROPOSAL);
+
+        mappingRepository.deleteByProjectId(project.getId());
+
+        auditService.log("CLEAR_MAPPINGS", "Project", project.getId(),
+                "Cleared " + count + " mappings for re-mapping");
+        log.info("Cleared {} mappings for tenant={}, project={}", count, tenant.getSlug(), project.getId());
+
+        return ResponseEntity.ok(Map.of("cleared", count));
     }
 
     // ---- Internal helpers ----
