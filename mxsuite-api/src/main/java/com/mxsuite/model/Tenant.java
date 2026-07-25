@@ -47,6 +47,10 @@ public class Tenant extends BaseEntity {
     @Column(name = "feature_config", columnDefinition = "jsonb")
     private Map<String, Object> featureConfig;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "ai_config", columnDefinition = "jsonb")
+    private Map<String, Object> aiConfig;
+
     @Column(name = "open_to_all_coaches", nullable = false)
     private boolean openToAllCoaches = false;
 

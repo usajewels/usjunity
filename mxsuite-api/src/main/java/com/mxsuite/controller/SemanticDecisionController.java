@@ -154,11 +154,18 @@ public class SemanticDecisionController {
     }
 
     @GetMapping("/stats")
-    public DecisionStatsDto stats() {
-        UUID tenantId = TenantContext.getCurrentTenantId();
-        long open = decisionRepository.countByTenantIdAndDecisionStatus(tenantId, DecisionStatus.OPEN);
-        long approved = decisionRepository.countByTenantIdAndDecisionStatus(tenantId, DecisionStatus.APPROVED);
-        long rejected = decisionRepository.countByTenantIdAndDecisionStatus(tenantId, DecisionStatus.REJECTED);
+    public DecisionStatsDto stats(@AuthenticationPrincipal UserPrincipal principal) {
+        long open, approved, rejected;
+        if (principal != null && principal.isPlatformUser()) {
+            open = decisionRepository.countByDecisionStatus(DecisionStatus.OPEN);
+            approved = decisionRepository.countByDecisionStatus(DecisionStatus.APPROVED);
+            rejected = decisionRepository.countByDecisionStatus(DecisionStatus.REJECTED);
+        } else {
+            UUID tenantId = TenantContext.getCurrentTenantId();
+            open = decisionRepository.countByTenantIdAndDecisionStatus(tenantId, DecisionStatus.OPEN);
+            approved = decisionRepository.countByTenantIdAndDecisionStatus(tenantId, DecisionStatus.APPROVED);
+            rejected = decisionRepository.countByTenantIdAndDecisionStatus(tenantId, DecisionStatus.REJECTED);
+        }
         return new DecisionStatsDto(open + approved + rejected, open, approved, rejected);
     }
 

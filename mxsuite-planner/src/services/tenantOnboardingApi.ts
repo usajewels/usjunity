@@ -2,6 +2,7 @@ import { api } from '@mxsuite/shared';
 import type {
   TenantOnboardingDto, UploadPreviewDto, UploadResultDto, ImportStatusDto,
   MappingVersionDto, MappingVersionDetailDto, FieldChangeHistoryDto,
+  MappingImportResultDto, EntityCoverageEntry,
 } from '@mxsuite/shared';
 
 export const tenantOnboardingApi = {
@@ -35,6 +36,9 @@ export const tenantOnboardingApi = {
 
   getUploadPreview: () =>
     api.get<UploadPreviewDto>('/my-onboarding/upload/preview'),
+
+  getCurrentUpload: () =>
+    api.get<UploadResultDto>('/my-onboarding/upload/current'),
 
   // Preview upload — send extracted CSV text for large files
   uploadPreview: (csvText: string, originalFilename: string, totalFileSize: number) =>
@@ -81,6 +85,25 @@ export const tenantOnboardingApi = {
 
   getMappingStats: () =>
     api.get('/my-onboarding/mappings/stats'),
+
+  // Mapping import/export
+  exportMappings: () =>
+    api.get('/my-onboarding/mappings/export'),
+
+  importMappings: (file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return api.post<MappingImportResultDto>('/my-onboarding/mappings/import', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+
+  // Entity Coverage
+  getEntityCoverage: () =>
+    api.get<EntityCoverageEntry[]>('/my-onboarding/upload/entity-coverage'),
+
+  updateEntityCoverage: (overrides: { entity: string; active: boolean }[]) =>
+    api.put<EntityCoverageEntry[]>('/my-onboarding/upload/entity-coverage', overrides),
 
   // Decisions
   listDecisions: (params?: Record<string, unknown>) =>

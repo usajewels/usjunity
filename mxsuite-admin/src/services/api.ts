@@ -45,7 +45,7 @@ export const tenantApi = {
     coachIds?: string[];
   }) => api.post('/admin/tenants/with-owner', data),
 
-  update: (id: string, data: { name?: string; slug?: string; active?: boolean; brandName?: string; logoUrl?: string; themeConfig?: Record<string, unknown>; featureConfig?: Record<string, unknown>; openToAllCoaches?: boolean }) =>
+  update: (id: string, data: { name?: string; slug?: string; active?: boolean; brandName?: string; logoUrl?: string; themeConfig?: Record<string, unknown>; featureConfig?: Record<string, unknown>; aiConfig?: Record<string, unknown>; openToAllCoaches?: boolean }) =>
     api.put<Tenant>(`/admin/tenants/${id}`, data),
 
   uploadLogo: (id: string, file: File) => {
@@ -277,6 +277,34 @@ export const logApi = {
 
   setLoggerLevel: (name: string, level: string | null) =>
     api.put(`/admin/logs/loggers/${encodeURIComponent(name)}`, { level }),
+};
+
+/* ------------------------------------------------------------------ */
+/*  AI Config API                                                      */
+/* ------------------------------------------------------------------ */
+
+export interface AiProviderInfo {
+  name: string;
+  model: string;
+  available: boolean;
+  keySource: 'env' | 'db' | 'none';
+}
+
+export interface AiStatusResponse {
+  providers: AiProviderInfo[];
+  taskAssignments: Record<string, string>;
+  yamlDefaults: Record<string, string>;
+}
+
+export const aiConfigApi = {
+  getStatus: () =>
+    api.get<AiStatusResponse>('/admin/ai/status'),
+
+  setKey: (provider: string, apiKey: string) =>
+    api.put<{ provider: string; keySource: string }>('/admin/ai/keys', { provider, apiKey }),
+
+  removeKey: (provider: string) =>
+    api.delete<{ provider: string; keySource: string }>(`/admin/ai/keys/${provider}`),
 };
 
 export default api;

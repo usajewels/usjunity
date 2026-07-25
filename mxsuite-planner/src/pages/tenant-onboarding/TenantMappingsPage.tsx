@@ -3,21 +3,23 @@ import { useNavigate } from 'react-router-dom';
 import {
   Table, Tag, Typography, Tabs, Button, Select, FloatButton,
   Space, message, Row, Col, Card, Collapse, Tooltip, Modal, Form, Input, Switch, Alert, Checkbox,
-  Divider, Progress, List, Spin,
+  Divider, Progress, List, Spin, Upload,
 } from 'antd';
 import type { TableRowSelection } from 'antd/es/table/interface';
 import {
   ApartmentOutlined, CheckCircleOutlined, ClockCircleOutlined, DownOutlined, ExclamationCircleOutlined,
-  RightOutlined, StopOutlined, ThunderboltOutlined, CheckOutlined, PlusOutlined,
-  HistoryOutlined,
+  ExportOutlined, ImportOutlined, RightOutlined, StopOutlined, ThunderboltOutlined,
+  CheckOutlined, PlusOutlined, HistoryOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { Resizable } from 'react-resizable';
 import 'react-resizable/css/styles.css';
 import { usePageTitle } from '@mxsuite/shared';
+import type { EntityCoverageEntry } from '@mxsuite/shared';
 import { tenantOnboardingApi } from '../../services/tenantOnboardingApi';
 import type { FieldChangeHistoryDto } from '@mxsuite/shared';
 import MappingVersionHistory from '../../components/migration/MappingVersionHistory';
+import EntityCoveragePanel from '../../components/migration/EntityCoveragePanel';
 
 const { Title, Text } = Typography;
 
@@ -138,6 +140,7 @@ export default function TenantMappingsPage() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
 
+  const [entityScope, setEntityScope] = useState<EntityCoverageEntry[]>([]);
   const [customFields, setCustomFields] = useState<GzField[]>(loadCustomFields);
   const [customFieldModalOpen, setCustomFieldModalOpen] = useState(false);
   const [customFieldForm] = Form.useForm();
@@ -153,6 +156,9 @@ export default function TenantMappingsPage() {
   const [panelHistoryPage, setPanelHistoryPage] = useState(0);
   const [expandedVersions, setExpandedVersions] = useState<Set<number>>(new Set());
   const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const COLLAPSED_KEY = 'mxsuite_collapsed_entities';
   const [collapsedEntities, setCollapsedEntities] = useState<Set<string>>(() => {
     try {
@@ -171,7 +177,18 @@ export default function TenantMappingsPage() {
     });
   };
 
-  const gzFields: GzField[] = [...schemaFields, ...customFields];
+  // Filter schema fields by active entities from detection
+  const activeEntities = useMemo(() => {
+    if (entityScope.length === 0) return new Set<string>();
+    return new Set(entityScope.filter(e => e.active).map(e => e.entity));
+  }, [entityScope]);
+
+  const filteredSchemaFields = useMemo(() => {
+    if (activeEntities.size === 0) return schemaFields;
+    return schemaFields.filter(f => activeEntities.has(f.entity));
+  }, [schemaFields, activeEntities]);
+
+  const gzFields: GzField[] = [...filteredSchemaFields, ...customFields];
   const allGzFieldNames = new Set(gzFields.map((f) => f.name));
 
   const entityOptions = useMemo(() => {
@@ -193,11 +210,13 @@ export default function TenantMappingsPage() {
         return;
       }
 
-      const [mappingsRes, schemaRes] = await Promise.all([
+      const [mappingsRes, schemaRes, coverageRes] = await Promise.all([
         tenantOnboardingApi.listMappings({ page: 0, size: 200 }),
         tenantOnboardingApi.getSchema(),
+        tenantOnboardingApi.getEntityCoverage().catch(() => ({ data: [] as EntityCoverageEntry[] })),
       ]);
       setMappings((mappingsRes.data.content || mappingsRes.data) as MappingEntry[]);
+      setEntityScope(coverageRes.data || []);
       const loaded = (schemaRes.data.targetSchema || []).map((f: any) => ({
         entity: f.entity || 'Other',
         name: f.name,
@@ -473,6 +492,63 @@ export default function TenantMappingsPage() {
       })
       .catch(() => {})
       .finally(() => setPanelHistoryLoading(false));
+  };
+
+  /* ---------- Import/Export handlers ---------- */
+
+  const handleExportMappings = async () => {
+    setExporting(true);
+    try {
+      const { data } = await tenantOnboardingApi.exportMappings();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'mappings-export.json';
+      a.click();
+      URL.revokeObjectURL(url);
+      message.success('Mappings exported');
+    } catch {
+      message.error('Export failed');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleImportMappings = async (file: File) => {
+    setImporting(true);
+    try {
+      const { data } = await tenantOnboardingApi.importMappings(file);
+      setImportModalOpen(false);
+      Modal.success({
+        title: 'Import Complete',
+        content: (
+          <div>
+            <p><strong>{data.updated}</strong> mapping(s) updated</p>
+            <p><strong>{data.matched}</strong> source field(s) matched</p>
+            {data.skippedNotFound > 0 && (
+              <p><strong>{data.skippedNotFound}</strong> skipped (source field not found)</p>
+            )}
+            {data.skippedUnchanged > 0 && (
+              <p><strong>{data.skippedUnchanged}</strong> unchanged (already matching)</p>
+            )}
+            {data.warnings.length > 0 && (
+              <details style={{ marginTop: 8 }}>
+                <summary>Warnings ({data.warnings.length})</summary>
+                <ul style={{ maxHeight: 200, overflow: 'auto', fontSize: 12 }}>
+                  {data.warnings.map((w: string, i: number) => <li key={i}>{w}</li>)}
+                </ul>
+              </details>
+            )}
+          </div>
+        ),
+      });
+      fetchData();
+    } catch (err: any) {
+      message.error(err?.response?.data?.message || 'Import failed');
+    } finally {
+      setImporting(false);
+    }
   };
 
   const selectField = (f: GzField) => {
@@ -810,6 +886,14 @@ export default function TenantMappingsPage() {
         </Text>
       </div>
 
+      {/* Entity Scope Panel (read-only for tenants) */}
+      {entityScope.length > 0 && (
+        <EntityCoveragePanel
+          coverage={entityScope}
+          readOnly
+        />
+      )}
+
       {/* Schema coverage summary bar */}
       {gzFields.length > 0 && (
         <Card size="small" style={{ marginBottom: unmappedRequired.length > 0 ? 8 : 16, borderColor: '#e0d4f5', borderTop: '3px solid #2d1854' }}>
@@ -856,6 +940,23 @@ export default function TenantMappingsPage() {
             <Col flex="auto" />
             <Col>
               <Space wrap>
+                <Button
+                  size="small"
+                  icon={<ExportOutlined />}
+                  loading={exporting}
+                  onClick={handleExportMappings}
+                  style={{ borderColor: '#6b4fa0', color: '#6b4fa0' }}
+                >
+                  Export
+                </Button>
+                <Button
+                  size="small"
+                  icon={<ImportOutlined />}
+                  onClick={() => setImportModalOpen(true)}
+                  style={{ borderColor: '#6b4fa0', color: '#6b4fa0' }}
+                >
+                  Import
+                </Button>
                 <Button
                   size="small"
                   icon={<HistoryOutlined />}
@@ -1429,6 +1530,44 @@ export default function TenantMappingsPage() {
         onRollbackComplete={fetchData}
       />
       <FloatButton.BackTop visibilityHeight={300} />
+
+      {/* Import mappings modal */}
+      <Modal
+        title="Import Mappings"
+        open={importModalOpen}
+        onCancel={() => setImportModalOpen(false)}
+        footer={null}
+        width={480}
+      >
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="This will overwrite existing mapping assignments. A version snapshot will be created first so you can roll back."
+        />
+        <Upload.Dragger
+          accept=".json"
+          maxCount={1}
+          beforeUpload={(file) => {
+            Modal.confirm({
+              title: 'Confirm Import',
+              content: `Import mappings from "${file.name}"? Existing mappings will be overwritten.`,
+              okText: 'Import',
+              okButtonProps: { danger: true },
+              onOk: () => handleImportMappings(file),
+            });
+            return false;
+          }}
+          showUploadList={false}
+          disabled={importing}
+        >
+          <p style={{ fontSize: 14, color: '#6b4fa0' }}>
+            <ImportOutlined style={{ fontSize: 24, marginBottom: 8, display: 'block' }} />
+            Click or drag a JSON mapping file here
+          </p>
+        </Upload.Dragger>
+        {importing && <Spin style={{ display: 'block', marginTop: 16, textAlign: 'center' }} />}
+      </Modal>
     </div>
   );
 }

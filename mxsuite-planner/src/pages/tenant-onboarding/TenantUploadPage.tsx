@@ -2,12 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Card, Typography, Upload, Button, Table, Modal, Radio, Space, Tag, Spin, Progress, message,
-  Checkbox, Input, Alert,
+  Checkbox, Input, Alert, Tabs,
 } from 'antd';
 import {
   InboxOutlined, FileExcelOutlined, ArrowRightOutlined,
   ExclamationCircleOutlined, LoadingOutlined, CloudUploadOutlined,
   CheckCircleOutlined, DatabaseOutlined, FolderOpenOutlined,
+  TableOutlined,
 } from '@ant-design/icons';
 import type { UploadResultDto, UploadPreviewDto, ImportStatusDto } from '@mxsuite/shared';
 import { usePageTitle, useWebSocket } from '@mxsuite/shared';
@@ -19,6 +20,155 @@ const { Title, Text, Paragraph } = Typography;
 const { Dragger } = Upload;
 
 const LARGE_FILE_THRESHOLD_MB = 50;
+
+/** Per-table data preview with column tag cloud for .bak files */
+function BakTablePreview({ grouped, tblNames, rowCounts }: {
+  grouped: Record<string, { name: string; sampleValues: string[]; tableName?: string; dataType?: string }[]>;
+  tblNames: string[];
+  rowCounts: Record<string, number>;
+}) {
+  // Track selected column index per table
+  const [selectedCol, setSelectedCol] = useState<Record<string, number>>({});
+  const tableRef = useRef<HTMLDivElement>(null);
+  // How many columns to show around the selected one in the data table
+  const WINDOW = 7;
+
+  return (
+    <Card style={{ marginBottom: 80, borderColor: '#e0d4f5', borderTop: '3px solid #2d1854' }}>
+      <Title level={5} style={{ marginBottom: 12, color: '#2d1854' }}>
+        <DatabaseOutlined style={{ marginRight: 8 }} />
+        Data Preview
+      </Title>
+      <Tabs
+        type="card"
+        items={tblNames.map(tbl => {
+          const allCols = grouped[tbl];
+          const rc = rowCounts[tbl] ?? 0;
+          const sel = selectedCol[tbl] ?? -1;
+
+          // Determine visible columns: window around selected, or first WINDOW if none selected
+          let visibleStart: number;
+          let visibleEnd: number;
+          if (sel >= 0) {
+            const half = Math.floor(WINDOW / 2);
+            visibleStart = Math.max(0, sel - half);
+            visibleEnd = Math.min(allCols.length, visibleStart + WINDOW);
+            // Adjust start if we hit the end
+            if (visibleEnd === allCols.length) {
+              visibleStart = Math.max(0, visibleEnd - WINDOW);
+            }
+          } else {
+            visibleStart = 0;
+            visibleEnd = Math.min(allCols.length, WINDOW);
+          }
+          const visibleCols = allCols.slice(visibleStart, visibleEnd);
+
+          // Transpose sampleValues to rows for visible columns
+          const maxRows = Math.max(...visibleCols.map(c => c.sampleValues?.length ?? 0), 0);
+          const tableColumns = visibleCols.map((col, ci) => {
+            const globalIdx = visibleStart + ci;
+            const colName = col.name?.includes('.') ? col.name.split('.').pop() : col.name;
+            const isSelected = globalIdx === sel;
+            return {
+              title: (
+                <span style={{
+                  fontWeight: isSelected ? 700 : 400,
+                  color: isSelected ? '#531dab' : undefined,
+                }}>
+                  {colName}
+                </span>
+              ),
+              dataIndex: ci.toString(),
+              key: `${globalIdx}`,
+              ellipsis: true,
+              width: 160,
+              onHeaderCell: () => ({
+                style: isSelected ? { background: '#f3e8ff', borderBottom: '2px solid #722ed1' } : {},
+              }),
+              onCell: () => ({
+                style: isSelected ? { background: '#faf5ff' } : {},
+              }),
+            };
+          });
+          const tableData = Array.from({ length: maxRows }, (_, ri) => {
+            const row: Record<string, string> = { key: ri.toString() };
+            visibleCols.forEach((col, ci) => {
+              row[ci.toString()] = col.sampleValues?.[ri] ?? '';
+            });
+            return row;
+          });
+
+          return {
+            key: tbl,
+            label: (
+              <span>
+                <TableOutlined style={{ marginRight: 4 }} />
+                {tbl}
+                {rc > 0 && <Text type="secondary" style={{ fontSize: 11, marginLeft: 4 }}>({rc.toLocaleString()} rows)</Text>}
+              </span>
+            ),
+            children: (
+              <div>
+                {/* Column tag cloud */}
+                <div style={{
+                  maxHeight: 140, overflowY: 'auto', marginBottom: 12,
+                  padding: '8px 4px', background: '#fafafa', borderRadius: 6,
+                  border: '1px solid #f0f0f0',
+                }}>
+                  {allCols.map((col, idx) => {
+                    const colName = col.name?.includes('.') ? col.name.split('.').pop() : col.name;
+                    const isSelected = idx === sel;
+                    return (
+                      <Tag
+                        key={idx}
+                        color={isSelected ? 'purple' : undefined}
+                        style={{
+                          cursor: 'pointer',
+                          marginBottom: 4,
+                          fontWeight: isSelected ? 600 : 400,
+                          borderColor: isSelected ? '#722ed1' : undefined,
+                        }}
+                        onClick={() => {
+                          setSelectedCol(prev => ({ ...prev, [tbl]: idx }));
+                        }}
+                      >
+                        {colName}
+                      </Tag>
+                    );
+                  })}
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    {sel >= 0
+                      ? `Showing columns ${visibleStart + 1}–${visibleEnd} of ${allCols.length} (centered on selected)`
+                      : `Showing first ${visibleEnd} of ${allCols.length} columns — click a column above to navigate`
+                    }
+                  </Text>
+                </div>
+
+                <div ref={tableRef}>
+                  <Table
+                    dataSource={tableData}
+                    columns={tableColumns}
+                    pagination={false}
+                    size="small"
+                    scroll={{ x: 'max-content' }}
+                    bordered
+                  />
+                </div>
+                <Text type="secondary" style={{ fontSize: 12, marginTop: 8, display: 'block' }}>
+                  Showing {maxRows} sample row{maxRows !== 1 ? 's' : ''}
+                  {rc > 0 && ` of ${rc.toLocaleString()} total`}
+                </Text>
+              </div>
+            ),
+          };
+        })}
+      />
+    </Card>
+  );
+}
 
 export default function TenantUploadPage() {
   usePageTitle('Data Upload');
@@ -62,18 +212,20 @@ export default function TenantUploadPage() {
   const wsToken = localStorage.getItem('mxsuite_token') ?? undefined;
   const { subscribe } = useWebSocket({ token: wsToken });
 
-  // Load existing preview + import status on mount
+  // Load existing preview + import status + current upload on mount
   useEffect(() => {
     setLoadingPreview(true);
     Promise.all([
       tenantOnboardingApi.getUploadPreview().catch(() => null),
       tenantOnboardingApi.getImportStatus().catch(() => null),
-    ]).then(([previewRes, statusRes]) => {
+      tenantOnboardingApi.getCurrentUpload().catch(() => null),
+    ]).then(([previewRes, statusRes, uploadRes]) => {
       if (previewRes?.data) setPreview(previewRes.data);
       if (statusRes?.data) {
         setImportStatus(statusRes.data);
         setIsPreviewOnly(statusRes.data.isPreviewOnly);
       }
+      if (uploadRes?.data) setUploadResult(uploadRes.data);
     }).finally(() => setLoadingPreview(false));
   }, []);
 
@@ -196,7 +348,7 @@ export default function TenantUploadPage() {
       const { data } = await tenantOnboardingApi.selectTables(selectedTables);
       setTableModalOpen(false);
       setUploadResult(data);
-      message.success(`${selectedTables.length} tables selected. Proceed to mappings to review field mappings.`);
+      message.success(`${selectedTables.length} table${selectedTables.length !== 1 ? 's' : ''} mapped. Review the extracted schema below.`);
     } catch {
       message.error('Failed to process selected tables');
     } finally {
@@ -516,72 +668,57 @@ export default function TenantUploadPage() {
         </Card>
       )}
 
-      {/* Backup schema summary — shown after .bak table selection (no row preview) */}
+      {/* (Schema summary card removed — tabbed data preview below replaces it) */}
+
+      {/* Tabbed data preview per table — shown when .bak sourceColumns have sampleValues */}
       {uploadResult && !tableModalOpen && !confirmModalOpen
         && uploadResult.originalFilename?.toLowerCase().endsWith('.bak')
-        && uploadResult.sourceColumns && uploadResult.sourceColumns.length > 0 && !preview && (
-        <Card style={{ marginBottom: 24, borderColor: '#e0d4f5', borderTop: '3px solid #2d1854' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <div>
-              <Title level={5} style={{ marginBottom: 0, color: '#2d1854' }}>
-                <DatabaseOutlined style={{ marginRight: 8 }} />
-                Schema Extracted
-              </Title>
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                {uploadResult.sourceColumns.length} columns from {uploadResult.rowCount} tables
-              </Text>
-            </div>
-            <Button
-              type="primary"
-              icon={<ArrowRightOutlined />}
-              onClick={() => navigate('/plans/my-onboarding/mappings')}
-              style={{ background: '#2d1854', borderColor: '#2d1854' }}
-            >
-              Proceed to Mappings
-            </Button>
-          </div>
-          <Space wrap>
-            {uploadResult.sourceColumns.slice(0, 50).map((col) => (
-              <Tag key={col.name} style={{ backgroundColor: '#f3eeff', color: '#2d1854', borderColor: '#e0d4f5' }}>
-                {col.name}
-                {col.dataType && <Text type="secondary" style={{ fontSize: 11, marginLeft: 4 }}>({col.dataType})</Text>}
-              </Tag>
-            ))}
-            {uploadResult.sourceColumns.length > 50 && (
-              <Tag>+{uploadResult.sourceColumns.length - 50} more</Tag>
-            )}
-          </Space>
-        </Card>
-      )}
+        && uploadResult.sourceColumns && uploadResult.sourceColumns.length > 0
+        && uploadResult.sourceColumns.some(c => c.sampleValues && c.sampleValues.length > 0) && (() => {
+        // Group columns by table
+        const grouped: Record<string, typeof uploadResult.sourceColumns> = {};
+        for (const col of uploadResult.sourceColumns) {
+          const tbl = col.tableName || 'Unknown';
+          if (!grouped[tbl]) grouped[tbl] = [];
+          grouped[tbl].push(col);
+        }
+        const tblNames = Object.keys(grouped);
+        // Get row counts from tables metadata, fallback to tableRowCount from sourceColumns
+        const rowCounts: Record<string, number> = {};
+        if (uploadResult.tables && uploadResult.tables.length > 0) {
+          for (const t of uploadResult.tables) {
+            rowCounts[t.name] = t.rowCount ?? 0;
+          }
+        } else {
+          // Fallback: use tableRowCount stored per column in sourceColumns
+          for (const col of uploadResult.sourceColumns) {
+            const tbl = col.tableName || 'Unknown';
+            if (col.tableRowCount && !rowCounts[tbl]) {
+              rowCounts[tbl] = col.tableRowCount;
+            }
+          }
+        }
 
-      {/* Preview */}
-      {preview && preview.headers.length > 0 && (
+        return (
+          <BakTablePreview
+            grouped={grouped}
+            tblNames={tblNames}
+            rowCounts={rowCounts}
+          />
+        );
+      })()}
+
+      {/* Preview — CSV/Excel only (not .bak, which uses the tabbed preview above) */}
+      {preview && preview.headers.length > 0
+        && !uploadResult?.originalFilename?.toLowerCase().endsWith('.bak') && (
         <>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <div>
-              <Title level={5} style={{ marginBottom: 0, color: '#2d1854' }}>Data Preview</Title>
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                {preview.totalRows.toLocaleString()} rows detected · {preview.headers.length} columns
-                {isPreviewOnly && ' (preview only)'}
-              </Text>
-            </div>
-            <Button
-              type="primary"
-              icon={<ArrowRightOutlined />}
-              onClick={() => navigate('/plans/my-onboarding/mappings')}
-              style={{ background: '#2d1854', borderColor: '#2d1854' }}
-            >
-              Proceed to Mappings
-            </Button>
+          <div style={{ marginBottom: 12 }}>
+            <Title level={5} style={{ marginBottom: 0, color: '#2d1854' }}>Data Preview</Title>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              {preview.totalRows.toLocaleString()} rows detected · {preview.headers.length} columns
+              {isPreviewOnly && ' (preview only)'}
+            </Text>
           </div>
-
-          <Card size="small" style={{ marginBottom: 16, borderColor: '#e0d4f5' }}>
-            <Space wrap>
-              {preview.headers.map((h) => (
-                <Tag key={h} style={{ backgroundColor: '#f3eeff', color: '#2d1854', borderColor: '#e0d4f5' }}>{h}</Tag>
-              ))}
-            </Space>
-          </Card>
 
           <Table
             columns={previewColumns}
@@ -590,6 +727,7 @@ export default function TenantUploadPage() {
             size="small"
             scroll={{ x: 'max-content' }}
             bordered
+            style={{ marginBottom: 60 }}
           />
         </>
       )}
@@ -673,13 +811,62 @@ export default function TenantUploadPage() {
                 <Space>
                   <DatabaseOutlined style={{ color: '#6b4fa0' }} />
                   <Text strong>{table.schema}.{table.name}</Text>
-                  <Text type="secondary">({table.columnCount} columns)</Text>
+                  <Text type="secondary">
+                    ({table.columnCount} columns{table.rowCount ? `, ${table.rowCount.toLocaleString()} rows` : ''})
+                  </Text>
                 </Space>
               </Checkbox>
             )) ?? null}
           </Checkbox.Group>
         </div>
       </Modal>
+
+      {/* Floating bottom bar — Proceed to Mappings (for .bak and CSV/Excel) */}
+      {((uploadResult && !tableModalOpen && !confirmModalOpen
+        && uploadResult.originalFilename?.toLowerCase().endsWith('.bak')
+        && uploadResult.sourceColumns && uploadResult.sourceColumns.length > 0 && !preview)
+        || (preview && preview.headers.length > 0)) && (
+        <div style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          background: '#fff',
+          borderTop: '2px solid #2d1854',
+          padding: '12px 32px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          zIndex: 100,
+          boxShadow: '0 -4px 12px rgba(0,0,0,0.08)',
+        }}>
+          <Space size="large">
+            <CheckCircleOutlined style={{ fontSize: 20, color: '#52c41a' }} />
+            <div>
+              <Text strong style={{ color: '#2d1854' }}>
+                {uploadResult?.originalFilename}
+              </Text>
+              <br />
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                {uploadResult?.originalFilename?.toLowerCase().endsWith('.bak')
+                  ? `${uploadResult.sourceColumns?.length ?? 0} columns across ${uploadResult.tables?.length ?? uploadResult.rowCount} tables`
+                  : `${preview?.totalRows.toLocaleString() ?? uploadResult?.rowCount.toLocaleString()} rows · ${preview?.headers.length ?? uploadResult?.sourceColumns?.length ?? 0} columns`
+                }
+                {' — ready for field mapping'}
+              </Text>
+            </div>
+          </Space>
+          <Button
+            type="primary"
+            size="large"
+            icon={<ArrowRightOutlined />}
+            onClick={() => navigate('/plans/my-onboarding/mappings')}
+            style={{ background: '#2d1854', borderColor: '#2d1854', height: 44, paddingInline: 32, fontWeight: 600 }}
+          >
+            Proceed to Mappings
+          </Button>
+        </div>
+      )}
 
       {/* Re-upload confirmation modal */}
       <Modal

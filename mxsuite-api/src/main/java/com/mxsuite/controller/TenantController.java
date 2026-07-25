@@ -117,6 +117,7 @@ public class TenantController {
             @Size(max = 500) String logoUrl,
             Map<String, Object> themeConfig,
             Map<String, Object> featureConfig,
+            Map<String, Object> aiConfig,
             Boolean openToAllCoaches) {}
 
     public record CreateTenantWithOwnerRequest(
@@ -294,6 +295,7 @@ public class TenantController {
                     if (request.logoUrl() != null) tenant.setLogoUrl(request.logoUrl().trim());
                     if (request.themeConfig() != null) tenant.setThemeConfig(request.themeConfig());
                     if (request.featureConfig() != null) tenant.setFeatureConfig(request.featureConfig());
+                    if (request.aiConfig() != null) tenant.setAiConfig(request.aiConfig());
                     if (request.openToAllCoaches() != null) tenant.setOpenToAllCoaches(request.openToAllCoaches());
                     tenant = tenantRepository.save(tenant);
                     auditService.log("UPDATE", "Tenant", tenant.getId(), tenant.getName());

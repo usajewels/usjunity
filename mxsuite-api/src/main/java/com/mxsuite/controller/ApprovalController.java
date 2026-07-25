@@ -116,11 +116,18 @@ public class ApprovalController {
     public record RejectRequest(String reason) {}
 
     @GetMapping("/stats")
-    public ApprovalStatsDto stats() {
-        UUID tenantId = TenantContext.getCurrentTenantId();
-        long pending = approvalRepository.countByTenantIdAndApprovalStatus(tenantId, ApprovalStatus.PENDING);
-        long approved = approvalRepository.countByTenantIdAndApprovalStatus(tenantId, ApprovalStatus.APPROVED);
-        long rejected = approvalRepository.countByTenantIdAndApprovalStatus(tenantId, ApprovalStatus.REJECTED);
+    public ApprovalStatsDto stats(@AuthenticationPrincipal UserPrincipal principal) {
+        long pending, approved, rejected;
+        if (principal != null && principal.isPlatformUser()) {
+            pending = approvalRepository.countByApprovalStatus(ApprovalStatus.PENDING);
+            approved = approvalRepository.countByApprovalStatus(ApprovalStatus.APPROVED);
+            rejected = approvalRepository.countByApprovalStatus(ApprovalStatus.REJECTED);
+        } else {
+            UUID tenantId = TenantContext.getCurrentTenantId();
+            pending = approvalRepository.countByTenantIdAndApprovalStatus(tenantId, ApprovalStatus.PENDING);
+            approved = approvalRepository.countByTenantIdAndApprovalStatus(tenantId, ApprovalStatus.APPROVED);
+            rejected = approvalRepository.countByTenantIdAndApprovalStatus(tenantId, ApprovalStatus.REJECTED);
+        }
         return new ApprovalStatsDto(pending + approved + rejected, pending, approved, rejected);
     }
 

@@ -3,22 +3,24 @@ import { useNavigate, useParams } from 'react-router-dom';
 import {
   Table, Tag, Typography, Progress, message, Space, Input, Select, FloatButton,
   Button, Tabs, Row, Col, Breadcrumb, Tooltip, Badge, Alert, Checkbox,
-  Divider, List, Spin, Card, Radio, Collapse,
+  Divider, List, Spin, Card, Radio, Collapse, Modal, Upload,
 } from 'antd';
 import type { TableRowSelection } from 'antd/es/table/interface';
 import {
   ApartmentOutlined, ArrowLeftOutlined, CheckCircleOutlined, ClockCircleOutlined, DownOutlined,
-  ExclamationCircleOutlined, HistoryOutlined, PlusOutlined, ReloadOutlined,
+  ExclamationCircleOutlined, ExportOutlined, HistoryOutlined, ImportOutlined,
+  PlusOutlined, ReloadOutlined,
   RightOutlined, SearchOutlined, StopOutlined, SwapOutlined, WarningOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import type { FieldMappingEntryDto, MappingStatus, MappingStatsDto } from '@mxsuite/shared';
+import type { FieldMappingEntryDto, MappingStatus, MappingStatsDto, EntityCoverageEntry } from '@mxsuite/shared';
 import { usePageTitle } from '@mxsuite/shared';
 import { Resizable } from 'react-resizable';
 import 'react-resizable/css/styles.css';
 import { migrationApi } from '../../services/migrationApi';
 import type { FieldChangeHistoryDto } from '@mxsuite/shared';
 import MappingVersionHistory from '../../components/migration/MappingVersionHistory';
+import EntityCoveragePanel from '../../components/migration/EntityCoveragePanel';
 
 const { Text } = Typography;
 
@@ -175,6 +177,12 @@ export default function MappingsPage() {
   const [panelHistoryPage, setPanelHistoryPage] = useState(0);
   const [expandedVersions, setExpandedVersions] = useState<Set<number>>(new Set());
   const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
+  // Entity scope detection
+  const [entityScope, setEntityScope] = useState<EntityCoverageEntry[]>([]);
 
   // Right-side detail panel state (Target → Source)
   const [panelField, setPanelField] = useState<GzField | null>(null);
@@ -206,16 +214,18 @@ export default function MappingsPage() {
     if (!projectId) return;
     if (!quiet) setLoading(true); else setRefreshing(true);
     try {
-      const [projectRes, mappingsRes, statsRes, schemaRes] = await Promise.all([
+      const [projectRes, mappingsRes, statsRes, schemaRes, coverageRes] = await Promise.all([
         migrationApi.getProject(projectId),
         migrationApi.listMappings(projectId, { page: 0, size: 500 }),
         migrationApi.getMappingStats(projectId),
         migrationApi.getTargetSchema(projectId),
+        migrationApi.getEntityCoverage(projectId).catch(() => ({ data: [] as EntityCoverageEntry[] })),
       ]);
       setProjectName(projectRes.data.name || '');
       setTenantName((projectRes.data as any).tenant?.name || '');
       setMappings(mappingsRes.data.content);
       setStats(statsRes.data);
+      setEntityScope(coverageRes.data || []);
       const loaded = (schemaRes.data.targetSchema || []).map((f: any) => ({
         entity: f.entity || 'Other',
         name: f.name,
@@ -240,9 +250,33 @@ export default function MappingsPage() {
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [projectId]);
 
+  /* ---------- Entity scope toggle ---------- */
+
+  const handleEntityScopeToggle = useCallback(async (entity: string, active: boolean) => {
+    if (!projectId) return;
+    try {
+      const res = await migrationApi.updateEntityCoverage(projectId, [{ entity, active }]);
+      setEntityScope(res.data || []);
+    } catch {
+      message.error('Failed to update entity scope');
+    }
+  }, [projectId]);
+
+  // Active entities from detection (empty set = no filtering = all active)
+  const activeEntities = useMemo(() => {
+    if (entityScope.length === 0) return new Set<string>();
+    return new Set(entityScope.filter(e => e.active).map(e => e.entity));
+  }, [entityScope]);
+
+  // Filter schema fields by active entities
+  const filteredSchemaFields = useMemo(() => {
+    if (activeEntities.size === 0) return schemaFields;
+    return schemaFields.filter(f => activeEntities.has(f.entity));
+  }, [schemaFields, activeEntities]);
+
   /* ---------- Derived data (shared) ---------- */
 
-  const allGzFieldNames = new Set(schemaFields.map((f) => f.name));
+  const allGzFieldNames = new Set(filteredSchemaFields.map((f) => f.name));
 
   // Build mappingByTarget for Target→Source view
   const mappingByTarget: Record<string, FieldMappingEntryDto> = {};
@@ -269,7 +303,7 @@ export default function MappingsPage() {
   // Build target dropdown options grouped by entity from schema
   const targetOptions = useMemo(() => {
     const entityMap: Record<string, Array<{ value: string; label: string }>> = {};
-    for (const f of schemaFields) {
+    for (const f of filteredSchemaFields) {
       if (!entityMap[f.entity]) entityMap[f.entity] = [];
       entityMap[f.entity].push({ value: f.name, label: f.label });
     }
@@ -286,18 +320,18 @@ export default function MappingsPage() {
       ],
     });
     return groups;
-  }, [schemaFields, customTargetFields]);
+  }, [filteredSchemaFields, customTargetFields]);
 
   const entityOptions = useMemo(() => {
-    const entities = new Set(schemaFields.map((f) => f.entity).filter(Boolean));
+    const entities = new Set(filteredSchemaFields.map((f) => f.entity).filter(Boolean));
     return [
       { value: 'all', label: 'All entities' },
       ...Array.from(entities).sort().map((e) => ({ value: e, label: e })),
     ];
-  }, [schemaFields]);
+  }, [filteredSchemaFields]);
 
   // Stats for Target→Source view
-  const requiredFields = schemaFields.filter((f) => f.required);
+  const requiredFields = filteredSchemaFields.filter((f) => f.required);
   const approvedCount = Object.values(mappingByTarget).filter((m) => m.mappingStatus === 'MAPPED').length;
   const needsReviewCount = Object.values(mappingByTarget).filter(
     (m) => m.mappingStatus === 'NEEDS_REVIEW' || m.mappingStatus === 'CFV_PROPOSAL'
@@ -309,15 +343,15 @@ export default function MappingsPage() {
 
   // Per-entity coverage for summary bar
   const entityCoverage = useMemo(() => {
-    const entities = [...new Set(schemaFields.map((f) => f.entity))].sort();
+    const entities = [...new Set(filteredSchemaFields.map((f) => f.entity))].sort();
     return entities.map((entity) => {
-      const fields = schemaFields.filter((f) => f.entity === entity);
+      const fields = filteredSchemaFields.filter((f) => f.entity === entity);
       const mapped = fields.filter((f) => mappingByTarget[f.name]).length;
       const req = fields.filter((f) => f.required);
       const reqMapped = req.filter((f) => mappingByTarget[f.name]).length;
       return { entity, total: fields.length, mapped, required: req.length, reqMapped };
     });
-  }, [schemaFields, mappingByTarget]);
+  }, [filteredSchemaFields, mappingByTarget]);
 
   // Unmapped required fields for warning alert
   const unmappedRequired = requiredFields.filter((f) => !mappingByTarget[f.name]);
@@ -338,29 +372,29 @@ export default function MappingsPage() {
 
   // Initialize sidebar collapse: expand entities with unmapped required, collapse others
   useEffect(() => {
-    if (schemaFields.length === 0) return;
-    const entities = [...new Set(schemaFields.map((f) => f.entity))];
+    if (filteredSchemaFields.length === 0) return;
+    const entities = [...new Set(filteredSchemaFields.map((f) => f.entity))];
     const collapse = new Set<string>();
     for (const entity of entities) {
-      const hasUnmappedReq = schemaFields.some(
+      const hasUnmappedReq = filteredSchemaFields.some(
         (f) => f.entity === entity && f.required && !mappingByTarget[f.name]
       );
       if (!hasUnmappedReq) collapse.add(entity);
     }
     setSchemaSidebarCollapsed(collapse);
-  }, [schemaFields.length]);
+  }, [filteredSchemaFields.length]);
 
   /* ---------- Smart collapse defaults (Target→Source) ---------- */
 
   useEffect(() => {
-    if (collapsedInitialized || loading || schemaFields.length === 0) return;
+    if (collapsedInitialized || loading || filteredSchemaFields.length === 0) return;
     setCollapsedInitialized(true);
     if (localStorage.getItem(COLLAPSED_KEY)) return;
 
-    const entities = [...new Set(schemaFields.map((f) => f.entity))];
+    const entities = [...new Set(filteredSchemaFields.map((f) => f.entity))];
     const collapseAll = new Set(entities);
     for (const entity of entities) {
-      const entityFields = schemaFields.filter((f) => f.entity === entity);
+      const entityFields = filteredSchemaFields.filter((f) => f.entity === entity);
       const hasWork = entityFields.some((f) => {
         const st = mappingByTarget[f.name]?.mappingStatus;
         return st === 'NEEDS_REVIEW' || st === 'CFV_PROPOSAL' || (f.required && !mappingByTarget[f.name]);
@@ -368,7 +402,7 @@ export default function MappingsPage() {
       if (hasWork) collapseAll.delete(entity);
     }
     setCollapsedEntities(collapseAll);
-  }, [loading, schemaFields, mappings]);
+  }, [loading, filteredSchemaFields, mappings]);
 
   /* ---------- Auto-select on initial load ---------- */
 
@@ -392,15 +426,15 @@ export default function MappingsPage() {
     } else {
       const lastKey = localStorage.getItem(COACH_LAST_GZ_FIELD_KEY);
       if (lastKey) {
-        const lastField = schemaFields.find((f) => f.name === lastKey);
+        const lastField = filteredSchemaFields.find((f) => f.name === lastKey);
         if (lastField) { selectGzField(lastField); return; }
       }
-      const needsReview = schemaFields.find((f) => {
+      const needsReview = filteredSchemaFields.find((f) => {
         const st = mappingByTarget[f.name]?.mappingStatus;
         return st === 'NEEDS_REVIEW' || st === 'CFV_PROPOSAL';
       });
       if (needsReview) { selectGzField(needsReview); return; }
-      if (schemaFields.length > 0) selectGzField(schemaFields[0]);
+      if (filteredSchemaFields.length > 0) selectGzField(filteredSchemaFields[0]);
     }
   }, [loading, mappings]);
 
@@ -488,7 +522,7 @@ export default function MappingsPage() {
 
   /* ---------- Target → Source filtering ---------- */
 
-  const tsFilteredGzFields = schemaFields.filter((f) => {
+  const tsFilteredGzFields = filteredSchemaFields.filter((f) => {
     if (entityFilter !== 'all' && f.entity !== entityFilter) return false;
     const m = mappingByTarget[f.name];
     const st = m?.mappingStatus;
@@ -524,7 +558,7 @@ export default function MappingsPage() {
     return rows;
   }, [tsFilteredGzFields, entityFilter, mappingByTarget, collapsedEntities]);
 
-  const tsSelectedGzFields = schemaFields.filter((f) => selectedRowKeys.includes(f.name));
+  const tsSelectedGzFields = filteredSchemaFields.filter((f) => selectedRowKeys.includes(f.name));
   const tsBulkApprovable = tsSelectedGzFields.filter((f) => {
     const m = mappingByTarget[f.name];
     return m && (m.mappingStatus === 'NEEDS_REVIEW' || m.mappingStatus === 'CFV_PROPOSAL');
@@ -562,7 +596,7 @@ export default function MappingsPage() {
         saveCustomTargets(updated);
       }
     } else if (newField) {
-      const predefined = schemaFields.find((t) => t.name === newField);
+      const predefined = filteredSchemaFields.find((t) => t.name === newField);
       if (predefined) {
         targetField = predefined.name;
         targetEntity = predefined.entity;
@@ -706,6 +740,65 @@ export default function MappingsPage() {
       .finally(() => setPanelHistoryLoading(false));
   };
 
+  /* ---------- Import/Export handlers ---------- */
+
+  const handleExportMappings = async () => {
+    if (!projectId) return;
+    setExporting(true);
+    try {
+      const { data } = await migrationApi.exportMappings(projectId);
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${(projectName || 'mappings').replace(/[^a-zA-Z0-9._-]/g, '_')}-mappings.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      message.success('Mappings exported');
+    } catch {
+      message.error('Export failed');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleImportMappings = async (file: File) => {
+    if (!projectId) return;
+    setImporting(true);
+    try {
+      const { data } = await migrationApi.importMappings(projectId, file);
+      setImportModalOpen(false);
+      Modal.success({
+        title: 'Import Complete',
+        content: (
+          <div>
+            <p><strong>{data.updated}</strong> mapping(s) updated</p>
+            <p><strong>{data.matched}</strong> source field(s) matched</p>
+            {data.skippedNotFound > 0 && (
+              <p><strong>{data.skippedNotFound}</strong> skipped (source field not found in project)</p>
+            )}
+            {data.skippedUnchanged > 0 && (
+              <p><strong>{data.skippedUnchanged}</strong> unchanged (already matching)</p>
+            )}
+            {data.warnings.length > 0 && (
+              <details style={{ marginTop: 8 }}>
+                <summary>Warnings ({data.warnings.length})</summary>
+                <ul style={{ maxHeight: 200, overflow: 'auto', fontSize: 12 }}>
+                  {data.warnings.map((w: string, i: number) => <li key={i}>{w}</li>)}
+                </ul>
+              </details>
+            )}
+          </div>
+        ),
+      });
+      loadAll(true);
+    } catch (err: any) {
+      message.error(err?.response?.data?.message || 'Import failed');
+    } finally {
+      setImporting(false);
+    }
+  };
+
   // Source → Target panel selection
   const selectRecord = (record: FieldMappingEntryDto) => {
     setPanelRecord(record);
@@ -765,7 +858,7 @@ export default function MappingsPage() {
           saveCustomTargets(updated);
         }
       } else if (panelTarget) {
-        const predefined = schemaFields.find((t) => t.name === panelTarget);
+        const predefined = filteredSchemaFields.find((t) => t.name === panelTarget);
         if (predefined) {
           targetField = predefined.name;
           targetEntity = predefined.entity;
@@ -934,7 +1027,7 @@ export default function MappingsPage() {
     if (!projectId || !panelRecord) return;
     setPanelSaving(true);
     try {
-      const schema = schemaFields.find((f) => f.name === targetFieldName);
+      const schema = filteredSchemaFields.find((f) => f.name === targetFieldName);
       await migrationApi.cloneMapping(projectId, panelRecord.id, {
         targetField: targetFieldName,
         targetEntity: schema?.entity ?? 'Contact',
@@ -1341,10 +1434,10 @@ export default function MappingsPage() {
         ...((stats.rejected ?? 0) > 0 ? [{ key: 'rejected', label: `Skipped (${stats.rejected})` }] : []),
       ]
     : [
-        { key: 'all', label: `All (${schemaFields.length})` },
+        { key: 'all', label: `All (${filteredSchemaFields.length})` },
         { key: 'needs_review', label: `Needs Review (${needsReviewCount})` },
         { key: 'approved', label: `Approved (${approvedCount})` },
-        { key: 'unmapped', label: `Unmapped (${schemaFields.filter((f) => !mappingByTarget[f.name]).length})` },
+        { key: 'unmapped', label: `Unmapped (${filteredSchemaFields.filter((f) => !mappingByTarget[f.name]).length})` },
       ];
 
   /* ---------- Active bulk counts ---------- */
@@ -1490,7 +1583,7 @@ export default function MappingsPage() {
   /* ---------- Schema coverage tree (empty-panel state) ---------- */
 
   const renderSchemaCoverageTree = () => {
-    if (schemaFields.length === 0) {
+    if (filteredSchemaFields.length === 0) {
       return (
         <Card
           size="small"
@@ -1502,7 +1595,7 @@ export default function MappingsPage() {
       );
     }
 
-    const entities = [...new Set(schemaFields.map((f) => f.entity))].sort();
+    const entities = [...new Set(filteredSchemaFields.map((f) => f.entity))].sort();
 
     return (
       <Card
@@ -1517,13 +1610,13 @@ export default function MappingsPage() {
             <ApartmentOutlined style={{ color: '#6b4fa0' }} />
             <Text strong style={{ color: '#2d1854', fontSize: 13 }}>Schema Coverage</Text>
             <Tag style={{ fontSize: 10, backgroundColor: '#f3eeff', color: '#2d1854', borderColor: '#e0d4f5', margin: 0 }}>
-              {Object.keys(mappingByTarget).length} / {schemaFields.length} mapped
+              {Object.keys(mappingByTarget).length} / {filteredSchemaFields.length} mapped
             </Tag>
           </Space>
         }
       >
         {entities.map((entity) => {
-          const entityFields = schemaFields.filter((f) => f.entity === entity);
+          const entityFields = filteredSchemaFields.filter((f) => f.entity === entity);
           const mapped = entityFields.filter((f) => mappingByTarget[f.name]).length;
           const unmappedReq = entityFields.filter((f) => f.required && !mappingByTarget[f.name]).length;
           const isCollapsed = schemaSidebarCollapsed.has(entity);
@@ -1676,6 +1769,23 @@ export default function MappingsPage() {
                 </Text>
               )}
               <Button
+                icon={<ExportOutlined />}
+                size="small"
+                loading={exporting}
+                onClick={handleExportMappings}
+                style={{ borderColor: '#6b4fa0', color: '#6b4fa0' }}
+              >
+                Export
+              </Button>
+              <Button
+                icon={<ImportOutlined />}
+                size="small"
+                onClick={() => setImportModalOpen(true)}
+                style={{ borderColor: '#6b4fa0', color: '#6b4fa0' }}
+              >
+                Import
+              </Button>
+              <Button
                 icon={<HistoryOutlined />}
                 size="small"
                 onClick={() => setVersionHistoryOpen(true)}
@@ -1701,7 +1811,15 @@ export default function MappingsPage() {
       </div>
 
       {/* Schema coverage summary bar (both views) */}
-      {schemaFields.length > 0 && (
+      {/* Entity Scope Panel (from LLM detection) */}
+      {entityScope.length > 0 && (
+        <EntityCoveragePanel
+          coverage={entityScope}
+          onToggle={handleEntityScopeToggle}
+        />
+      )}
+
+      {filteredSchemaFields.length > 0 && (
         <Card size="small" style={{ marginBottom: unmappedRequired.length > 0 ? 8 : 16, borderColor: '#e0d4f5', borderTop: '3px solid #2d1854' }}>
           <Row align="middle" gutter={[8, 6]} wrap>
             <Col>
@@ -2396,6 +2514,44 @@ export default function MappingsPage() {
       )}
 
       <FloatButton.BackTop visibilityHeight={300} />
+
+      {/* Import mappings modal */}
+      <Modal
+        title="Import Mappings"
+        open={importModalOpen}
+        onCancel={() => setImportModalOpen(false)}
+        footer={null}
+        width={480}
+      >
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="This will overwrite existing mapping assignments. A version snapshot will be created first so you can roll back."
+        />
+        <Upload.Dragger
+          accept=".json"
+          maxCount={1}
+          beforeUpload={(file) => {
+            Modal.confirm({
+              title: 'Confirm Import',
+              content: `Import mappings from "${file.name}"? Existing mappings will be overwritten.`,
+              okText: 'Import',
+              okButtonProps: { danger: true },
+              onOk: () => handleImportMappings(file),
+            });
+            return false;
+          }}
+          showUploadList={false}
+          disabled={importing}
+        >
+          <p style={{ fontSize: 14, color: '#6b4fa0' }}>
+            <ImportOutlined style={{ fontSize: 24, marginBottom: 8, display: 'block' }} />
+            Click or drag a JSON mapping file here
+          </p>
+        </Upload.Dragger>
+        {importing && <Spin style={{ display: 'block', marginTop: 16, textAlign: 'center' }} />}
+      </Modal>
     </div>
   );
 }

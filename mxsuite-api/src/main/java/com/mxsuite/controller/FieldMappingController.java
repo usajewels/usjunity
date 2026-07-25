@@ -1,22 +1,29 @@
 package com.mxsuite.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mxsuite.audit.AuditService;
+import com.mxsuite.model.EntityCoverageEntry;
 import com.mxsuite.model.FieldMappingEntry;
 import com.mxsuite.model.MappingCandidate;
+import com.mxsuite.model.Project;
 import com.mxsuite.model.SourceSchemaNode;
 import com.mxsuite.model.enums.MappingStatus;
 import com.mxsuite.repository.FieldMappingEntryRepository;
+import com.mxsuite.repository.ProjectRepository;
 import com.mxsuite.repository.SourceSchemaNodeRepository;
 import com.mxsuite.security.UserPrincipal;
+import com.mxsuite.service.MappingImportExportService;
 import com.mxsuite.service.MappingVersionService;
 import com.mxsuite.service.NotificationService;
 import com.mxsuite.service.TargetSchemaService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -29,22 +36,28 @@ public class FieldMappingController {
 
     private final FieldMappingEntryRepository mappingRepository;
     private final SourceSchemaNodeRepository schemaNodeRepository;
+    private final ProjectRepository projectRepository;
     private final AuditService auditService;
     private final NotificationService notificationService;
     private final MappingVersionService versionService;
+    private final MappingImportExportService importExportService;
     private final TargetSchemaService targetSchemaService;
 
     public FieldMappingController(FieldMappingEntryRepository mappingRepository,
                                    SourceSchemaNodeRepository schemaNodeRepository,
+                                   ProjectRepository projectRepository,
                                    AuditService auditService,
                                    NotificationService notificationService,
                                    MappingVersionService versionService,
+                                   MappingImportExportService importExportService,
                                    TargetSchemaService targetSchemaService) {
         this.mappingRepository = mappingRepository;
         this.schemaNodeRepository = schemaNodeRepository;
+        this.projectRepository = projectRepository;
         this.auditService = auditService;
         this.notificationService = notificationService;
         this.versionService = versionService;
+        this.importExportService = importExportService;
         this.targetSchemaService = targetSchemaService;
     }
 
@@ -83,6 +96,53 @@ public class FieldMappingController {
             page = mappingRepository.findByProjectId(projectId, pageable);
         }
         return page.map(this::toDto);
+    }
+
+    @GetMapping("/export")
+    public ResponseEntity<?> exportMappings(@PathVariable UUID projectId) {
+        return projectRepository.findById(projectId)
+                .map(project -> {
+                    Map<String, Object> doc = importExportService.exportMappings(project);
+                    String filename = project.getName().replaceAll("[^a-zA-Z0-9._-]", "_").toLowerCase()
+                            + "-mappings.json";
+                    return ResponseEntity.ok()
+                            .header("Content-Disposition", "attachment; filename=\"" + filename + "\"")
+                            .header("Content-Type", "application/json")
+                            .body(doc);
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PostMapping("/import")
+    @Transactional
+    public ResponseEntity<?> importMappings(@PathVariable UUID projectId,
+                                             @RequestParam("file") MultipartFile file,
+                                             @AuthenticationPrincipal UserPrincipal principal) {
+        if (file.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "File is empty"));
+        }
+        return projectRepository.findById(projectId)
+                .map(project -> {
+                    try {
+                        ObjectMapper mapper = new ObjectMapper();
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> importDoc = mapper.readValue(file.getInputStream(), Map.class);
+                        var result = importExportService.importMappings(project, importDoc, principal);
+                        return ResponseEntity.ok(Map.of(
+                                "matched", result.matched(),
+                                "updated", result.updated(),
+                                "skippedNotFound", result.skippedNotFound(),
+                                "skippedUnchanged", result.skippedUnchanged(),
+                                "existingLeftUnmapped", result.existingLeftUnmapped(),
+                                "warnings", result.warnings()));
+                    } catch (IllegalArgumentException e) {
+                        return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+                    } catch (Exception e) {
+                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                .body(Map.of("message", "Failed to process import: " + e.getMessage()));
+                    }
+                })
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/{id}")
@@ -212,6 +272,60 @@ public class FieldMappingController {
                     String fieldLabel = clone.getSourceEntity() + "." + clone.getSourceField();
                     auditService.log("CLONE_MAPPING", "FieldMapping", clone.getId(), fieldLabel);
                     return ResponseEntity.ok(toDto(clone));
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    // --- Entity Coverage ---
+
+    public record EntityOverrideRequest(String entity, boolean active) {}
+
+    @GetMapping("/entity-coverage")
+    public ResponseEntity<?> getEntityCoverage(@PathVariable UUID projectId) {
+        return projectRepository.findById(projectId)
+                .map(project -> {
+                    List<EntityCoverageEntry> coverage = project.getEntityCoverage();
+                    return ResponseEntity.ok(coverage != null ? coverage : List.of());
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PutMapping("/entity-coverage")
+    @Transactional
+    public ResponseEntity<?> updateEntityCoverage(@PathVariable UUID projectId,
+                                                   @RequestBody List<EntityOverrideRequest> overrides,
+                                                   @AuthenticationPrincipal UserPrincipal principal) {
+        return projectRepository.findById(projectId)
+                .map(project -> {
+                    List<EntityCoverageEntry> coverage = project.getEntityCoverage();
+                    if (coverage == null || coverage.isEmpty()) {
+                        return ResponseEntity.badRequest()
+                                .body(Map.of("message", "No entity coverage data available"));
+                    }
+
+                    Map<String, EntityCoverageEntry> byEntity = new LinkedHashMap<>();
+                    for (EntityCoverageEntry e : coverage) {
+                        byEntity.put(e.getEntity(), e);
+                    }
+
+                    for (EntityOverrideRequest ovr : overrides) {
+                        EntityCoverageEntry entry = byEntity.get(ovr.entity());
+                        if (entry != null) {
+                            if (ovr.active() == entry.isDetected()) {
+                                entry.setCoachOverride(null);
+                            } else {
+                                entry.setCoachOverride(ovr.active());
+                            }
+                        }
+                    }
+
+                    project.setEntityCoverage(new ArrayList<>(byEntity.values()));
+                    projectRepository.save(project);
+
+                    auditService.log("ENTITY_COVERAGE_OVERRIDE", "OnboardingProject", project.getId(),
+                            overrides.size() + " entity overrides applied");
+
+                    return ResponseEntity.ok(project.getEntityCoverage());
                 })
                 .orElse(ResponseEntity.notFound().build());
     }

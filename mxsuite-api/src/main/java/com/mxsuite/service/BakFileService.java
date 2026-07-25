@@ -31,7 +31,8 @@ public class BakFileService {
 
     public record BakParseResult(
             String databaseName,
-            List<TableInfo> tables
+            List<TableInfo> tables,
+            List<TablePreviewData> previews
     ) {}
 
     public record TableInfo(
@@ -46,6 +47,14 @@ public class BakFileService {
             boolean nullable,
             Integer maxLength,
             boolean isPrimaryKey
+    ) {}
+
+    public record TablePreviewData(
+            String schemaName,
+            String tableName,
+            List<String> headers,
+            List<List<String>> rows,
+            long rowCount
     ) {}
 
     // ---- public API ----
@@ -151,12 +160,15 @@ public class BakFileService {
             // 3. Extract schema
             List<TableInfo> tables = extractSchema(conn, tempDbName);
 
-            // 4. Drop temp database
+            // 4. Extract sample data (TOP 5 rows + row count per table)
+            List<TablePreviewData> previews = extractSampleData(conn, tempDbName, tables);
+
+            // 5. Drop temp database
             dropDatabase(conn, tempDbName);
 
             return new BakParseResult(
                     originalDbName != null ? originalDbName : "Unknown",
-                    tables
+                    tables, previews
             );
 
         } catch (SQLException e) {
@@ -234,6 +246,62 @@ public class BakFileService {
         return tables;
     }
 
+    private List<TablePreviewData> extractSampleData(Connection conn, String tempDbName,
+                                                        List<TableInfo> tables) {
+        List<TablePreviewData> previews = new ArrayList<>();
+
+        for (TableInfo table : tables) {
+            String qualifiedTable = "[" + tempDbName + "].[" + table.schemaName() + "].[" + table.tableName() + "]";
+
+            try {
+                // Get row count
+                long rowCount = 0;
+                try (Statement stmt = conn.createStatement();
+                     ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM " + qualifiedTable)) {
+                    if (rs.next()) rowCount = rs.getLong(1);
+                }
+
+                // Get TOP 5 sample rows
+                List<String> headers = new ArrayList<>();
+                List<List<String>> rows = new ArrayList<>();
+
+                try (Statement stmt = conn.createStatement();
+                     ResultSet rs = stmt.executeQuery("SELECT TOP 5 * FROM " + qualifiedTable)) {
+                    ResultSetMetaData meta = rs.getMetaData();
+                    int colCount = meta.getColumnCount();
+
+                    for (int c = 1; c <= colCount; c++) {
+                        headers.add(meta.getColumnName(c));
+                    }
+
+                    while (rs.next()) {
+                        List<String> row = new ArrayList<>();
+                        for (int c = 1; c <= colCount; c++) {
+                            String val = rs.getString(c);
+                            row.add(val != null ? val : "");
+                        }
+                        rows.add(row);
+                    }
+                }
+
+                previews.add(new TablePreviewData(table.schemaName(), table.tableName(),
+                        headers, rows, rowCount));
+
+                log.debug("Sampled table {}.{}: {} rows total, {} preview rows",
+                        table.schemaName(), table.tableName(), rowCount, rows.size());
+
+            } catch (SQLException e) {
+                log.warn("Could not sample table {}.{}: {}", table.schemaName(), table.tableName(), e.getMessage());
+                // Add empty preview so we still have the table listed
+                previews.add(new TablePreviewData(table.schemaName(), table.tableName(),
+                        List.of(), List.of(), 0));
+            }
+        }
+
+        log.info("Extracted sample data from {} tables", previews.size());
+        return previews;
+    }
+
     private void dropDatabase(Connection conn, String tempDbName) {
         try (Statement stmt = conn.createStatement()) {
             // Force close connections and drop
@@ -257,12 +325,34 @@ public class BakFileService {
     /**
      * Convert BakParseResult to a ParsedFileResult compatible with the mapping pipeline.
      * Each column becomes a header entry prefixed with its table name.
+     * Sample values are populated from preview data when available.
      */
     public FileParsingService.ParsedFileResult toParseResult(BakParseResult bakResult) {
         List<String> headers = new ArrayList<>();
         List<Map<String, Object>> sourceColumns = new ArrayList<>();
 
+        // Index preview data by table name for fast lookup
+        Map<String, TablePreviewData> previewByTable = new HashMap<>();
+        if (bakResult.previews() != null) {
+            for (TablePreviewData pd : bakResult.previews()) {
+                previewByTable.put(pd.tableName(), pd);
+            }
+        }
+
+        long totalRows = 0;
+
         for (TableInfo table : bakResult.tables()) {
+            TablePreviewData preview = previewByTable.get(table.tableName());
+            if (preview != null) totalRows += preview.rowCount();
+
+            // Build a column-index map from preview headers for this table
+            Map<String, Integer> previewColIndex = new HashMap<>();
+            if (preview != null) {
+                for (int i = 0; i < preview.headers().size(); i++) {
+                    previewColIndex.put(preview.headers().get(i), i);
+                }
+            }
+
             for (ColumnInfo col : table.columns()) {
                 String qualifiedName = table.tableName() + "." + col.columnName();
                 headers.add(qualifiedName);
@@ -271,18 +361,31 @@ public class BakFileService {
                 colMeta.put("name", qualifiedName);
                 colMeta.put("tableName", table.tableName());
                 colMeta.put("schemaName", table.schemaName());
+                colMeta.put("tableRowCount", preview != null ? preview.rowCount() : 0);
                 colMeta.put("dataType", col.dataType());
                 colMeta.put("nullable", col.nullable());
                 colMeta.put("isPrimaryKey", col.isPrimaryKey());
                 if (col.maxLength() != null) {
                     colMeta.put("maxLength", col.maxLength());
                 }
-                colMeta.put("sampleValues", List.of()); // No row data from .bak schema extraction
+
+                // Populate sample values from preview rows
+                List<String> sampleValues = new ArrayList<>();
+                Integer colIdx = previewColIndex.get(col.columnName());
+                if (colIdx != null && preview != null) {
+                    for (List<String> row : preview.rows()) {
+                        if (colIdx < row.size()) {
+                            sampleValues.add(row.get(colIdx));
+                        }
+                    }
+                }
+                colMeta.put("sampleValues", sampleValues);
+
                 sourceColumns.add(colMeta);
             }
         }
 
-        return new FileParsingService.ParsedFileResult(headers, List.of(), 0, sourceColumns);
+        return new FileParsingService.ParsedFileResult(headers, List.of(), (int) totalRows, sourceColumns);
     }
 
     private String escapeSql(String value) {

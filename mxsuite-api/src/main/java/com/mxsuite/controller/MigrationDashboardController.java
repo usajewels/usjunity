@@ -115,7 +115,7 @@ public class MigrationDashboardController {
     public MigrationStatsDto getStats(@AuthenticationPrincipal UserPrincipal principal) {
         long active;
         long gatesPending;
-        if (principal != null && principal.isPlatformAdmin()) {
+        if (principal != null && (principal.isPlatformAdmin() || principal.isCoachAdmin())) {
             active = projectRepository.countAllActiveMigrations();
             gatesPending = phaseGateRepository.countByGateStatus(GateStatus.PENDING);
         } else if (principal != null && principal.isPlatformSupport()) {

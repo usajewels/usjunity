@@ -26,6 +26,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -286,12 +287,15 @@ public class AuthController {
                     Map<String, Object> raw = pt.getFeatureConfig();
                     if (raw == null || raw.isEmpty()) return DEFAULT_FEATURE_CONFIG;
                     // Convert Map<String, Object> → Map<String, List<String>>
-                    return raw.entrySet().stream().collect(Collectors.toMap(
+                    Map<String, List<String>> result = new HashMap<>(raw.entrySet().stream().collect(Collectors.toMap(
                             Map.Entry::getKey,
                             e -> e.getValue() instanceof List<?> list
                                     ? list.stream().map(Object::toString).collect(Collectors.toList())
                                     : List.<String>of()
-                    ));
+                    )));
+                    // Merge defaults for any roles missing from stored config
+                    DEFAULT_FEATURE_CONFIG.forEach(result::putIfAbsent);
+                    return result;
                 })
                 .orElse(DEFAULT_FEATURE_CONFIG);
     }

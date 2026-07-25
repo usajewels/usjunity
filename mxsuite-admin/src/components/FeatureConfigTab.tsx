@@ -22,6 +22,7 @@ type FeatureConfig = Record<string, string[]>;
 
 const DEFAULTS: FeatureConfig = {
   PLATFORM_ADMIN: ['projects', 'migration'],
+  COACH_ADMIN: ['projects', 'migration'],
   PLATFORM_SUPPORT: ['projects', 'migration'],
   TENANT_ADMIN: ['my-onboarding'],
   TENANT_USER: ['my-onboarding'],

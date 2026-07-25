@@ -6,10 +6,10 @@ import {
   Tooltip, message, notification, Select, Badge, Upload,
 } from 'antd';
 import {
-  ArrowLeftOutlined, TeamOutlined, ProjectOutlined, FileTextOutlined,
+  ArrowLeftOutlined, TeamOutlined, FileTextOutlined,
   EditOutlined, CheckCircleOutlined, CloseCircleOutlined, ClockCircleOutlined, DeleteOutlined,
   MailOutlined, UserAddOutlined, SaveOutlined, UploadOutlined,
-  ImportOutlined, ControlOutlined, ApartmentOutlined,
+  ImportOutlined, ControlOutlined, ApartmentOutlined, ThunderboltOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
@@ -20,6 +20,7 @@ import {
 import OnboardingSchemaTab from '../components/OnboardingSchemaTab';
 import OnboardingMetricsTab from '../components/OnboardingMetricsTab';
 import FeatureConfigTab from '../components/FeatureConfigTab';
+import AiConfigTab from '../components/AiConfigTab';
 import CoachMappingsTab from '../components/CoachMappingsTab';
 import { usePageTitle } from '@mxsuite/shared';
 
@@ -571,24 +572,6 @@ export default function TenantDetailPage() {
             />
           </Card>
         </Col>
-        <Col xs={24} sm={8}>
-          <Card style={{ borderRadius: 12, borderTop: '3px solid #2d1854', border: '1px solid #e0d4f5' }}>
-            <Statistic
-              title={<span style={{ color: 'rgba(0,0,0,0.65)' }}>Projects</span>}
-              value={0}
-              prefix={<ProjectOutlined style={{ color: '#2d1854' }} />}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={8}>
-          <Card style={{ borderRadius: 12, borderTop: '3px solid #2d1854', border: '1px solid #e0d4f5' }}>
-            <Statistic
-              title={<span style={{ color: 'rgba(0,0,0,0.65)' }}>Plans</span>}
-              value={0}
-              prefix={<FileTextOutlined style={{ color: '#2d1854' }} />}
-            />
-          </Card>
-        </Col>
       </Row>
 
       {/* Tabs: Users / Activity */}
@@ -762,6 +745,14 @@ export default function TenantDetailPage() {
                 </span>
               ),
               children: id ? <FeatureConfigTab tenantId={id} /> : null,
+            }, {
+              key: 'ai-providers',
+              label: (
+                <span>
+                  <ThunderboltOutlined /> AI Providers
+                </span>
+              ),
+              children: id ? <AiConfigTab tenantId={id} /> : null,
             }] : []),
           ]}
         />

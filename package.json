@@ -19,8 +19,8 @@
     "preview:chat": "pnpm --filter @mxsuite/chat preview",
     "preview:onboarding": "pnpm --filter @mxsuite/onboarding preview",
     "preview:mfe": "concurrently -n admin,workspaces,planner,chat,onboarding \"pnpm run preview:admin\" \"pnpm run preview:workspaces\" \"pnpm run preview:planner\" \"pnpm run preview:chat\" \"pnpm run preview:onboarding\"",
-    "dev": "pnpm run build:shared && pnpm run build:mfe && concurrently -n api,mfe,shell -c blue,green,yellow \"cd mxsuite-api && mvn spring-boot:run -Dspring-boot.run.profiles=dev\" \"pnpm run preview:mfe\" \"wait-on tcp:8080 --timeout 120000 && pnpm run dev:shell\"",
-    "devlogin": "pnpm run build:shared && pnpm run build:mfe && concurrently -n api,mfe,shell -c blue,green,yellow \"cd mxsuite-api && mvn spring-boot:run -Dspring-boot.run.profiles=dev,devlogin\" \"pnpm run preview:mfe\" \"wait-on tcp:8080 --timeout 120000 && pnpm run dev:shell\"",
+    "dev": "pnpm run build:shared && pnpm run build:mfe && dotenv -e mxsuite-api/.env -- concurrently -n api,mfe,shell -c blue,green,yellow \"cd mxsuite-api && mvn spring-boot:run -Dspring-boot.run.profiles=dev\" \"pnpm run preview:mfe\" \"wait-on tcp:8080 --timeout 120000 && pnpm run dev:shell\"",
+    "devlogin": "pnpm run build:shared && pnpm run build:mfe && dotenv -e mxsuite-api/.env -- concurrently -n api,mfe,shell -c blue,green,yellow \"cd mxsuite-api && mvn spring-boot:run -Dspring-boot.run.profiles=dev,devlogin\" \"pnpm run preview:mfe\" \"wait-on tcp:8080 --timeout 120000 && pnpm run dev:shell\"",
     "build:shared": "pnpm --filter @mxsuite/shared build",
     "build:admin": "pnpm run build:shared && pnpm --filter @mxsuite/admin build",
     "build:workspaces": "pnpm run build:shared && pnpm --filter @mxsuite/workspaces build",
@@ -36,6 +36,7 @@
   },
   "devDependencies": {
     "concurrently": "^10.0.3",
+    "dotenv-cli": "^11.0.0",
     "wait-on": "^9.0.10"
   }
 }

@@ -941,7 +941,11 @@ export default function DashboardPage() {
             size="small"
             pagination={organizations.length > 10 ? { pageSize: 10 } : false}
             onRow={(record) => ({
-              onClick: () => navigate('/plans/onboarding-projects/projects'),
+              onClick: () => navigate(
+                record.projectId
+                  ? `/plans/onboarding-projects/projects/${record.projectId}/mappings`
+                  : '/plans/onboarding-projects/projects'
+              ),
               style: { cursor: 'pointer' },
             })}
             locale={{ emptyText: 'No organizations assigned yet' }}

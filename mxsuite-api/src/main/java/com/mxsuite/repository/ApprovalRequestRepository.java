@@ -20,4 +20,6 @@ public interface ApprovalRequestRepository extends JpaRepository<ApprovalRequest
     List<ApprovalRequest> findByProjectIdOrderByCreatedAtDesc(UUID projectId);
 
     long countByTenantIdAndApprovalStatus(UUID tenantId, ApprovalStatus status);
+
+    long countByApprovalStatus(ApprovalStatus status);
 }

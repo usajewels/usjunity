@@ -18,6 +18,8 @@ public interface SemanticDecisionRepository extends JpaRepository<SemanticDecisi
 
     long countByTenantIdAndDecisionStatus(UUID tenantId, DecisionStatus status);
 
+    long countByDecisionStatus(DecisionStatus status);
+
     Page<SemanticDecision> findByProjectId(UUID projectId, Pageable pageable);
 
     long countByProjectIdAndDecisionStatus(UUID projectId, DecisionStatus status);

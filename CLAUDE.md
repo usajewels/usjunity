@@ -129,7 +129,7 @@ mxsuite:
 ```bash
 docker run -d --name mxsuite-mssql \
   -e ACCEPT_EULA=Y \
-  -e MSSQL_SA_PASSWORD=MxSuite2024! \
+  -e MSSQL_SA_PASSWORD=MxSuite2024Dev \
   -p 1433:1433 \
   -v C:/temp/mxsuite-backups:/var/backups \
   mcr.microsoft.com/mssql/server:2022-latest
@@ -173,17 +173,66 @@ The platform encodes migration knowledge for known source systems:
 
 ## Development Workflow
 
-### Starting the Backend
-```bash
-cd D:\growthzone\mxsuite-api
-mvn spring-boot:run
-```
-Runs on port 8080. Requires PostgreSQL and Redis (via Docker Compose).
-
-### Starting the Frontend
+### Quick Start (recommended)
 ```bash
 cd D:\growthzone
-pnpm install
+pnpm run devlogin
+```
+This single command:
+1. Builds `@mxsuite/shared`
+2. Builds all micro-frontends (admin, workspaces, planner, chat, onboarding)
+3. Starts three concurrent processes:
+   - **API** (port 8080) — loads `.env` from `mxsuite-api/.env`, runs Spring Boot with `dev,devlogin` profiles
+   - **MFE previews** — all micro-frontends in preview mode
+   - **Shell** (port 3000) — waits for API to be ready, then starts the shell host
+
+Use `pnpm run dev` for the same setup but without the `devlogin` profile (requires normal login instead of user-picker).
+
+### Prerequisites
+Before running `pnpm run devlogin`, ensure these are running:
+- **PostgreSQL** — `docker compose up -d postgres` (or local install)
+- **Redis** — `docker compose up -d redis` (or local install)
+- **SQL Server** (for .bak file support) — see Docker Setup below
+
+### Environment Variables
+All dev environment variables live in `mxsuite-api/.env` (gitignored). The `pnpm run devlogin` script auto-loads this file before starting the API.
+
+Key variables:
+```
+POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD
+REDIS_HOST, REDIS_PORT
+JWT_SECRET
+MSSQL_PASSWORD          # SQL Server sa password (must match Docker container)
+AUTH_MODE=local
+```
+
+### Docker Setup for SQL Server (.bak support)
+```bash
+# Create host directory for backup files
+mkdir -p C:/temp/mxsuite-backups
+
+# Start SQL Server 2022 container
+docker run -d --name mxsuite-mssql \
+  -e ACCEPT_EULA=Y \
+  -e 'MSSQL_SA_PASSWORD=MxSuite2024Dev' \
+  -p 1433:1433 \
+  -v C:/temp/mxsuite-backups:/var/backups \
+  mcr.microsoft.com/mssql/server:2022-latest
+
+# Verify it's running
+docker exec mxsuite-mssql bash -c "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'MxSuite2024Dev' -C -Q 'SELECT 1'"
+```
+
+**Volume mount**: `C:/temp/mxsuite-backups` (host) ↔ `/var/backups` (container). Java copies .bak files to the host path; SQL Server RESTORE commands use the container path.
+
+**After reboot**: Docker Desktop must be running. Start it from the Start menu, then:
+```bash
+docker start mxsuite-mssql
+```
+
+### Starting Individual Services
+```bash
+cd D:\growthzone
 pnpm --filter @mxsuite/planner dev    # planner on port 3001
 pnpm --filter @mxsuite/admin dev      # admin on port 3002
 pnpm --filter @mxsuite/shell dev      # shell on port 3000

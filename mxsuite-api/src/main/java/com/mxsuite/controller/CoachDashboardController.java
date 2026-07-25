@@ -64,7 +64,7 @@ public class CoachDashboardController {
 
     public record OrgProgressDto(
             UUID id, String name, String slug,
-            String phase,
+            UUID projectId, String phase,
             long mappedCount, long totalMappings, long needsReview,
             boolean hasBlockedGate,
             Instant lastActivity) {}
@@ -116,7 +116,7 @@ public class CoachDashboardController {
                 // No onboarding project yet
                 orgRows.add(new OrgProgressDto(
                         tenant.getId(), tenant.getName(), tenant.getSlug(),
-                        null, 0, 0, 0, false, null));
+                        null, null, 0, 0, 0, false, null));
                 attentionItems.add(new AttentionItemDto(
                         "NO_UPLOAD", tenant.getName(), tenant.getId(),
                         "No onboarding data uploaded yet"));
@@ -154,7 +154,7 @@ public class CoachDashboardController {
 
             orgRows.add(new OrgProgressDto(
                     tenant.getId(), tenant.getName(), tenant.getSlug(),
-                    phase, mapped, total, needsReview,
+                    pid, phase, mapped, total, needsReview,
                     hasBlocked, lastActivity));
 
             // Attention: blocked gate

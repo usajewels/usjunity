@@ -364,6 +364,15 @@ export interface MappingStatsDto {
   unmapped: number;
 }
 
+export interface MappingImportResultDto {
+  matched: number;
+  updated: number;
+  skippedNotFound: number;
+  skippedUnchanged: number;
+  existingLeftUnmapped: number;
+  warnings: string[];
+}
+
 // Mapping version types
 export type MappingVersionSource = 'EDIT' | 'ROLLBACK' | 'IMPORT' | 'AI_MAPPING';
 
@@ -543,11 +552,11 @@ export interface UploadResultDto {
   id: string;
   originalFilename: string;
   rowCount: number;
-  sourceColumns: { name: string; sampleValues: string[]; tableName?: string; dataType?: string }[];
+  sourceColumns: { name: string; sampleValues: string[]; tableName?: string; dataType?: string; tableRowCount?: number }[];
   needsSheetSelection?: boolean;
   sheets?: { name: string; rowCount: number }[];
   needsTableSelection?: boolean;
-  tables?: { name: string; schema: string; columnCount: number }[];
+  tables?: { name: string; schema: string; columnCount: number; rowCount?: number }[];
   hasExistingMappings?: boolean;
   existingMappedCount?: number;
   totalFileSize?: number;
@@ -578,12 +587,22 @@ export interface OrgProgressDto {
   id: string;
   name: string;
   slug: string;
+  projectId: string | null;
   phase: string | null;
   mappedCount: number;
   totalMappings: number;
   needsReview: number;
   hasBlockedGate: boolean;
   lastActivity: string | null;
+}
+
+export interface EntityCoverageEntry {
+  entity: string;
+  detected: boolean;
+  confidence: number;
+  reasoning: string;
+  coachOverride: boolean | null;
+  active: boolean; // computed: coachOverride ?? detected
 }
 
 export interface CoachActivityDto {

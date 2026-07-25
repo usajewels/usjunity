@@ -6,10 +6,13 @@ import com.mxsuite.model.enums.*;
 import com.mxsuite.repository.*;
 import com.mxsuite.security.TenantContext;
 import com.mxsuite.security.UserPrincipal;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mxsuite.service.AiMappingService;
 import com.mxsuite.service.BakFileService;
 import com.mxsuite.service.BatchImportService;
+import com.mxsuite.service.EntityDetectionService;
 import com.mxsuite.service.FileParsingService;
+import com.mxsuite.service.MappingImportExportService;
 import com.mxsuite.service.MappingVersionService;
 import com.mxsuite.service.TargetSchemaService;
 import org.slf4j.Logger;
@@ -55,7 +58,9 @@ public class TenantOnboardingController {
     private final AuditService auditService;
     private final MappingVersionService versionService;
     private final AiMappingService aiMappingService;
+    private final EntityDetectionService entityDetectionService;
     private final BatchImportService batchImportService;
+    private final MappingImportExportService importExportService;
     private final TargetSchemaService targetSchemaService;
     private final OnboardingRepository onboardingRepository;
     private final PhaseTimeEntryRepository phaseTimeEntryRepository;
@@ -75,7 +80,9 @@ public class TenantOnboardingController {
                                        AuditService auditService,
                                        MappingVersionService versionService,
                                        AiMappingService aiMappingService,
+                                       EntityDetectionService entityDetectionService,
                                        BatchImportService batchImportService,
+                                       MappingImportExportService importExportService,
                                        TargetSchemaService targetSchemaService,
                                        OnboardingRepository onboardingRepository,
                                        PhaseTimeEntryRepository phaseTimeEntryRepository,
@@ -94,7 +101,9 @@ public class TenantOnboardingController {
         this.auditService = auditService;
         this.versionService = versionService;
         this.aiMappingService = aiMappingService;
+        this.entityDetectionService = entityDetectionService;
         this.batchImportService = batchImportService;
+        this.importExportService = importExportService;
         this.targetSchemaService = targetSchemaService;
         this.onboardingRepository = onboardingRepository;
         this.phaseTimeEntryRepository = phaseTimeEntryRepository;
@@ -128,7 +137,7 @@ public class TenantOnboardingController {
 
     public record SheetDto(int index, String name, int rowCount) {}
 
-    public record TableDto(String name, String schema, int columnCount) {}
+    public record TableDto(String name, String schema, int columnCount, long rowCount) {}
 
     public record SelectSheetRequest(int sheetIndex) {}
 
@@ -372,6 +381,7 @@ public class TenantOnboardingController {
         uploadRepository.save(upload);
 
         createSchemaNodes(project, result);
+        detectAndStoreEntityCoverage(project, result.sourceColumns());
         createAutoMappings(project, result);
 
         auditService.log("UPLOAD_PREVIEW", "OnboardingProject", project.getId(), filename);
@@ -435,6 +445,7 @@ public class TenantOnboardingController {
             upload.setUploadStatus(UploadStatus.PARSED);
             uploadRepository.save(upload);
             createSchemaNodes(project, result);
+            detectAndStoreEntityCoverage(project, result.sourceColumns());
             createAutoMappings(project, result);
 
             return ResponseEntity.ok(new UploadResultDto(
@@ -522,7 +533,12 @@ public class TenantOnboardingController {
         try {
             BakFileService.BakParseResult bakResult = bakFileService.parseBackup(bakFile);
             List<TableDto> tableDtos = bakResult.tables().stream()
-                    .map(t -> new TableDto(t.tableName(), t.schemaName(), t.columns().size()))
+                    .map(t -> {
+                        long rc = bakResult.previews() != null ? bakResult.previews().stream()
+                                .filter(p -> p.tableName().equals(t.tableName()))
+                                .findFirst().map(BakFileService.TablePreviewData::rowCount).orElse(0L) : 0L;
+                        return new TableDto(t.tableName(), t.schemaName(), t.columns().size(), rc);
+                    })
                     .toList();
             FileParsingService.ParsedFileResult parseResult = bakFileService.toParseResult(bakResult);
 
@@ -549,9 +565,7 @@ public class TenantOnboardingController {
             log.warn("Re-extract failed for project {}: {}", project.getId(), msg);
             if (msg != null && (msg.contains("Connection refused") || msg.contains("TCP/IP connection"))) {
                 return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
-                        .body(Map.of("message", "SQL Server is not available at "
-                                + bakFileService.getConnectionInfo()
-                                + ". Ensure SQL Server is running and try again."));
+                        .body(Map.of("message", "Schema extraction is temporarily unavailable. Please try again shortly."));
             }
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("message", "Schema extraction failed: " + msg));
@@ -593,13 +607,31 @@ public class TenantOnboardingController {
                     .filter(t -> selectedSet.contains(t.tableName()))
                     .toList();
 
+            // Filter previews to selected tables
+            List<BakFileService.TablePreviewData> selectedPreviews = bakResult.previews() != null
+                    ? bakResult.previews().stream()
+                            .filter(p -> selectedSet.contains(p.tableName()))
+                            .toList()
+                    : List.of();
+
             BakFileService.BakParseResult filtered = new BakFileService.BakParseResult(
-                    bakResult.databaseName(), selectedTables);
+                    bakResult.databaseName(), selectedTables, selectedPreviews);
 
             // Create schema nodes and mappings for selected tables
             FileParsingService.ParsedFileResult parseResult = bakFileService.toParseResult(filtered);
             createSchemaNodesFromBak(project, filtered);
+            detectAndStoreEntityCoverage(project, parseResult.sourceColumns());
             createAutoMappings(project, parseResult);
+
+            // Build table DTOs with row counts
+            List<TableDto> tableDtos = selectedTables.stream()
+                    .map(t -> {
+                        long rc = selectedPreviews.stream()
+                                .filter(p -> p.tableName().equals(t.tableName()))
+                                .findFirst().map(BakFileService.TablePreviewData::rowCount).orElse(0L);
+                        return new TableDto(t.tableName(), t.schemaName(), t.columns().size(), rc);
+                    })
+                    .toList();
 
             // Update upload record
             upload.setSourceColumns(parseResult.sourceColumns());
@@ -612,7 +644,7 @@ public class TenantOnboardingController {
 
             return ResponseEntity.ok(new UploadResultDto(
                     upload.getId(), upload.getOriginalFilename(), selectedTables.size(),
-                    parseResult.sourceColumns(), false, List.of(), false, List.of(), false, 0));
+                    parseResult.sourceColumns(), false, List.of(), false, tableDtos, false, 0));
 
         } catch (IOException e) {
             log.error("Table selection failed for project {}: {}", project.getId(), e.getMessage(), e);
@@ -664,6 +696,7 @@ public class TenantOnboardingController {
 
             // Process schema and mappings
             createSchemaNodes(project, result);
+            detectAndStoreEntityCoverage(project, result.sourceColumns());
             if (request.preserveApproved()) {
                 createSmartMappings(project, result);
             } else {
@@ -687,6 +720,52 @@ public class TenantOnboardingController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("message", "Failed to process file"));
         }
+    }
+
+    // --- GET /my-onboarding/upload/current — Return current upload result (for page reload) ---
+
+    @GetMapping("/upload/current")
+    public ResponseEntity<?> currentUpload(@AuthenticationPrincipal UserPrincipal principal) {
+        Project project = resolveProject();
+        if (project == null) return notFound();
+
+        ProjectDataUpload upload = uploadRepository.findFirstByProjectIdOrderByCreatedAtDesc(project.getId())
+                .orElse(null);
+        if (upload == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        // Reconstruct tables metadata from sourceColumns for .bak files
+        List<TableDto> tableDtos = List.of();
+        if (upload.getOriginalFilename() != null
+                && upload.getOriginalFilename().toLowerCase().endsWith(".bak")
+                && upload.getSourceColumns() != null) {
+            // Group by tableName, count columns, sum sampleValues rows as rowCount proxy
+            Map<String, List<Map<String, Object>>> byTable = new LinkedHashMap<>();
+            for (Map<String, Object> col : upload.getSourceColumns()) {
+                String tbl = col.get("tableName") != null ? col.get("tableName").toString() : "Unknown";
+                byTable.computeIfAbsent(tbl, k -> new ArrayList<>()).add(col);
+            }
+            tableDtos = byTable.entrySet().stream().map(e -> {
+                String tblName = e.getKey();
+                List<Map<String, Object>> cols = e.getValue();
+                String schema = cols.get(0).get("schemaName") != null
+                        ? cols.get(0).get("schemaName").toString() : "dbo";
+                // Row count is stored per column as tableRowCount during extraction
+                long rc = cols.stream()
+                        .mapToLong(c -> c.get("tableRowCount") instanceof Number n ? n.longValue() : 0)
+                        .max().orElse(0);
+                return new TableDto(tblName, schema, cols.size(), rc);
+            }).toList();
+        }
+
+        return ResponseEntity.ok(new UploadResultDto(
+                upload.getId(), upload.getOriginalFilename(),
+                upload.getRowCount() != null ? upload.getRowCount() : 0,
+                upload.getSourceColumns(),
+                false, List.of(),
+                false, tableDtos,
+                false, 0));
     }
 
     // --- GET /my-onboarding/upload/preview — Preview uploaded data ---
@@ -737,6 +816,37 @@ public class TenantOnboardingController {
             return ResponseEntity.badRequest().body(Map.of("message", "No file uploaded yet"));
         }
 
+        // .bak files are binary — build preview from sourceColumns sampleValues, not from file
+        String origFilename = upload.getOriginalFilename();
+        if (origFilename != null && origFilename.toLowerCase().endsWith(".bak")) {
+            List<String> headers = new ArrayList<>();
+            List<List<String>> rows = new ArrayList<>();
+            if (upload.getSourceColumns() != null) {
+                for (Map<String, Object> col : upload.getSourceColumns()) {
+                    headers.add(String.valueOf(col.get("name")));
+                }
+                // Transpose column-oriented sampleValues to row-oriented preview
+                int maxSamples = upload.getSourceColumns().stream()
+                        .mapToInt(col -> col.get("sampleValues") instanceof List<?> l ? l.size() : 0)
+                        .max().orElse(0);
+                for (int r = 0; r < maxSamples; r++) {
+                    List<String> row = new ArrayList<>();
+                    for (Map<String, Object> col : upload.getSourceColumns()) {
+                        Object sv = col.get("sampleValues");
+                        if (sv instanceof List<?> list && r < list.size()) {
+                            row.add(String.valueOf(list.get(r)));
+                        } else {
+                            row.add("");
+                        }
+                    }
+                    rows.add(row);
+                }
+            }
+            return ResponseEntity.ok(Map.of(
+                    "headers", headers, "rows", rows,
+                    "totalRows", upload.getRowCount() != null ? upload.getRowCount() : 0));
+        }
+
         try {
             Path filePath = Paths.get(storagePath);
             if (!Files.exists(filePath)) return ResponseEntity.notFound().build();
@@ -781,6 +891,55 @@ public class TenantOnboardingController {
 
         Page<FieldMappingEntry> page = mappingRepository.findByProjectId(project.getId(), pageable);
         return ResponseEntity.ok(page.map(this::toMappingDto));
+    }
+
+    // --- GET /my-onboarding/mappings/export — Export mappings as JSON ---
+
+    @GetMapping("/mappings/export")
+    public ResponseEntity<?> exportMappings(@AuthenticationPrincipal UserPrincipal principal) {
+        Project project = resolveProject();
+        if (project == null) return notFound();
+
+        Map<String, Object> doc = importExportService.exportMappings(project);
+        String filename = project.getName().replaceAll("[^a-zA-Z0-9._-]", "_").toLowerCase()
+                + "-mappings.json";
+        return ResponseEntity.ok()
+                .header("Content-Disposition", "attachment; filename=\"" + filename + "\"")
+                .header("Content-Type", "application/json")
+                .body(doc);
+    }
+
+    // --- POST /my-onboarding/mappings/import — Import mappings from JSON ---
+
+    @PostMapping("/mappings/import")
+    @Transactional
+    public ResponseEntity<?> importMappings(@RequestParam("file") MultipartFile file,
+                                             @AuthenticationPrincipal UserPrincipal principal) {
+        Project project = resolveProject();
+        if (project == null) return notFound();
+
+        if (file.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "File is empty"));
+        }
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> importDoc = mapper.readValue(file.getInputStream(), Map.class);
+            var result = importExportService.importMappings(project, importDoc, principal);
+            return ResponseEntity.ok(Map.of(
+                    "matched", result.matched(),
+                    "updated", result.updated(),
+                    "skippedNotFound", result.skippedNotFound(),
+                    "skippedUnchanged", result.skippedUnchanged(),
+                    "existingLeftUnmapped", result.existingLeftUnmapped(),
+                    "warnings", result.warnings()));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Failed to import mappings", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("message", "Failed to process import: " + e.getMessage()));
+        }
     }
 
     // --- PUT /my-onboarding/mappings/{id} — Update mapping (tenant: customerComment only) ---
@@ -1253,6 +1412,7 @@ public class TenantOnboardingController {
 
         // Create source schema nodes and auto-map to target fields
         createSchemaNodes(project, result);
+        detectAndStoreEntityCoverage(project, result.sourceColumns());
         createAutoMappings(project, result);
 
         auditService.log("UPLOAD", "OnboardingProject", project.getId(), filename);
@@ -1283,6 +1443,118 @@ public class TenantOnboardingController {
         return ResponseEntity.ok(new UploadResultDto(
                 upload.getId(), filename, result.totalRows(),
                 result.sourceColumns(), false, List.of(), false, List.of(), true, existingFinalized));
+    }
+
+    // --- GET /my-onboarding/upload/entity-coverage — Return current entity coverage ---
+
+    @GetMapping("/upload/entity-coverage")
+    public ResponseEntity<?> getEntityCoverage() {
+        Project project = resolveProject();
+        if (project == null) return notFound();
+
+        List<EntityCoverageEntry> coverage = project.getEntityCoverage();
+        if (coverage == null) {
+            return ResponseEntity.ok(List.of());
+        }
+        return ResponseEntity.ok(coverage);
+    }
+
+    // --- PUT /my-onboarding/upload/entity-coverage — Coach/tenant toggle entities ---
+
+    public record EntityOverrideRequest(String entity, boolean active) {}
+
+    @PutMapping("/upload/entity-coverage")
+    @Transactional
+    public ResponseEntity<?> updateEntityCoverage(@RequestBody List<EntityOverrideRequest> overrides) {
+        Project project = resolveProject();
+        if (project == null) return notFound();
+
+        List<EntityCoverageEntry> coverage = project.getEntityCoverage();
+        if (coverage == null || coverage.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "No entity coverage data available"));
+        }
+
+        Map<String, EntityCoverageEntry> byEntity = new LinkedHashMap<>();
+        for (EntityCoverageEntry e : coverage) {
+            byEntity.put(e.getEntity(), e);
+        }
+
+        for (EntityOverrideRequest ovr : overrides) {
+            EntityCoverageEntry entry = byEntity.get(ovr.entity());
+            if (entry != null) {
+                // Set coach override: if toggling to match detected value, clear override
+                if (ovr.active() == entry.isDetected()) {
+                    entry.setCoachOverride(null);
+                } else {
+                    entry.setCoachOverride(ovr.active());
+                }
+            }
+        }
+
+        project.setEntityCoverage(new ArrayList<>(byEntity.values()));
+        projectRepository.save(project);
+
+        auditService.log("ENTITY_COVERAGE_OVERRIDE", "OnboardingProject", project.getId(),
+                overrides.size() + " entity overrides applied");
+
+        return ResponseEntity.ok(project.getEntityCoverage());
+    }
+
+    // --- Entity detection helper ---
+
+    private void detectAndStoreEntityCoverage(Project project, List<Map<String, Object>> sourceColumns) {
+        // Skip entirely when no AI provider — NULL means all entities visible (same result)
+        if (!entityDetectionService.isAvailable()) {
+            log.info("Entity detection skipped for project {} — no AI provider configured", project.getId());
+            return;
+        }
+
+        try {
+            List<EntityCoverageEntry> detected = entityDetectionService.detectEntities(sourceColumns);
+
+            // Preserve previous coach overrides on re-upload
+            List<EntityCoverageEntry> existing = project.getEntityCoverage();
+            if (existing != null && !existing.isEmpty()) {
+                Map<String, Boolean> previousOverrides = new HashMap<>();
+                for (EntityCoverageEntry e : existing) {
+                    if (e.getCoachOverride() != null) {
+                        previousOverrides.put(e.getEntity(), e.getCoachOverride());
+                    }
+                }
+                for (EntityCoverageEntry entry : detected) {
+                    Boolean override = previousOverrides.get(entry.getEntity());
+                    if (override != null) {
+                        entry.setCoachOverride(override);
+                    }
+                }
+            }
+
+            project.setEntityCoverage(detected);
+            projectRepository.save(project);
+
+            long activeCount = detected.stream().filter(EntityCoverageEntry::isActive).count();
+            log.info("Entity detection for project {}: {}/{} entities active",
+                    project.getId(), activeCount, detected.size());
+        } catch (Exception e) {
+            log.warn("Entity detection failed for project {}, proceeding with all entities: {}",
+                    project.getId(), e.getMessage());
+            // Non-blocking — proceed with all entities visible
+        }
+    }
+
+    /** Get set of active entity names from project's entity coverage. Empty set = all entities. */
+    private Set<String> getActiveEntities(Project project) {
+        List<EntityCoverageEntry> coverage = project.getEntityCoverage();
+        if (coverage == null || coverage.isEmpty()) {
+            return Set.of(); // empty = no filtering, all entities
+        }
+        Set<String> active = new LinkedHashSet<>();
+        for (EntityCoverageEntry e : coverage) {
+            if (e.isActive()) {
+                active.add(e.getEntity());
+            }
+        }
+        return active;
     }
 
     private void createSchemaNodes(Project project, FileParsingService.ParsedFileResult result) {
@@ -1370,16 +1642,19 @@ public class TenantOnboardingController {
                         "uploaded", true,
                         "needsTableSelection", true,
                         "tables", List.of(),
-                        "sqlServerError", "SQL Server is not available at "
-                                + bakFileService.getConnectionInfo()
-                                + ". The .bak file has been stored. "
-                                + "Start SQL Server and use 'Re-extract Schema' to parse the backup."));
+                        "sqlServerError", "The backup file has been stored, but schema extraction is temporarily unavailable. "
+                                + "Please try the 'Re-extract Schema' button shortly, or contact your administrator."));
             }
             throw e; // re-throw for other IO errors
         }
 
         List<TableDto> tableDtos = bakResult.tables().stream()
-                .map(t -> new TableDto(t.tableName(), t.schemaName(), t.columns().size()))
+                .map(t -> {
+                    long rc = bakResult.previews() != null ? bakResult.previews().stream()
+                            .filter(p -> p.tableName().equals(t.tableName()))
+                            .findFirst().map(BakFileService.TablePreviewData::rowCount).orElse(0L) : 0L;
+                    return new TableDto(t.tableName(), t.schemaName(), t.columns().size(), rc);
+                })
                 .toList();
 
         FileParsingService.ParsedFileResult parseResult = bakFileService.toParseResult(bakResult);
@@ -1492,7 +1767,9 @@ public class TenantOnboardingController {
             sampleValues.put(header, sampleValue);
         }
 
+        Set<String> activeEntities = getActiveEntities(project);
         List<AiMappingService.TargetFieldDef> targetDefs = targetSchemaService.getTargetFieldDefs().stream()
+                .filter(t -> activeEntities.isEmpty() || activeEntities.contains(t.entity()))
                 .map(t -> new AiMappingService.TargetFieldDef(t.entity(), t.field(), t.description()))
                 .toList();
 
@@ -1552,6 +1829,7 @@ public class TenantOnboardingController {
 
     private void createRuleBasedMappings(Project project, FileParsingService.ParsedFileResult result) {
         Set<String> usedTargets = new HashSet<>();
+        Set<String> activeEntities = getActiveEntities(project);
 
         for (int i = 0; i < result.headers().size(); i++) {
             String header = result.headers().get(i);
@@ -1566,8 +1844,13 @@ public class TenantOnboardingController {
                 }
             }
 
-            // Find best match
+            // Find best match, filtered by active entities
             List<FieldMatch> matches = findMatches(normalized);
+            if (!activeEntities.isEmpty()) {
+                matches = matches.stream()
+                        .filter(m -> activeEntities.contains(m.target().entity()))
+                        .toList();
+            }
 
             FieldMappingEntry entry = new FieldMappingEntry();
             entry.setProject(project);

@@ -4,6 +4,7 @@ import { api } from '@mxsuite/shared';
 
 const DEFAULT_FEATURE_CONFIG: FeatureConfig = {
   PLATFORM_ADMIN: ['projects', 'migration'],
+  COACH_ADMIN: ['projects', 'migration'],
   PLATFORM_SUPPORT: ['projects', 'migration'],
   TENANT_ADMIN: ['my-onboarding'],
   TENANT_USER: ['my-onboarding'],
@@ -35,7 +36,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isDevLoginFlag, setIsDevLoginFlag] = useState(authService.isDevLogin());
 
   const isAuthenticated = !!token && !!user;
-  const isPlatformUser = user?.role === 'PLATFORM_ADMIN' || user?.role === 'PLATFORM_SUPPORT';
+  const isPlatformUser = user?.role === 'PLATFORM_ADMIN' || user?.role === 'COACH_ADMIN' || user?.role === 'PLATFORM_SUPPORT';
   const isPlatformAdmin = user?.role === 'PLATFORM_ADMIN';
   const isTenantAdmin = user?.role === 'TENANT_ADMIN';
 

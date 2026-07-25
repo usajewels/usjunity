@@ -2,6 +2,7 @@ import { api } from '@mxsuite/shared';
 import type {
   MigrationProject, MigrationStats, MigrationBlueprint,
   FieldMappingEntryDto, SchemaNodeDto, MappingStatsDto, MappingStatus,
+  MappingImportResultDto, EntityCoverageEntry,
   SemanticDecisionDto, DecisionStatsDto, DecisionStatus,
   ApprovalRequestDto, ApprovalStatsDto, ApprovalStatus,
   ReconciliationReportDto,
@@ -66,6 +67,25 @@ export const migrationApi = {
 
   cloneMapping: (projectId: string, mappingId: string, data: { targetField: string; targetEntity: string }) =>
     api.post<FieldMappingEntryDto>(`/projects/${projectId}/mappings/${mappingId}/clone`, data),
+
+  // Entity Coverage
+  getEntityCoverage: (projectId: string) =>
+    api.get<EntityCoverageEntry[]>(`/projects/${projectId}/mappings/entity-coverage`),
+
+  updateEntityCoverage: (projectId: string, overrides: { entity: string; active: boolean }[]) =>
+    api.put<EntityCoverageEntry[]>(`/projects/${projectId}/mappings/entity-coverage`, overrides),
+
+  // Mapping import/export
+  exportMappings: (projectId: string) =>
+    api.get(`/projects/${projectId}/mappings/export`),
+
+  importMappings: (projectId: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return api.post<MappingImportResultDto>(`/projects/${projectId}/mappings/import`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
 
   // Mapping Versions
   listVersions: (projectId: string, params?: { page?: number; size?: number; search?: string }) =>

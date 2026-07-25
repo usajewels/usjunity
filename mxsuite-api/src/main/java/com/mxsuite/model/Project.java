@@ -7,6 +7,8 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -50,6 +52,10 @@ public class Project extends BaseEntity {
 
     @Column(name = "reconciliation_pct", precision = 5, scale = 2)
     private BigDecimal reconciliationPct;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "entity_coverage", columnDefinition = "jsonb")
+    private List<EntityCoverageEntry> entityCoverage;
 
     @JsonIgnore
     @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
