@@ -3,12 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import {
   Table, Tag, Typography, Tabs, Button, Select, FloatButton,
   Space, message, Row, Col, Card, Collapse, Tooltip, Modal, Form, Input, Switch, Alert, Checkbox,
-  Divider, Progress, List, Spin, Upload,
+  Divider, Progress, List, Spin,
 } from 'antd';
 import type { TableRowSelection } from 'antd/es/table/interface';
 import {
   ApartmentOutlined, CheckCircleOutlined, ClockCircleOutlined, DownOutlined, ExclamationCircleOutlined,
-  ExportOutlined, ImportOutlined, RightOutlined, StopOutlined, ThunderboltOutlined,
+  RightOutlined, StopOutlined, ThunderboltOutlined, SearchOutlined,
   CheckOutlined, PlusOutlined, HistoryOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
@@ -83,10 +83,10 @@ const STATUS_STYLE = {
 };
 const STATUS_CONFIG: Record<string, { style: React.CSSProperties; icon: React.ReactNode; label: string }> = {
   MAPPED:       { style: STATUS_STYLE.success, icon: <CheckCircleOutlined />, label: 'Approved' },
-  NEEDS_REVIEW: { style: STATUS_STYLE.outline, icon: <ClockCircleOutlined />, label: 'Needs Review' },
-  CFV_PROPOSAL: { style: STATUS_STYLE.medium,  icon: <ExclamationCircleOutlined />, label: 'AI Proposal' },
+  NEEDS_REVIEW: { style: STATUS_STYLE.outline, icon: <ClockCircleOutlined />, label: 'Pending' },
+  CFV_PROPOSAL: { style: STATUS_STYLE.medium,  icon: <ExclamationCircleOutlined />, label: 'Suggested' },
   REJECTED:     { style: STATUS_STYLE.muted,   icon: <StopOutlined />, label: 'Skipped' },
-  UNMAPPED:     { style: STATUS_STYLE.light,   icon: null, label: 'Unmapped' },
+  UNMAPPED:     { style: STATUS_STYLE.light,   icon: null, label: 'Not Mapped' },
 };
 
 const CUSTOM_FIELD_TYPES = [
@@ -138,6 +138,7 @@ export default function TenantMappingsPage() {
   const [schemaFields, setSchemaFields] = useState<GzField[]>([]);
   const [entityFilter, setEntityFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [searchText, setSearchText] = useState('');
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
 
   const [entityScope, setEntityScope] = useState<EntityCoverageEntry[]>([]);
@@ -156,9 +157,7 @@ export default function TenantMappingsPage() {
   const [panelHistoryPage, setPanelHistoryPage] = useState(0);
   const [expandedVersions, setExpandedVersions] = useState<Set<number>>(new Set());
   const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
-  const [importModalOpen, setImportModalOpen] = useState(false);
-  const [importing, setImporting] = useState(false);
-  const [exporting, setExporting] = useState(false);
+  const [reqWarningExpanded, setReqWarningExpanded] = useState(false);
   const COLLAPSED_KEY = 'mxsuite_collapsed_entities';
   const [collapsedEntities, setCollapsedEntities] = useState<Set<string>>(() => {
     try {
@@ -167,6 +166,15 @@ export default function TenantMappingsPage() {
     } catch { return new Set<string>(); }
   });
   const [collapsedInitialized, setCollapsedInitialized] = useState(false);
+
+  // Persist sort preference
+  const SORT_KEY = 'mxsuite_mapping_sort';
+  const [sortedInfo, setSortedInfo] = useState<{ columnKey: string; order: 'ascend' | 'descend' } | null>(() => {
+    try {
+      const stored = localStorage.getItem(SORT_KEY);
+      return stored ? JSON.parse(stored) : null;
+    } catch { return null; }
+  });
 
   const toggleEntity = (entity: string) => {
     setCollapsedEntities((prev) => {
@@ -195,7 +203,7 @@ export default function TenantMappingsPage() {
     const entities = new Set(gzFields.map((f) => f.entity).filter(Boolean));
     return [
       { value: 'all', label: 'All entities' },
-      ...Array.from(entities).sort().map((e) => ({ value: e, label: e })),
+      ...Array.from(entities).sort().map((e) => ({ value: e, label: toLabel(e) })),
     ];
   }, [gzFields]);
 
@@ -383,28 +391,13 @@ export default function TenantMappingsPage() {
   const handleAutoMap = async () => {
     setAutoMapping(true);
     try {
-      const tasks: Array<{ entryId: string; gzField: GzField }> = [];
-      for (const gzField of gzFields) {
-        if (mappingByTarget[gzField.name]) continue;
-        const match = unmappedEntries.find((e) => {
-          const src = e.sourceField.toLowerCase().replace(/[_\s-]/g, '');
-          const tgt = gzField.name.toLowerCase();
-          return src === tgt || src.includes(tgt) || tgt.includes(src);
-        });
-        if (match) tasks.push({ entryId: match.id, gzField });
-      }
-      if (!tasks.length) {
+      const { data } = await tenantOnboardingApi.autoMap();
+      if (data.mapped === 0) {
         message.info('No additional auto-mappings found');
-        return;
-      }
-      for (const { entryId, gzField } of tasks) {
-        await tenantOnboardingApi.updateMapping(entryId, {
-          targetField: gzField.name,
-          targetEntity: gzField.entity,
-        });
+      } else {
+        message.success(`Auto-mapped ${data.mapped} field${data.mapped !== 1 ? 's' : ''}${data.method === 'ai' ? ' (AI)' : ''}`);
       }
       await fetchData();
-      message.success(`Auto-mapped ${tasks.length} field${tasks.length !== 1 ? 's' : ''}`);
     } catch {
       message.error('Auto-map failed');
     } finally {
@@ -494,63 +487,6 @@ export default function TenantMappingsPage() {
       .finally(() => setPanelHistoryLoading(false));
   };
 
-  /* ---------- Import/Export handlers ---------- */
-
-  const handleExportMappings = async () => {
-    setExporting(true);
-    try {
-      const { data } = await tenantOnboardingApi.exportMappings();
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'mappings-export.json';
-      a.click();
-      URL.revokeObjectURL(url);
-      message.success('Mappings exported');
-    } catch {
-      message.error('Export failed');
-    } finally {
-      setExporting(false);
-    }
-  };
-
-  const handleImportMappings = async (file: File) => {
-    setImporting(true);
-    try {
-      const { data } = await tenantOnboardingApi.importMappings(file);
-      setImportModalOpen(false);
-      Modal.success({
-        title: 'Import Complete',
-        content: (
-          <div>
-            <p><strong>{data.updated}</strong> mapping(s) updated</p>
-            <p><strong>{data.matched}</strong> source field(s) matched</p>
-            {data.skippedNotFound > 0 && (
-              <p><strong>{data.skippedNotFound}</strong> skipped (source field not found)</p>
-            )}
-            {data.skippedUnchanged > 0 && (
-              <p><strong>{data.skippedUnchanged}</strong> unchanged (already matching)</p>
-            )}
-            {data.warnings.length > 0 && (
-              <details style={{ marginTop: 8 }}>
-                <summary>Warnings ({data.warnings.length})</summary>
-                <ul style={{ maxHeight: 200, overflow: 'auto', fontSize: 12 }}>
-                  {data.warnings.map((w: string, i: number) => <li key={i}>{w}</li>)}
-                </ul>
-              </details>
-            )}
-          </div>
-        ),
-      });
-      fetchData();
-    } catch (err: any) {
-      message.error(err?.response?.data?.message || 'Import failed');
-    } finally {
-      setImporting(false);
-    }
-  };
-
   const selectField = (f: GzField) => {
     setPanelField(f);
     localStorage.setItem(LAST_SELECTED_KEY, f.name);
@@ -563,6 +499,34 @@ export default function TenantMappingsPage() {
     setExpandedVersions(new Set());
     if (current) {
       loadFieldHistory(current.id, 0);
+    }
+  };
+
+  const handleReviewNext = () => {
+    const next = gzFields.find((f) => {
+      const m = mappingByTarget[f.name];
+      return m && (m.mappingStatus === 'NEEDS_REVIEW' || m.mappingStatus === 'CFV_PROPOSAL')
+        && f.name !== panelField?.name;
+    });
+    if (next) {
+      setCollapsedEntities((prev) => {
+        if (prev.has(next.entity)) {
+          const s = new Set(prev);
+          s.delete(next.entity);
+          localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...s]));
+          return s;
+        }
+        return prev;
+      });
+      setEntityFilter('all');
+      setStatusFilter('all');
+      selectField(next);
+      setTimeout(() => {
+        const row = document.querySelector(`tr[data-row-key="${next.name}"]`);
+        if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
+    } else {
+      message.info('No more fields to review');
     }
   };
 
@@ -672,6 +636,7 @@ export default function TenantMappingsPage() {
 
   // ---- Table ----
 
+  const searchLower = searchText.toLowerCase().trim();
   const filteredGzFields = gzFields.filter((f) => {
     if (entityFilter !== 'all' && f.entity !== entityFilter) return false;
     const m = mappingByTarget[f.name];
@@ -679,6 +644,11 @@ export default function TenantMappingsPage() {
     if (statusFilter === 'needs_review') return st === 'NEEDS_REVIEW' || st === 'CFV_PROPOSAL';
     if (statusFilter === 'approved') return st === 'MAPPED';
     if (statusFilter === 'unmapped') return !m;
+    if (searchLower) {
+      const matchesField = f.label.toLowerCase().includes(searchLower) || f.name.toLowerCase().includes(searchLower);
+      const matchesSource = m?.sourceField?.toLowerCase().includes(searchLower);
+      if (!matchesField && !matchesSource) return false;
+    }
     return true;
   });
 
@@ -721,7 +691,7 @@ export default function TenantMappingsPage() {
 
   /* ---------- Resizable column widths ---------- */
   const [colWidths, setColWidths] = useState<Record<string, number>>({
-    field: 200, source: 230, sample: 160, confidence: 100, status: 130,
+    field: 200, source: 230, sample: 160, confidence: 120, status: 130,
   });
 
   const handleColumnResize = useCallback(
@@ -735,9 +705,13 @@ export default function TenantMappingsPage() {
 
   const baseColumns: ColumnsType<DisplayRow> = [
     {
-      title: 'GrowthZone Field',
+      title: 'Target Field',
       key: 'field',
       width: colWidths.field,
+      sorter: (a: DisplayRow, b: DisplayRow) => {
+        if (isHeaderRow(a) || isHeaderRow(b)) return 0;
+        return (a.label || '').localeCompare(b.label || '');
+      },
       onCell: (f: DisplayRow) => isHeaderRow(f)
         ? { colSpan: 5, style: { background: 'linear-gradient(135deg, #f3eeff, #ece4fc)', padding: '8px 12px', borderBottom: '2px solid #d9d6fe', cursor: 'pointer' } }
         : {},
@@ -747,7 +721,7 @@ export default function TenantMappingsPage() {
           return (
             <Space size={8} align="center">
               {collapsed ? <RightOutlined style={{ color: '#6b4fa0', fontSize: 12 }} /> : <DownOutlined style={{ color: '#6b4fa0', fontSize: 12 }} />}
-              <Text strong style={{ color: '#2d1854', fontSize: 14 }}>{f._entityHeader}</Text>
+              <Text strong style={{ color: '#2d1854', fontSize: 14 }}>{toLabel(f._entityHeader!)}</Text>
               <Tag style={{ background: '#e0d4f5', color: '#2d1854', border: 'none', fontSize: 11 }}>
                 {f._entityMapped} / {f._entityTotal} mapped
               </Tag>
@@ -815,10 +789,16 @@ export default function TenantMappingsPage() {
       },
     },
     {
-      title: 'AI Match',
+      title: 'Confidence',
       key: 'confidence',
       width: colWidths.confidence,
       align: 'center',
+      sorter: (a: DisplayRow, b: DisplayRow) => {
+        if (isHeaderRow(a) || isHeaderRow(b)) return 0;
+        const ca = mappingByTarget[a.name]?.confidencePct ?? 0;
+        const cb = mappingByTarget[b.name]?.confidencePct ?? 0;
+        return ca - cb;
+      },
       onCell: (f: DisplayRow) => isHeaderRow(f) ? { colSpan: 0 } : {},
       render: (_, f: DisplayRow) => {
         if (isHeaderRow(f)) return null;
@@ -843,14 +823,21 @@ export default function TenantMappingsPage() {
       title: 'Status',
       key: 'status',
       width: colWidths.status,
+      sorter: (a: DisplayRow, b: DisplayRow) => {
+        if (isHeaderRow(a) || isHeaderRow(b)) return 0;
+        const order: Record<string, number> = { NEEDS_REVIEW: 0, CFV_PROPOSAL: 1, UNMAPPED: 2, MAPPED: 3, REJECTED: 4 };
+        const sa = mappingByTarget[a.name]?.mappingStatus || 'UNMAPPED';
+        const sb = mappingByTarget[b.name]?.mappingStatus || 'UNMAPPED';
+        return (order[sa] ?? 5) - (order[sb] ?? 5);
+      },
       onCell: (f: DisplayRow) => isHeaderRow(f) ? { colSpan: 0 } : {},
       render: (_, f: DisplayRow) => {
         if (isHeaderRow(f)) return null;
         const current = mappingByTarget[f.name];
         if (!current) {
           return f.required
-            ? <Tag style={{ backgroundColor: '#fff1f0', color: '#d32029', borderColor: '#ffa39e' }}>Unmapped</Tag>
-            : <Tag style={{ backgroundColor: '#f5f5f5', color: '#595959', borderColor: '#d9d9d9' }}>Unmapped</Tag>;
+            ? <Tag style={{ backgroundColor: '#fff1f0', color: '#d32029', borderColor: '#ffa39e' }}>Not Mapped</Tag>
+            : <Tag style={{ backgroundColor: '#f5f5f5', color: '#595959', borderColor: '#d9d9d9' }}>Not Mapped</Tag>;
         }
         const cfg = STATUS_CONFIG[current.mappingStatus] || STATUS_CONFIG.UNMAPPED;
         return <Tag icon={cfg.icon} style={cfg.style}>{cfg.label}</Tag>;
@@ -858,9 +845,10 @@ export default function TenantMappingsPage() {
     },
   ];
 
-  // Attach onHeaderCell for resizable handles
+  // Attach onHeaderCell for resizable handles + apply persisted sort
   const columns = baseColumns.map((col: any) => ({
     ...col,
+    sortOrder: sortedInfo && sortedInfo.columnKey === col.key ? sortedInfo.order : undefined,
     onHeaderCell: (column: any) => ({
       width: column.width,
       onResize: handleColumnResize(column.key as string),
@@ -897,66 +885,79 @@ export default function TenantMappingsPage() {
       {/* Schema coverage summary bar */}
       {gzFields.length > 0 && (
         <Card size="small" style={{ marginBottom: unmappedRequired.length > 0 ? 8 : 16, borderColor: '#e0d4f5', borderTop: '3px solid #2d1854' }}>
+          {(() => {
+            const totalMapped = entityCoverage.reduce((s, e) => s + e.mapped, 0);
+            const totalFields = entityCoverage.reduce((s, e) => s + e.total, 0);
+            const mappedPct = totalFields > 0 ? Math.round((totalMapped / totalFields) * 100) : 0;
+            return (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+                <Text style={{ fontSize: 12, color: '#2d1854', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                  {totalMapped} of {totalFields} fields mapped
+                </Text>
+                <Progress
+                  percent={mappedPct}
+                  size="small"
+                  strokeColor={mappedPct === 100 ? '#52c41a' : '#6b4fa0'}
+                  style={{ flex: 1, marginBottom: 0 }}
+                />
+                <Space size={12}>
+                  <span>
+                    <Text style={{ fontSize: 12, color: 'rgba(0,0,0,0.65)' }}>Required: </Text>
+                    <Text strong style={{ fontSize: 12, color: requiredMapped === requiredTotal ? '#237804' : '#d32029' }}>
+                      {requiredMapped}/{requiredTotal}
+                    </Text>
+                  </span>
+                  <span>
+                    <Text style={{ fontSize: 12, color: 'rgba(0,0,0,0.65)' }}>Approved: </Text>
+                    <Text strong style={{ fontSize: 12, color: '#237804' }}>{approvedCount}</Text>
+                  </span>
+                  <span>
+                    <Text style={{ fontSize: 12, color: 'rgba(0,0,0,0.65)' }}>Pending: </Text>
+                    <Text strong style={{ fontSize: 12, color: '#6b4fa0' }}>{needsReviewCount}</Text>
+                  </span>
+                </Space>
+              </div>
+            );
+          })()}
           <Row align="middle" gutter={[8, 6]} wrap>
             <Col>
-              <Text style={{ fontSize: 12, color: '#2d1854', fontWeight: 600 }}>PROGRESS</Text>
+              <Text style={{ fontSize: 12, color: '#2d1854', fontWeight: 600 }}>BY ENTITY</Text>
             </Col>
             {entityCoverage.map((ec) => {
               const complete = ec.mapped === ec.total;
               const hasReqGap = ec.reqMapped < ec.required;
+              const isSelected = entityFilter === ec.entity;
               return (
                 <Col key={ec.entity}>
-                  <Tag style={{
-                    fontSize: 11,
-                    backgroundColor: complete ? '#f6ffed' : hasReqGap ? '#fff1f0' : '#f3eeff',
-                    color: complete ? '#237804' : hasReqGap ? '#d32029' : '#2d1854',
-                    borderColor: complete ? '#b7eb8f' : hasReqGap ? '#ffa39e' : '#e0d4f5',
-                  }}>
-                    {ec.entity} {ec.mapped}/{ec.total}
+                  <Tag
+                    onClick={() => {
+                      if (isSelected) {
+                        setEntityFilter('all');
+                      } else {
+                        setEntityFilter(ec.entity);
+                        setStatusFilter('all');
+                      }
+                    }}
+                    style={{
+                      fontSize: 11,
+                      cursor: 'pointer',
+                      backgroundColor: isSelected ? '#2d1854' : complete ? '#f6ffed' : hasReqGap ? '#fff1f0' : '#f3eeff',
+                      color: isSelected ? '#fff' : complete ? '#237804' : hasReqGap ? '#d32029' : '#2d1854',
+                      borderColor: isSelected ? '#2d1854' : complete ? '#b7eb8f' : hasReqGap ? '#ffa39e' : '#e0d4f5',
+                      fontWeight: isSelected ? 600 : 400,
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    {toLabel(ec.entity)} {ec.mapped}/{ec.total}
                   </Tag>
                 </Col>
               );
             })}
-            <Col style={{ marginLeft: 'auto' }}>
-              <Space size={16}>
-                <span>
-                  <Text style={{ fontSize: 12, color: 'rgba(0,0,0,0.65)' }}>Required: </Text>
-                  <Text strong style={{ fontSize: 12, color: requiredMapped === requiredTotal ? '#237804' : '#d32029' }}>
-                    {requiredMapped}/{requiredTotal}
-                  </Text>
-                </span>
-                <span>
-                  <Text style={{ fontSize: 12, color: 'rgba(0,0,0,0.65)' }}>Approved: </Text>
-                  <Text strong style={{ fontSize: 12, color: '#237804' }}>{approvedCount}</Text>
-                </span>
-                <span>
-                  <Text style={{ fontSize: 12, color: 'rgba(0,0,0,0.65)' }}>Needs Review: </Text>
-                  <Text strong style={{ fontSize: 12, color: '#6b4fa0' }}>{needsReviewCount}</Text>
-                </span>
-              </Space>
-            </Col>
           </Row>
           <Row align="middle" style={{ marginTop: 8 }}>
             <Col flex="auto" />
             <Col>
               <Space wrap>
-                <Button
-                  size="small"
-                  icon={<ExportOutlined />}
-                  loading={exporting}
-                  onClick={handleExportMappings}
-                  style={{ borderColor: '#6b4fa0', color: '#6b4fa0' }}
-                >
-                  Export
-                </Button>
-                <Button
-                  size="small"
-                  icon={<ImportOutlined />}
-                  onClick={() => setImportModalOpen(true)}
-                  style={{ borderColor: '#6b4fa0', color: '#6b4fa0' }}
-                >
-                  Import
-                </Button>
                 <Button
                   size="small"
                   icon={<HistoryOutlined />}
@@ -971,7 +972,7 @@ export default function TenantMappingsPage() {
                   onClick={() => { customFieldForm.resetFields(); customFieldForm.setFieldsValue({ type: 'string' }); setCustomFieldModalOpen(true); }}
                   style={{ borderColor: '#2d1854', color: '#2d1854' }}
                 >
-                  Add GZ Field
+                  Custom Field
                 </Button>
                 <Button
                   size="small"
@@ -988,7 +989,7 @@ export default function TenantMappingsPage() {
                     size="small"
                     icon={<CheckOutlined />}
                     onClick={handleBulkApprove}
-                    style={{ background: '#2d1854', borderColor: '#2d1854' }}
+                    style={{ background: '#2d1854', borderColor: '#2d1854', color: '#fff' }}
                   >
                     Approve All ({needsReviewCount})
                   </Button>
@@ -1007,38 +1008,61 @@ export default function TenantMappingsPage() {
           style={{ marginBottom: 16 }}
           message={
             <span>
-              <Text strong>{unmappedRequired.length} required field{unmappedRequired.length !== 1 ? 's' : ''} still need a data column: </Text>
-              {unmappedRequired.map((f, i) => (
-                <span key={f.name}>
-                  {i > 0 && ', '}
-                  <a
-                    onClick={() => {
-                      // Expand entity, reset filters, select the field, and scroll into view
-                      setCollapsedEntities((prev) => {
-                        if (prev.has(f.entity)) {
-                          const next = new Set(prev);
-                          next.delete(f.entity);
-                          localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...next]));
-                          return next;
-                        }
-                        return prev;
-                      });
-                      setEntityFilter('all');
-                      setStatusFilter('all');
-                      selectField(f);
-                      // Scroll after React re-renders the expanded entity rows
-                      setTimeout(() => {
-                        const row = document.querySelector(`tr[data-row-key="${f.name}"]`);
-                        if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                      }, 100);
-                    }}
-                    style={{ color: '#d32029', fontWeight: 500, cursor: 'pointer' }}
-                  >
-                    {f.entity}.{f.label}
-                  </a>
-                </span>
-              ))}
+              <Text strong>{unmappedRequired.length} required field{unmappedRequired.length !== 1 ? 's' : ''} still need a data column. </Text>
+              <a onClick={() => setReqWarningExpanded(!reqWarningExpanded)} style={{ color: '#d48806', fontWeight: 500 }}>
+                {reqWarningExpanded ? '\u25BE Hide fields' : '\u25B8 Show fields'}
+              </a>
+              {reqWarningExpanded && (
+                <div style={{ marginTop: 6 }}>
+                  {unmappedRequired.map((f, i) => (
+                    <span key={f.name}>
+                      {i > 0 && ', '}
+                      <a
+                        onClick={() => {
+                          setCollapsedEntities((prev) => {
+                            if (prev.has(f.entity)) {
+                              const next = new Set(prev);
+                              next.delete(f.entity);
+                              localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...next]));
+                              return next;
+                            }
+                            return prev;
+                          });
+                          setEntityFilter('all');
+                          setStatusFilter('all');
+                          selectField(f);
+                          setTimeout(() => {
+                            const row = document.querySelector(`tr[data-row-key="${f.name}"]`);
+                            if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                          }, 100);
+                        }}
+                        style={{ color: '#d32029', fontWeight: 500, cursor: 'pointer' }}
+                      >
+                        {toLabel(f.entity)}.{f.label}
+                      </a>
+                    </span>
+                  ))}
+                </div>
+              )}
             </span>
+          }
+        />
+      )}
+
+      {/* All-done banner */}
+      {needsReviewCount === 0 && approvedCount > 0 && (
+        <Alert
+          type="success"
+          showIcon
+          icon={<CheckCircleOutlined />}
+          message="All mappings are approved!"
+          description="Great work! If your coach has any decisions for you, check the Decisions page. Otherwise, your coach will advance you to data validation."
+          style={{ marginBottom: 12 }}
+          action={
+            <Button size="small" type="primary" onClick={() => navigate('/plans/my-onboarding/decisions')}
+              style={{ background: '#2d1854', borderColor: '#2d1854', color: '#fff' }}>
+              Check Decisions
+            </Button>
           }
         />
       )}
@@ -1053,21 +1077,42 @@ export default function TenantMappingsPage() {
             style={{ marginBottom: 0 }}
             items={[
               { key: 'all', label: `All (${gzFields.length})` },
-              { key: 'needs_review', label: `Needs Review (${needsReviewCount})` },
+              { key: 'needs_review', label: `Pending (${needsReviewCount})` },
               { key: 'approved', label: `Approved (${approvedCount})` },
-              { key: 'unmapped', label: `Unmapped (${gzFields.filter((f) => !mappingByTarget[f.name]).length})` },
+              { key: 'unmapped', label: `Not Mapped (${gzFields.filter((f) => !mappingByTarget[f.name]).length})` },
             ]}
           />
         </Col>
         <Col>
-          <Select
-            value={entityFilter}
-            onChange={(v) => { setEntityFilter(v); setSelectedRowKeys([]); }}
-            size="small"
-            style={{ width: 130 }}
-            aria-label="Filter by entity"
-            options={entityOptions}
-          />
+          <Space size={8}>
+            <Input
+              size="small"
+              placeholder="Search fields..."
+              prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
+              allowClear
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              style={{ width: 180 }}
+            />
+            <Select
+              value={entityFilter}
+              onChange={(v) => { setEntityFilter(v); setSelectedRowKeys([]); }}
+              size="small"
+              style={{ width: 130 }}
+              aria-label="Filter by entity"
+              options={entityOptions}
+            />
+            {needsReviewCount > 0 && (
+              <Button
+                size="small"
+                icon={<RightOutlined />}
+                onClick={handleReviewNext}
+                style={{ borderColor: '#6b4fa0', color: '#6b4fa0' }}
+              >
+                Review Next
+              </Button>
+            )}
+          </Space>
         </Col>
       </Row>
 
@@ -1090,7 +1135,7 @@ export default function TenantMappingsPage() {
                     icon={<CheckCircleOutlined />}
                     disabled={!bulkApprovable.length}
                     onClick={handleBulkApproveSelected}
-                    style={{ background: '#2d1854', borderColor: '#2d1854' }}
+                    style={{ background: '#2d1854', borderColor: '#2d1854', color: '#fff' }}
                   >
                     Approve {bulkApprovable.length > 0 ? `(${bulkApprovable.length})` : ''}
                   </Button>
@@ -1161,6 +1206,17 @@ export default function TenantMappingsPage() {
             loading={loading}
             pagination={false}
             scroll={{ x: panelField ? 700 : 900 }}
+            onChange={(_pagination, _filters, sorter) => {
+              const s = Array.isArray(sorter) ? sorter[0] : sorter;
+              if (s?.columnKey && s.order) {
+                const info = { columnKey: String(s.columnKey), order: s.order };
+                setSortedInfo(info);
+                localStorage.setItem(SORT_KEY, JSON.stringify(info));
+              } else {
+                setSortedInfo(null);
+                localStorage.removeItem(SORT_KEY);
+              }
+            }}
             rowClassName={(f) => {
               if (isHeaderRow(f)) return 'tenant-mapping-entity-header';
               return f.name === panelField?.name ? 'tenant-mapping-row-active' : '';
@@ -1240,8 +1296,8 @@ export default function TenantMappingsPage() {
                     {(() => {
                       if (!panelMapping) {
                         return panelField.required
-                          ? <Tag style={{ backgroundColor: '#fff1f0', color: '#d32029', borderColor: '#ffa39e', margin: 0 }}>Unmapped</Tag>
-                          : <Tag style={{ backgroundColor: '#f5f5f5', color: '#595959', borderColor: '#d9d9d9', margin: 0 }}>Unmapped</Tag>;
+                          ? <Tag style={{ backgroundColor: '#fff1f0', color: '#d32029', borderColor: '#ffa39e', margin: 0 }}>Not Mapped</Tag>
+                          : <Tag style={{ backgroundColor: '#f5f5f5', color: '#595959', borderColor: '#d9d9d9', margin: 0 }}>Not Mapped</Tag>;
                       }
                       const cfg = STATUS_CONFIG[panelMapping.mappingStatus] || STATUS_CONFIG.UNMAPPED;
                       return <Tag icon={cfg.icon} style={{ ...cfg.style, margin: 0 }}>{cfg.label}</Tag>;
@@ -1294,7 +1350,7 @@ export default function TenantMappingsPage() {
                 {/* AI confidence */}
                 {panelMapping?.confidencePct != null && (
                   <div>
-                    <Text style={{ fontSize: 12, color: '#2d1854', fontWeight: 600, display: 'block', marginBottom: 4 }}>AI CONFIDENCE</Text>
+                    <Text style={{ fontSize: 12, color: '#2d1854', fontWeight: 600, display: 'block', marginBottom: 4 }}>MATCH CONFIDENCE</Text>
                     <Progress
                       percent={panelMapping.confidencePct}
                       size="small"
@@ -1334,7 +1390,7 @@ export default function TenantMappingsPage() {
                     <>
                       {panelStatus !== 'MAPPED' && (
                         <Button type="primary" loading={panelSaving} onClick={handlePanelApprove}
-                          style={{ flex: 1, background: '#2d1854', borderColor: '#2d1854' }}>
+                          style={{ flex: 1, background: '#2d1854', borderColor: '#2d1854', color: '#fff' }}>
                           Approve mapping
                         </Button>
                       )}
@@ -1391,8 +1447,8 @@ export default function TenantMappingsPage() {
                       RESTORED: 'Restored',
                     };
                     const FRIENDLY: Record<string, string> = {
-                      MAPPED: 'Approved', NEEDS_REVIEW: 'Needs Review', CFV_PROPOSAL: 'Proposal',
-                      REJECTED: 'Skipped', UNMAPPED: 'Unmapped',
+                      MAPPED: 'Approved', NEEDS_REVIEW: 'Pending', CFV_PROPOSAL: 'Suggested',
+                      REJECTED: 'Skipped', UNMAPPED: 'Not Mapped',
                     };
                     const friendly = (v: string | null) => (v && FRIENDLY[v]) || v || '';
 
@@ -1483,12 +1539,12 @@ export default function TenantMappingsPage() {
 
       {/* Add Custom GZ Field modal */}
       <Modal
-        title="Add Custom GrowthZone Field"
+        title="Add Custom Field"
         open={customFieldModalOpen}
         onCancel={() => setCustomFieldModalOpen(false)}
         onOk={() => customFieldForm.submit()}
         okText="Add Field"
-        okButtonProps={{ style: { background: '#2d1854', borderColor: '#2d1854' } }}
+        okButtonProps={{ style: { background: '#2d1854', borderColor: '#2d1854', color: '#fff' } }}
         destroyOnHidden
       >
         <Form
@@ -1530,44 +1586,6 @@ export default function TenantMappingsPage() {
         onRollbackComplete={fetchData}
       />
       <FloatButton.BackTop visibilityHeight={300} />
-
-      {/* Import mappings modal */}
-      <Modal
-        title="Import Mappings"
-        open={importModalOpen}
-        onCancel={() => setImportModalOpen(false)}
-        footer={null}
-        width={480}
-      >
-        <Alert
-          type="warning"
-          showIcon
-          style={{ marginBottom: 16 }}
-          message="This will overwrite existing mapping assignments. A version snapshot will be created first so you can roll back."
-        />
-        <Upload.Dragger
-          accept=".json"
-          maxCount={1}
-          beforeUpload={(file) => {
-            Modal.confirm({
-              title: 'Confirm Import',
-              content: `Import mappings from "${file.name}"? Existing mappings will be overwritten.`,
-              okText: 'Import',
-              okButtonProps: { danger: true },
-              onOk: () => handleImportMappings(file),
-            });
-            return false;
-          }}
-          showUploadList={false}
-          disabled={importing}
-        >
-          <p style={{ fontSize: 14, color: '#6b4fa0' }}>
-            <ImportOutlined style={{ fontSize: 24, marginBottom: 8, display: 'block' }} />
-            Click or drag a JSON mapping file here
-          </p>
-        </Upload.Dragger>
-        {importing && <Spin style={{ display: 'block', marginTop: 16, textAlign: 'center' }} />}
-      </Modal>
     </div>
   );
 }

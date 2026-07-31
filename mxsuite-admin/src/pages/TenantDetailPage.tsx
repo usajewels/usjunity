@@ -22,6 +22,7 @@ import OnboardingMetricsTab from '../components/OnboardingMetricsTab';
 import FeatureConfigTab from '../components/FeatureConfigTab';
 import AiConfigTab from '../components/AiConfigTab';
 import CoachMappingsTab from '../components/CoachMappingsTab';
+import PipelineTab from '../components/PipelineTab';
 import { usePageTitle } from '@mxsuite/shared';
 
 const { Title, Text } = Typography;
@@ -728,6 +729,14 @@ export default function TenantDetailPage() {
                 </span>
               ),
               children: id ? <CoachMappingsTab tenantId={id} /> : null,
+            }, {
+              key: 'pipeline',
+              label: (
+                <span>
+                  <ThunderboltOutlined /> Data Pipeline
+                </span>
+              ),
+              children: id ? <PipelineTab tenantId={id} /> : null,
             }, {
               key: 'metrics',
               label: (

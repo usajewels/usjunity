@@ -3,13 +3,15 @@ import {
   Card, Table, Tag, Tabs, Typography, Spin, Button, Radio, Space, Drawer,
   Divider, List, message, ConfigProvider,
 } from 'antd';
-import { CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
+import { CheckCircleOutlined, CloseCircleOutlined, RobotOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import type { SemanticDecisionDto, DecisionStatus } from '@mxsuite/shared';
 import { usePageTitle } from '@mxsuite/shared';
 import { tenantOnboardingApi } from '../../services/tenantOnboardingApi';
 
 const { Title, Text, Paragraph } = Typography;
+
+const LAST_VISIT_KEY = 'mxsuite:decisions:lastVisit';
 
 const STATUS_STYLES: Record<string, React.CSSProperties> = {
   OPEN: { backgroundColor: '#fffbe6', color: '#ad6800', borderColor: '#ffe58f' },
@@ -44,6 +46,14 @@ export default function TenantDecisionsPage() {
   const [selectedOption, setSelectedOption] = useState<number | undefined>(undefined);
   const [actionLoading, setActionLoading] = useState(false);
 
+  // Track "New" decisions: ones created since the user's last visit
+  const [lastVisit] = useState(() => {
+    const stored = localStorage.getItem(LAST_VISIT_KEY);
+    return stored ? parseInt(stored, 10) : 0;
+  });
+  const isNew = (d: SemanticDecisionDto) =>
+    d.decisionStatus === 'OPEN' && new Date(d.createdAt).getTime() > lastVisit;
+
   const load = async (status?: DecisionStatus) => {
     setLoading(true);
     try {
@@ -70,7 +80,12 @@ export default function TenantDecisionsPage() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    // Mark current time as last visit (after a short delay so "New" tags are visible)
+    const timer = setTimeout(() => localStorage.setItem(LAST_VISIT_KEY, String(Date.now())), 2000);
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleTabChange = (key: string) => {
     setActiveTab(key);
@@ -122,7 +137,17 @@ export default function TenantDecisionsPage() {
       dataIndex: 'title',
       key: 'title',
       sorter: (a, b) => (a.title || '').localeCompare(b.title || ''),
-      render: (title: string) => <Text strong>{title}</Text>,
+      render: (title: string, record: SemanticDecisionDto) => (
+        <span>
+          <Text strong>{title}</Text>
+          {isNew(record) && (
+            <Tag color="blue" style={{ marginLeft: 6, fontSize: 10 }}>New</Tag>
+          )}
+          {record.source === 'AI' && (
+            <Tag icon={<RobotOutlined />} style={{ marginLeft: 6, fontSize: 10, backgroundColor: '#f3eeff', color: '#6b4fa0', borderColor: '#e0d4f5' }}>AI</Tag>
+          )}
+        </span>
+      ),
     },
     {
       title: 'Context',
@@ -301,7 +326,7 @@ export default function TenantDecisionsPage() {
                     icon={<CheckCircleOutlined />}
                     onClick={handleApprove}
                     loading={actionLoading}
-                    style={{ flex: 1, background: '#2d1854', borderColor: '#2d1854' }}
+                    style={{ flex: 1, background: '#2d1854', borderColor: '#2d1854', color: '#fff' }}
                   >
                     Approve
                   </Button>

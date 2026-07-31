@@ -6,8 +6,10 @@ import com.mxsuite.model.Onboarding;
 import com.mxsuite.model.Project;
 import com.mxsuite.model.enums.MappingStatus;
 import com.mxsuite.model.enums.OnboardingStatus;
+import com.mxsuite.model.ProjectDataUpload;
 import com.mxsuite.repository.FieldMappingEntryRepository;
 import com.mxsuite.repository.OnboardingRepository;
+import com.mxsuite.repository.ProjectDataUploadRepository;
 import com.mxsuite.repository.TenantRepository;
 import com.mxsuite.repository.UserRepository;
 import com.mxsuite.service.MappingVersionService;
@@ -41,6 +43,7 @@ public class AdminOnboardingController {
     private final TenantRepository tenantRepository;
     private final UserRepository userRepository;
     private final FieldMappingEntryRepository mappingRepository;
+    private final ProjectDataUploadRepository uploadRepository;
     private final AuditService auditService;
     private final MappingVersionService versionService;
     private final TargetSchemaService targetSchemaService;
@@ -49,6 +52,7 @@ public class AdminOnboardingController {
                                      TenantRepository tenantRepository,
                                      UserRepository userRepository,
                                      FieldMappingEntryRepository mappingRepository,
+                                     ProjectDataUploadRepository uploadRepository,
                                      AuditService auditService,
                                      MappingVersionService versionService,
                                      TargetSchemaService targetSchemaService) {
@@ -56,6 +60,7 @@ public class AdminOnboardingController {
         this.tenantRepository = tenantRepository;
         this.userRepository = userRepository;
         this.mappingRepository = mappingRepository;
+        this.uploadRepository = uploadRepository;
         this.auditService = auditService;
         this.versionService = versionService;
         this.targetSchemaService = targetSchemaService;
@@ -91,13 +96,24 @@ public class AdminOnboardingController {
     @GetMapping("/schema")
     public ResponseEntity<?> getSchema(@PathVariable("tenantId") UUID tenantId) {
         var onboarding = onboardingRepository.findByTenantId(tenantId).orElse(null);
-        List<Map<String, Object>> schema = (onboarding != null && onboarding.getTargetSchema() != null)
-                ? onboarding.getTargetSchema()
-                : targetSchemaService.getFlatFields();
+        List<Map<String, Object>> stored = (onboarding != null) ? onboarding.getTargetSchema() : null;
+
+        // Use stored schema only if it's v2 format (has entity info).
+        // Legacy schemas without entity grouping fall through to the default.
+        List<Map<String, Object>> schema;
+        if (stored != null && !stored.isEmpty() && hasEntityInfo(stored)) {
+            schema = stored;
+        } else {
+            schema = targetSchemaService.getFlatFields();
+        }
         return ResponseEntity.ok(Map.of(
                 "targetSchema", schema,
                 "hasOnboarding", onboarding != null
         ));
+    }
+
+    private static boolean hasEntityInfo(List<Map<String, Object>> schema) {
+        return schema.stream().anyMatch(f -> f.get("entity") != null);
     }
 
     @GetMapping("/schema/v2")
@@ -156,16 +172,29 @@ public class AdminOnboardingController {
         long total = mapped + needsReview + unmapped + rejected
                 + mappingRepository.countByProjectIdAndMappingStatus(pid, MappingStatus.CFV_PROPOSAL);
 
-        return ResponseEntity.ok(Map.of(
-                "hasProject", true,
-                "projectId", project.getId(),
-                "projectName", project.getName(),
-                "migrationPhase", project.getMigrationPhase(),
-                "migrationStatus", project.getMigrationStatus(),
-                "mappingStats", Map.of(
-                        "total", total, "mapped", mapped,
-                        "needsReview", needsReview, "unmapped", unmapped, "rejected", rejected)
-        ));
+        // Build response with upload/staging/export info from latest upload
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("hasProject", true);
+        result.put("projectId", project.getId());
+        result.put("projectName", project.getName());
+        result.put("migrationPhase", project.getMigrationPhase());
+        result.put("migrationStatus", project.getMigrationStatus());
+        result.put("mappingStats", Map.of(
+                "total", total, "mapped", mapped,
+                "needsReview", needsReview, "unmapped", unmapped, "rejected", rejected));
+
+        uploadRepository.findFirstByProjectIdOrderByCreatedAtDesc(pid).ifPresent(upload -> {
+            result.put("uploadId", upload.getId());
+            result.put("uploadFilename", upload.getOriginalFilename());
+            result.put("uploadRowCount", upload.getRowCount());
+            result.put("stagingStatus", upload.getStagingStatus());
+            result.put("s3ExportStatus", upload.getS3ExportStatus());
+            if (upload.getS3ExportedAt() != null) {
+                result.put("s3ExportedAt", upload.getS3ExportedAt().toString());
+            }
+        });
+
+        return ResponseEntity.ok(result);
     }
 
     @GetMapping("/project/mappings")
@@ -329,5 +358,27 @@ public class AdminOnboardingController {
             userRepository.findById(onboarding.getLastModifiedBy()).ifPresent(u ->
                     onboarding.setLastModifiedByName(u.getFirstName() + " " + u.getLastName()));
         }
+    }
+
+    /** Assign a primary coach to this tenant's onboarding. */
+    @PutMapping("/assign-coach")
+    @Transactional
+    public ResponseEntity<?> assignCoach(@PathVariable UUID tenantId,
+                                          @RequestBody Map<String, UUID> body) {
+        UUID coachId = body.get("coachId");
+        return onboardingRepository.findByTenantId(tenantId)
+                .map(ob -> {
+                    if (coachId != null) {
+                        userRepository.findById(coachId).ifPresent(ob::setAssignedTo);
+                    } else {
+                        ob.setAssignedTo(null);
+                    }
+                    onboardingRepository.save(ob);
+                    return ResponseEntity.ok(Map.of(
+                            "assignedToId", coachId != null ? coachId : "",
+                            "message", coachId != null ? "Primary coach assigned" : "Primary coach removed"
+                    ));
+                })
+                .orElse(ResponseEntity.notFound().build());
     }
 }

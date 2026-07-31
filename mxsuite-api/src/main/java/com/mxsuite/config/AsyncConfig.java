@@ -21,4 +21,37 @@ public class AsyncConfig {
         executor.initialize();
         return executor;
     }
+
+    @Bean(name = "validationExecutor")
+    public Executor validationExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(4);
+        executor.setQueueCapacity(10);
+        executor.setThreadNamePrefix("data-validation-");
+        executor.initialize();
+        return executor;
+    }
+
+    @Bean(name = "stagingExecutor")
+    public Executor stagingExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(4);
+        executor.setQueueCapacity(5);
+        executor.setThreadNamePrefix("sql-staging-");
+        executor.initialize();
+        return executor;
+    }
+
+    @Bean(name = "exportExecutor")
+    public Executor exportExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(2);
+        executor.setQueueCapacity(5);
+        executor.setThreadNamePrefix("parquet-export-");
+        executor.initialize();
+        return executor;
+    }
 }

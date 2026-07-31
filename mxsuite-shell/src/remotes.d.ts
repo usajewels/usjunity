@@ -18,6 +18,11 @@ declare module 'mxsuiteChat/ChatApp' {
   export default ChatApp;
 }
 
+declare module 'mxsuiteChat/ChatBubble' {
+  const ChatBubble: React.ComponentType;
+  export default ChatBubble;
+}
+
 declare module 'mxsuiteOnboarding/OnboardingApp' {
   const OnboardingApp: React.ComponentType;
   export default OnboardingApp;

@@ -5,6 +5,7 @@ import com.mxsuite.model.MigrationBlueprint;
 import com.mxsuite.model.PhaseGate;
 import com.mxsuite.model.PhaseTimeEntry;
 import com.mxsuite.model.Project;
+import com.mxsuite.model.ProjectDataUpload;
 import com.mxsuite.model.enums.GateStatus;
 import com.mxsuite.model.enums.MigrationPhase;
 import com.mxsuite.model.enums.MigrationStatus;
@@ -12,10 +13,15 @@ import com.mxsuite.repository.MigrationBlueprintRepository;
 import com.mxsuite.repository.PhaseGateRepository;
 import com.mxsuite.repository.PhaseTimeEntryRepository;
 import com.mxsuite.repository.PlatformAssignmentRepository;
+import com.mxsuite.repository.ProjectDataUploadRepository;
 import com.mxsuite.repository.ProjectRepository;
 import com.mxsuite.repository.TenantRepository;
 import com.mxsuite.security.TenantContext;
 import com.mxsuite.security.UserPrincipal;
+import com.mxsuite.service.DataValidationService;
+import com.mxsuite.service.PhaseGateService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
@@ -37,28 +43,39 @@ import java.util.UUID;
 @Transactional(readOnly = true)
 public class MigrationDashboardController {
 
+    private static final Logger log = LoggerFactory.getLogger(MigrationDashboardController.class);
+
     private final ProjectRepository projectRepository;
     private final PhaseGateRepository phaseGateRepository;
     private final PhaseTimeEntryRepository phaseTimeEntryRepository;
     private final MigrationBlueprintRepository blueprintRepository;
     private final PlatformAssignmentRepository assignmentRepository;
+    private final ProjectDataUploadRepository uploadRepository;
     private final TenantRepository tenantRepository;
     private final AuditService auditService;
+    private final DataValidationService dataValidationService;
+    private final PhaseGateService phaseGateService;
 
     public MigrationDashboardController(ProjectRepository projectRepository,
                                          PhaseGateRepository phaseGateRepository,
                                          PhaseTimeEntryRepository phaseTimeEntryRepository,
                                          MigrationBlueprintRepository blueprintRepository,
                                          PlatformAssignmentRepository assignmentRepository,
+                                         ProjectDataUploadRepository uploadRepository,
                                          TenantRepository tenantRepository,
-                                         AuditService auditService) {
+                                         AuditService auditService,
+                                         DataValidationService dataValidationService,
+                                         PhaseGateService phaseGateService) {
         this.projectRepository = projectRepository;
         this.phaseGateRepository = phaseGateRepository;
         this.phaseTimeEntryRepository = phaseTimeEntryRepository;
         this.blueprintRepository = blueprintRepository;
         this.assignmentRepository = assignmentRepository;
+        this.uploadRepository = uploadRepository;
         this.tenantRepository = tenantRepository;
         this.auditService = auditService;
+        this.dataValidationService = dataValidationService;
+        this.phaseGateService = phaseGateService;
     }
 
     // --- DTOs ---
@@ -66,7 +83,8 @@ public class MigrationDashboardController {
     public record MigrationProjectDto(
             UUID id, String name, String sourceSystem, String targetSystem,
             MigrationPhase migrationPhase, MigrationStatus migrationStatus,
-            BigDecimal reconciliationPct, String ownerName, String tenantName,
+            BigDecimal reconciliationPct, String ownerName,
+            UUID tenantId, String tenantName,
             List<PhaseGateDto> phaseGates, List<PhaseTimeDto> phaseTimes,
             Instant createdAt) {}
 
@@ -200,6 +218,17 @@ public class MigrationDashboardController {
 
                     auditService.log("ADVANCE_PHASE", "Project", project.getId(),
                             current + " → " + phases[idx + 1]);
+
+                    // Auto-trigger validation when entering GENERATE phase
+                    if (phases[idx + 1] == MigrationPhase.GENERATE) {
+                        autoTriggerValidation(project, principal);
+                    }
+
+                    // Auto-evaluate DRY_RUN gate when entering DRY_RUN phase
+                    if (phases[idx + 1] == MigrationPhase.DRY_RUN) {
+                        phaseGateService.evaluateDryRunGate(project.getId());
+                    }
+
                     return ResponseEntity.ok(toMigrationProjectDto(project));
                 })
                 .orElse(ResponseEntity.notFound().build());
@@ -266,12 +295,13 @@ public class MigrationDashboardController {
         String ownerName = project.getOwner() != null
                 ? project.getOwner().getFirstName() + " " + project.getOwner().getLastName()
                 : null;
+        UUID tenantId = project.getTenant() != null ? project.getTenant().getId() : null;
         String tenantName = project.getTenant() != null ? project.getTenant().getName() : null;
         return new MigrationProjectDto(
                 project.getId(), project.getName(),
                 project.getSourceSystem(), project.getTargetSystem(),
                 project.getMigrationPhase(), project.getMigrationStatus(),
-                project.getReconciliationPct(), ownerName, tenantName,
+                project.getReconciliationPct(), ownerName, tenantId, tenantName,
                 gates, times, project.getCreatedAt());
     }
 
@@ -306,5 +336,27 @@ public class MigrationDashboardController {
                 .stream().map(t -> t.getId()).toList();
         return java.util.stream.Stream.concat(assigned.stream(), openToAll.stream())
                 .distinct().toList();
+    }
+
+    /**
+     * Auto-trigger data validation when a project enters the GENERATE phase.
+     * Finds the latest parsed upload and kicks off async validation.
+     */
+    private void autoTriggerValidation(Project project, UserPrincipal principal) {
+        try {
+            ProjectDataUpload upload = uploadRepository
+                    .findFirstByProjectIdOrderByCreatedAtDesc(project.getId())
+                    .orElse(null);
+            if (upload == null || upload.getStoragePath() == null) {
+                log.warn("No upload found for project={} — skipping auto-validation", project.getId());
+                return;
+            }
+            log.info("Auto-triggering validation for project={} upload={}", project.getId(), upload.getId());
+            dataValidationService.runValidation(
+                    project.getId(), upload.getId(), principal.id(), principal.tenantId());
+        } catch (Exception e) {
+            log.warn("Failed to auto-trigger validation for project={}: {}",
+                    project.getId(), e.getMessage());
+        }
     }
 }

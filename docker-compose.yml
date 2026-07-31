@@ -82,6 +82,7 @@ services:
       GROQ_MODEL: ${GROQ_MODEL:-llama-3.3-70b-versatile}
       XAI_API_KEY: ${XAI_API_KEY:-}
       GROK_MODEL: ${GROK_MODEL:-grok-3-mini}
+      GROK_BASE_URL: ${GROK_BASE_URL:-https://api.x.ai}
       AI_MAPPING_PROVIDER: ${AI_MAPPING_PROVIDER:-anthropic}
       AI_CHAT_PROVIDER: ${AI_CHAT_PROVIDER:-groq}
     volumes:

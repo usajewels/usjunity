@@ -128,6 +128,13 @@ export const migrationApi = {
   rejectDecision: (id: string) =>
     api.post<SemanticDecisionDto>(`/migration/decisions/${id}/reject`),
 
+  createDecision: (data: {
+    title: string; summary?: string; projectId?: string; tenantId?: string;
+    fieldContext?: string;
+    options?: Array<{ label: string; description?: string; isRecommended?: boolean }>;
+    requirements?: Array<{ description: string }>;
+  }) => api.post<SemanticDecisionDto>('/migration/decisions', data),
+
   getDecisionStats: () =>
     api.get<DecisionStatsDto>('/migration/decisions/stats'),
 
@@ -157,6 +164,39 @@ export const migrationApi = {
 
   signOffRecon: (projectId: string, reportId: string, data: { signerName?: string; signerRole?: string }) =>
     api.post<ReconciliationReportDto>(`/migration/projects/${projectId}/reconciliation/${reportId}/sign-off`, data),
+
+  // Data Validation
+  triggerValidation: (projectId: string, uploadId: string) =>
+    api.post(`/projects/${projectId}/validations`, { uploadId }),
+
+  listValidationRuns: (projectId: string) =>
+    api.get<ValidationRunDto[]>(`/projects/${projectId}/validations`),
+
+  getLatestValidation: (projectId: string) =>
+    api.get<ValidationRunDto>(`/projects/${projectId}/validations/latest`),
+
+  getValidationRun: (projectId: string, runId: string) =>
+    api.get<ValidationRunDto>(`/projects/${projectId}/validations/${runId}`),
+
+  listValidationIssues: (projectId: string, runId: string, params?: {
+    severity?: string; entity?: string; resolved?: boolean; page?: number; size?: number;
+  }) =>
+    api.get<{ content: ValidationIssueDto[]; totalElements: number; totalPages: number }>(
+      `/projects/${projectId}/validations/${runId}/issues`, { params }),
+
+  getIssuesByEntity: (projectId: string, runId: string) =>
+    api.get<EntitySummaryDto[]>(`/projects/${projectId}/validations/${runId}/issues/by-entity`),
+
+  getIssuesByRule: (projectId: string, runId: string) =>
+    api.get<RuleSummaryDto[]>(`/projects/${projectId}/validations/${runId}/issues/by-rule`),
+
+  resolveIssue: (projectId: string, runId: string, issueId: string, resolvedValue: string) =>
+    api.put<ValidationIssueDto>(`/projects/${projectId}/validations/${runId}/issues/${issueId}/resolve`,
+      { resolvedValue }),
+
+  bulkResolveIssues: (projectId: string, runId: string, issueIds: string[], resolvedValue: string) =>
+    api.put<{ resolved: number }>(`/projects/${projectId}/validations/${runId}/issues/bulk-resolve`,
+      { issueIds, resolvedValue }),
 
   // Audit trail — fetch history for a specific entity
   getEntityAudit: (entityType: string, entityId: string, params?: { page?: number; size?: number }) =>
@@ -222,4 +262,51 @@ export interface AppNotification {
   projectId?: string;
   read: boolean;
   createdAt: string;
+}
+
+export interface ValidationRunDto {
+  id: string;
+  projectId: string;
+  uploadId?: string;
+  status: 'RUNNING' | 'COMPLETED' | 'FAILED';
+  startedAt: string;
+  completedAt?: string;
+  totalRows: number;
+  validRows: number;
+  warningRows: number;
+  errorRows: number;
+  summary?: Record<string, any>;
+  createdAt: string;
+}
+
+export interface ValidationIssueDto {
+  id: string;
+  rowNumber: number;
+  sourceEntity?: string;
+  targetEntity?: string;
+  targetField?: string;
+  sourceColumn?: string;
+  currentValue?: string;
+  severity: 'ERROR' | 'WARNING' | 'INFO';
+  ruleCode: string;
+  message: string;
+  resolved: boolean;
+  resolvedValue?: string;
+  resolvedBy?: string;
+  resolvedByName?: string;
+  resolvedAt?: string;
+}
+
+export interface EntitySummaryDto {
+  entity: string;
+  errors: number;
+  warnings: number;
+  infos: number;
+  total: number;
+}
+
+export interface RuleSummaryDto {
+  rule: string;
+  field?: string;
+  count: number;
 }

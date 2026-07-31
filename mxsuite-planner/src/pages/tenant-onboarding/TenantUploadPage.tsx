@@ -262,6 +262,9 @@ export default function TenantUploadPage() {
       const { data: prev } = await tenantOnboardingApi.getUploadPreview();
       setPreview(prev);
     }
+    // Notify shell sidebar to refresh row count
+    window.dispatchEvent(new CustomEvent('mxsuite:upload-complete'));
+
     if (previewOnly) {
       setIsPreviewOnly(true);
       message.success(`Preview extracted: ${data.originalFilename} (${data.rowCount.toLocaleString()} rows). Proceed to mappings, then start full import.`);
@@ -324,6 +327,9 @@ export default function TenantUploadPage() {
 
       const { data: prev } = await tenantOnboardingApi.getUploadPreview();
       setPreview(prev);
+
+      // Notify shell sidebar to refresh row count
+      window.dispatchEvent(new CustomEvent('mxsuite:upload-complete'));
 
       if (preserveApproved) {
         message.success('File uploaded — your approved mappings have been preserved.');
@@ -537,7 +543,7 @@ export default function TenantUploadPage() {
                 type="primary"
                 onClick={handleBackupPathSubmit}
                 loading={loadingBackupPath}
-                style={{ background: '#2d1854', borderColor: '#2d1854' }}
+                style={{ background: '#2d1854', borderColor: '#2d1854', color: '#fff' }}
               >
                 Load Backup
               </Button>
@@ -564,7 +570,7 @@ export default function TenantUploadPage() {
                 icon={<DatabaseOutlined />}
                 onClick={handleReExtract}
                 loading={reExtracting}
-                style={{ background: '#2d1854', borderColor: '#2d1854' }}
+                style={{ background: '#2d1854', borderColor: '#2d1854', color: '#fff' }}
               >
                 Re-extract Schema
               </Button>
@@ -593,7 +599,7 @@ export default function TenantUploadPage() {
                 size="large"
                 icon={<CloudUploadOutlined />}
                 onClick={handleStartImport}
-                style={{ background: '#2d1854', borderColor: '#2d1854' }}
+                style={{ background: '#2d1854', borderColor: '#2d1854', color: '#fff' }}
               >
                 Start Full Import
               </Button>
@@ -668,7 +674,15 @@ export default function TenantUploadPage() {
         </Card>
       )}
 
-      {/* (Schema summary card removed — tabbed data preview below replaces it) */}
+      {/* Loading indicator while preview data is being fetched */}
+      {loadingPreview && (
+        <Card style={{ textAlign: 'center', padding: '32px 0', marginBottom: 24, borderColor: '#e0d4f5' }}>
+          <Spin size="large" />
+          <div style={{ marginTop: 12 }}>
+            <Text style={{ color: '#6b4fa0' }}>Loading your data...</Text>
+          </div>
+        </Card>
+      )}
 
       {/* Tabbed data preview per table — shown when .bak sourceColumns have sampleValues */}
       {uploadResult && !tableModalOpen && !confirmModalOpen
@@ -740,7 +754,7 @@ export default function TenantUploadPage() {
         onCancel={() => setSheetModalOpen(false)}
         confirmLoading={selectingSheet}
         okText="Use This Sheet"
-        okButtonProps={{ style: { background: '#2d1854', borderColor: '#2d1854' } }}
+        okButtonProps={{ style: { background: '#2d1854', borderColor: '#2d1854', color: '#fff' } }}
       >
         <Paragraph type="secondary">
           Your Excel file has multiple sheets. Select the one containing your data:
@@ -775,7 +789,7 @@ export default function TenantUploadPage() {
         onCancel={() => setTableModalOpen(false)}
         confirmLoading={selectingTables}
         okText={`Map ${selectedTables.length} Table${selectedTables.length !== 1 ? 's' : ''}`}
-        okButtonProps={{ style: { background: '#2d1854', borderColor: '#2d1854' }, disabled: selectedTables.length === 0 }}
+        okButtonProps={{ style: { background: '#2d1854', borderColor: '#2d1854', color: '#fff' }, disabled: selectedTables.length === 0 }}
         width={600}
       >
         <Alert
@@ -861,7 +875,7 @@ export default function TenantUploadPage() {
             size="large"
             icon={<ArrowRightOutlined />}
             onClick={() => navigate('/plans/my-onboarding/mappings')}
-            style={{ background: '#2d1854', borderColor: '#2d1854', height: 44, paddingInline: 32, fontWeight: 600 }}
+            style={{ background: '#2d1854', borderColor: '#2d1854', color: '#fff', height: 44, paddingInline: 32, fontWeight: 600 }}
           >
             Proceed to Mappings
           </Button>
@@ -895,7 +909,7 @@ export default function TenantUploadPage() {
             type="primary"
             onClick={() => handleConfirmUpload(true)}
             loading={confirming}
-            style={{ background: '#2d1854', borderColor: '#2d1854' }}
+            style={{ background: '#2d1854', borderColor: '#2d1854', color: '#fff' }}
           >
             Keep Approved Mappings
           </Button>,
@@ -904,16 +918,16 @@ export default function TenantUploadPage() {
         maskClosable={false}
       >
         <Paragraph>
-          You have <Text strong>{uploadResult?.existingMappedCount ?? 0} finalized mapping{(uploadResult?.existingMappedCount ?? 0) !== 1 ? 's' : ''}</Text> from
-          your previous upload.
+          You have <Text strong>{uploadResult?.existingMappedCount ?? 0} existing mapping{(uploadResult?.existingMappedCount ?? 0) !== 1 ? 's' : ''}</Text> from
+          your previous upload. Would you like to keep them or start over?
         </Paragraph>
         <Paragraph type="secondary" style={{ marginBottom: 0 }}>
           <Text strong>Keep Approved Mappings</Text> — preserves fields you already approved or
-          skipped and only re-maps unchanged fields.
+          skipped and only re-maps the rest.
         </Paragraph>
         <Paragraph type="secondary">
           <Text strong>Start Fresh</Text> — removes all existing mappings and auto-maps
-          everything from scratch.
+          everything from scratch. Choose this if your data structure changed.
         </Paragraph>
       </Modal>
     </div>

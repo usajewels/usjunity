@@ -20,7 +20,7 @@ services:
 
   mxsuite-api:
     environment:
-      SPRING_PROFILES_ACTIVE: docker,dev
+      SPRING_PROFILES_ACTIVE: dev,devlogin,docker
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mxsuite_dev}
       JWT_SECRET: ${JWT_SECRET:-mxsuite-dev-secret-key-change-in-production-must-be-at-least-256-bits}
       MXSUITE_ADMIN_PASSWORD: ${MXSUITE_ADMIN_PASSWORD:-Admin123!}
@@ -32,9 +32,17 @@ services:
       SMTP_PORT: 1025
       SMTP_AUTH: "false"
       SMTP_STARTTLS: "false"
+      # OpenTelemetry
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_METRICS_EXPORTER: otlp
+      OTEL_LOGS_EXPORTER: otlp
+      OTEL_TRACING_ENABLED: "true"
     ports:
       - "${API_PORT_HOST:-8080}:8080"
       - "${DEBUG_PORT_HOST:-5005}:5005"
+    depends_on:
+      otel-collector:
+        condition: service_started
 
   # =====================================================
   # MailHog — Email testing (catches all outgoing mail)
@@ -48,46 +56,84 @@ services:
     restart: unless-stopped
 
   # =====================================================
-  # Observability Stack (optional)
+  # Observability Stack
   # =====================================================
-  # Uncomment to enable:
 
-  # otel-collector:
-  #   image: otel/opentelemetry-collector-contrib:0.108.0
-  #   container_name: mxsuite-otel
-  #   command: ["--config=/etc/otel-collector-config.yml"]
-  #   volumes:
-  #     - ./mxsuite-api/otel-collector-config.yml:/etc/otel-collector-config.yml
-  #   ports:
-  #     - "4317:4317"
-  #     - "4318:4318"
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.108.0
+    container_name: mxsuite-otel
+    command: ["--config=/etc/otel-collector-config.yml"]
+    volumes:
+      - ./mxsuite-api/otel-collector-config.yml:/etc/otel-collector-config.yml
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    depends_on:
+      - tempo
+      - loki
+      - prometheus
+    restart: unless-stopped
 
-  # prometheus:
-  #   image: prom/prometheus:v2.53.0
-  #   container_name: mxsuite-prometheus
-  #   command:
-  #     - "--config.file=/etc/prometheus/prometheus.yml"
-  #     - "--storage.tsdb.path=/prometheus"
-  #     - "--storage.tsdb.retention.time=15d"
-  #   volumes:
-  #     - ./mxsuite-api/observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-  #     - prometheus_data:/prometheus
-  #   ports:
-  #     - "9090:9090"
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: mxsuite-prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+      - "--web.enable-remote-write-receiver"
+    volumes:
+      - ./mxsuite-api/observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./mxsuite-api/observability/prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
 
-  # grafana:
-  #   image: grafana/grafana:11.2.0
-  #   container_name: mxsuite-grafana
-  #   environment:
-  #     GF_SECURITY_ADMIN_USER: admin
-  #     GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
-  #   ports:
-  #     - "3100:3000"
-  #   volumes:
-  #     - grafana_data:/var/lib/grafana
-  #     - ./mxsuite-api/observability/grafana/provisioning:/etc/grafana/provisioning:ro
-  #     - ./mxsuite-api/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: mxsuite-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    ports:
+      - "3100:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./mxsuite-api/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./mxsuite-api/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+    restart: unless-stopped
 
-# volumes:
-#   prometheus_data:
-#   grafana_data:
+  loki:
+    image: grafana/loki:3.1.0
+    container_name: mxsuite-loki
+    command: ["-config.file=/etc/loki/loki.yml"]
+    volumes:
+      - ./mxsuite-api/observability/loki/loki.yml:/etc/loki/loki.yml:ro
+      - loki_data:/loki
+    ports:
+      - "3101:3100"
+    restart: unless-stopped
+
+  tempo:
+    image: grafana/tempo:2.5.0
+    container_name: mxsuite-tempo
+    command: ["-config.file=/etc/tempo/tempo.yml"]
+    volumes:
+      - ./mxsuite-api/observability/tempo/tempo.yml:/etc/tempo/tempo.yml:ro
+      - tempo_data:/var/tempo
+    ports:
+      - "3200:3200"
+    restart: unless-stopped
+
+volumes:
+  prometheus_data:
+  grafana_data:
+  loki_data:
+  tempo_data:

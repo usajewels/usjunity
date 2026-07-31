@@ -1,6 +1,7 @@
 package com.mxsuite.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.mxsuite.model.enums.DecisionSource;
 import com.mxsuite.model.enums.DecisionStatus;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -51,6 +52,10 @@ public class SemanticDecision extends BaseEntity {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private List<Map<String, Object>> requirements;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private DecisionSource source = DecisionSource.MANUAL;
 
     @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)

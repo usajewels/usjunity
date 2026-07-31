@@ -83,6 +83,9 @@ export const tenantOnboardingApi = {
   cloneMapping: (id: string, data: { targetField: string; targetEntity: string }) =>
     api.post(`/my-onboarding/mappings/${id}/clone`, data),
 
+  autoMap: () =>
+    api.post<{ mapped: number; total: number; method: string }>('/my-onboarding/mappings/auto-map'),
+
   getMappingStats: () =>
     api.get('/my-onboarding/mappings/stats'),
 
@@ -132,11 +135,64 @@ export const tenantOnboardingApi = {
   getStatus: () =>
     api.get('/my-onboarding/status'),
 
+  // Data Review (Validation)
+  getDataHealth: () =>
+    api.get<TenantDataHealthDto | null>('/my-onboarding/data-health'),
+
+  getDataHealthIssues: (params?: { severity?: string; entity?: string; resolved?: boolean; page?: number; size?: number }) =>
+    api.get<{ content: TenantDataHealthIssueDto[]; totalElements: number; totalPages: number }>(
+      '/my-onboarding/data-health/issues', { params }),
+
+  getDataHealthByEntity: () =>
+    api.get<TenantEntityHealthDto[]>('/my-onboarding/data-health/issues/by-entity'),
+
+  resolveDataHealthIssue: (issueId: string, resolvedValue: string) =>
+    api.put<TenantDataHealthIssueDto>(`/my-onboarding/data-health/issues/${issueId}/resolve`,
+      { resolvedValue }),
+
   // Audit trail — fetch history for a specific mapping
   getEntityAudit: (entityType: string, entityId: string, params?: { page?: number; size?: number }) =>
     api.get<{ content: AuditEventDto[]; totalElements: number }>(
       `/audit/entity/${entityType}/${entityId}`, { params }),
 };
+
+export interface TenantDataHealthDto {
+  runId: string;
+  status: 'RUNNING' | 'COMPLETED' | 'FAILED';
+  totalRows: number;
+  validRows: number;
+  warningRows: number;
+  errorRows: number;
+  qualityPct: number;
+  startedAt?: string;
+  completedAt?: string;
+}
+
+export interface TenantDataHealthIssueDto {
+  id: string;
+  rowNumber: number;
+  sourceEntity?: string;
+  targetEntity?: string;
+  targetField?: string;
+  sourceColumn?: string;
+  currentValue?: string;
+  severity: 'ERROR' | 'WARNING' | 'INFO';
+  ruleCode: string;
+  message: string;
+  resolved: boolean;
+  resolvedValue?: string;
+  resolvedBy?: string;
+  resolvedByName?: string;
+  resolvedAt?: string;
+}
+
+export interface TenantEntityHealthDto {
+  entity: string;
+  errors: number;
+  warnings: number;
+  infos: number;
+  total: number;
+}
 
 export interface AuditEventDto {
   id: string;

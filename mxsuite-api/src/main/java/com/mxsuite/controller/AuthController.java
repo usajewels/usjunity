@@ -42,11 +42,11 @@ public class AuthController {
 
     @SuppressWarnings("unchecked")
     private static final Map<String, List<String>> DEFAULT_FEATURE_CONFIG = Map.ofEntries(
-            Map.entry("PLATFORM_ADMIN", List.of("projects", "workspaces", "migration")),
-            Map.entry("COACH_ADMIN", List.of("projects", "workspaces", "migration")),
-            Map.entry("PLATFORM_SUPPORT", List.of("projects", "workspaces", "migration")),
-            Map.entry("TENANT_ADMIN", List.of("my-onboarding")),
-            Map.entry("TENANT_USER", List.of("my-onboarding"))
+            Map.entry("PLATFORM_ADMIN", List.of("projects", "workspaces", "migration", "chat-files")),
+            Map.entry("COACH_ADMIN", List.of("projects", "workspaces", "migration", "chat-files")),
+            Map.entry("PLATFORM_SUPPORT", List.of("projects", "workspaces", "migration", "chat-files")),
+            Map.entry("TENANT_ADMIN", List.of("my-onboarding", "chat-files")),
+            Map.entry("TENANT_USER", List.of("my-onboarding", "chat-files"))
     );
 
     private final UserRepository userRepository;
@@ -191,6 +191,11 @@ public class AuthController {
     }
 
     // ========== Dev-only: passwordless login ==========
+
+    @GetMapping("/dev/enabled")
+    public ResponseEntity<?> devLoginEnabled() {
+        return ResponseEntity.ok(Map.of("enabled", isDevLoginEnabled()));
+    }
 
     public record DevUserDto(String id, String email, String firstName, String lastName,
                              String role, String tenantName) {}

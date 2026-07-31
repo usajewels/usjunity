@@ -61,6 +61,27 @@ public class NotificationService {
                 "FieldMapping", mappingId);
     }
 
+    /**
+     * Notifies the other party when a data correction is made.
+     * Coach corrections notify the member; member corrections notify the coach.
+     */
+    @Async
+    @Transactional
+    public void notifyDataCorrected(UUID tenantId, UUID projectId, UUID issueId,
+                                     String fieldName, String correctedValue,
+                                     String correctedByName, boolean correctedByCoach) {
+        String title = "Data correction: " + fieldName;
+        String msg = correctedByName + " corrected \"" + fieldName + "\" to \"" + correctedValue + "\".";
+
+        if (correctedByCoach) {
+            sendToTenantAdmins(tenantId, projectId, "DATA_CORRECTION", title, msg,
+                    "ValidationIssue", issueId);
+        } else {
+            sendToProjectCoaches(projectId, tenantId, "DATA_CORRECTION", title, msg,
+                    "ValidationIssue", issueId);
+        }
+    }
+
     // -------------------------------------------------------------------------
 
     private void sendToTenantAdmins(UUID tenantId, UUID projectId,
@@ -83,6 +104,29 @@ public class NotificationService {
             log.debug("Sent {} notifications type={} project={}", admins.size(), type, projectId);
         } catch (Exception e) {
             log.error("Failed to send notifications type={} project={}: {}", type, projectId, e.getMessage(), e);
+        }
+    }
+
+    private void sendToProjectCoaches(UUID projectId, UUID tenantId,
+                                       String type, String title, String message,
+                                       String entityType, UUID entityId) {
+        try {
+            List<User> coaches = userRepository.findActiveCoaches();
+            for (User coach : coaches) {
+                Notification n = new Notification();
+                n.setRecipientId(coach.getId());
+                n.setTenantId(tenantId);
+                n.setType(type);
+                n.setTitle(title);
+                n.setMessage(message);
+                n.setEntityType(entityType);
+                n.setEntityId(entityId);
+                n.setProjectId(projectId);
+                notificationRepository.save(n);
+            }
+            log.debug("Sent {} coach notifications type={} project={}", coaches.size(), type, projectId);
+        } catch (Exception e) {
+            log.error("Failed to send coach notifications type={} project={}: {}", type, projectId, e.getMessage(), e);
         }
     }
 }

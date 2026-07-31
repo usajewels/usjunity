@@ -307,4 +307,53 @@ export const aiConfigApi = {
     api.delete<{ provider: string; keySource: string }>(`/admin/ai/keys/${provider}`),
 };
 
+/* ------------------------------------------------------------------ */
+/*  Pipeline API (staging, validation, reconciliation, export)         */
+/* ------------------------------------------------------------------ */
+
+export interface ValidationRunDto {
+  id: string;
+  projectId: string;
+  uploadId: string;
+  status: string;
+  startedAt: string;
+  completedAt: string | null;
+  totalRows: number;
+  validRows: number;
+  warningRows: number;
+  errorRows: number;
+  summary: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface EntitySummaryDto {
+  entity: string;
+  errors: number;
+  warnings: number;
+  infos: number;
+  total: number;
+}
+
+export const pipelineApi = {
+  getOnboarding: (tenantId: string) =>
+    api.get<{ hasProject: boolean; projectId?: string; projectName?: string; uploadId?: string; uploadFilename?: string; uploadRowCount?: number; stagingStatus?: string; s3ExportStatus?: string; s3ExportedAt?: string; mappingStats?: OnboardingMappingStats }>(
+      `/admin/tenants/${tenantId}/onboarding/project`,
+    ),
+
+  triggerValidation: (projectId: string, uploadId: string) =>
+    api.post(`/projects/${projectId}/validations`, { uploadId }),
+
+  getLatestValidation: (projectId: string) =>
+    api.get<ValidationRunDto>(`/projects/${projectId}/validations/latest`),
+
+  getIssuesByEntity: (projectId: string, runId: string) =>
+    api.get<EntitySummaryDto[]>(`/projects/${projectId}/validations/${runId}/issues/by-entity`),
+
+  getReconLatest: (projectId: string) =>
+    api.get(`/migration/projects/${projectId}/reconciliation/latest`),
+
+  signOff: (projectId: string, reportId: string, body: { signerName: string; signerRole: string }) =>
+    api.post(`/migration/projects/${projectId}/reconciliation/${reportId}/sign-off`, body),
+};
+
 export default api;

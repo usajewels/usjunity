@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { Layout, Menu, Avatar, Dropdown, Typography, Badge, Space, theme, Grid, Drawer, Popover, List, Button as AntButton, Empty } from 'antd';
 import {
   DashboardOutlined, ProjectOutlined,
@@ -6,10 +6,13 @@ import {
   UserOutlined, MenuFoldOutlined, MenuUnfoldOutlined, MenuOutlined,
   SwapOutlined, ImportOutlined, TeamOutlined,
   CodeOutlined, HistoryOutlined, BarChartOutlined,
+  VerticalAlignTopOutlined, SyncOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../store/AuthContext';
 import { api } from '@mxsuite/shared';
+
+const ChatBubble = lazy(() => import('mxsuiteChat/ChatBubble'));
 
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
@@ -33,7 +36,7 @@ const ROLE_SHORT_LABELS: Record<string, string> = {
 export default function AppLayout({ children }: { children?: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const { user, tenant, platformBranding, isPlatformUser, isPlatformAdmin, isTenantAdmin, hasFeature, logout } = useAuth();
+  const { user, tenant, platformBranding, isPlatformUser, isPlatformAdmin, isTenantAdmin, isDevLogin, hasFeature, login, devLogin, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const { token: themeToken } = theme.useToken();
@@ -49,6 +52,13 @@ export default function AppLayout({ children }: { children?: React.ReactNode }) 
   const [openDecisionsCount, setOpenDecisionsCount] = useState(0);
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
   const [pendingInvitationsCount, setPendingInvitationsCount] = useState(0);
+
+  // Member sidebar badge counts
+  const [memberMappingStats, setMemberMappingStats] = useState<{ mapped: number; total: number; needsReview: number } | null>(null);
+  const [memberDecisionStats, setMemberDecisionStats] = useState<{ open: number } | null>(null);
+  const [memberUploadRowCount, setMemberUploadRowCount] = useState<number | null>(null);
+  const [memberUploadFilename, setMemberUploadFilename] = useState<string | null>(null);
+  const [showScrollTop, setShowScrollTop] = useState(false);
 
   const fetchOnboardingCounts = useCallback(async () => {
     try {
@@ -128,6 +138,42 @@ export default function AppLayout({ children }: { children?: React.ReactNode }) 
     return () => clearInterval(timer);
   }, [isPlatformUser, fetchOnboardingCounts]);
 
+  // Fetch member onboarding badge counts
+  const isMember = hasFeature('my-onboarding');
+  const fetchMemberCounts = useCallback(async () => {
+    try {
+      const { data } = await api.get<{
+        mappingStats?: { mapped: number; total: number; needsReview: number };
+        decisionStats?: { open: number };
+        uploadRowCount?: number;
+        uploadFilename?: string;
+      }>('/my-onboarding');
+      if (data.mappingStats) setMemberMappingStats(data.mappingStats);
+      if (data.decisionStats) setMemberDecisionStats(data.decisionStats);
+      if (data.uploadRowCount != null) setMemberUploadRowCount(data.uploadRowCount);
+      if (data.uploadFilename) setMemberUploadFilename(data.uploadFilename);
+    } catch {
+      // Silently fail — might not have onboarding yet
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isMember) return;
+    fetchMemberCounts();
+    const timer = setInterval(fetchMemberCounts, 60_000);
+    // Refresh immediately when an upload completes (event from planner MFE)
+    const onUpload = () => fetchMemberCounts();
+    window.addEventListener('mxsuite:upload-complete', onUpload);
+    return () => { clearInterval(timer); window.removeEventListener('mxsuite:upload-complete', onUpload); };
+  }, [isMember, fetchMemberCounts]);
+
+  // Scroll-to-top visibility
+  useEffect(() => {
+    const onScroll = () => setShowScrollTop(window.scrollY > 400);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
   const handleBellOpen = (open: boolean) => {
     setNotifOpen(open);
     if (open) fetchNotifications();
@@ -144,18 +190,66 @@ export default function AppLayout({ children }: { children?: React.ReactNode }) 
       key: 'sub:my-onboarding', icon: <ImportOutlined />, label: 'My Onboarding',
       children: [
         { key: '/plans/my-onboarding', label: 'Overview' },
-        { key: '/plans/my-onboarding/upload', label: 'Upload Data' },
-        { key: '/plans/my-onboarding/mappings', label: 'Mappings' },
-        { key: '/plans/my-onboarding/decisions', label: 'Decisions' },
+        {
+          key: '/plans/my-onboarding/upload',
+          title: 'Upload Data',
+          label: (
+            <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: 8 }}>
+              Upload Data
+              {memberUploadRowCount != null && memberUploadRowCount > 0
+                && !memberUploadFilename?.toLowerCase().endsWith('.bak') && (
+                <span style={{
+                  fontSize: 11,
+                  color: 'rgba(255,255,255,0.85)',
+                  fontWeight: 600,
+                }}>
+                  {memberUploadRowCount.toLocaleString()} rows
+                </span>
+              )}
+            </span>
+          ),
+        },
+        {
+          key: '/plans/my-onboarding/mappings',
+          title: 'Mappings',
+          label: (
+            <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: 8 }}>
+              Mappings
+              {memberMappingStats && memberMappingStats.total > 0 && (
+                <span style={{
+                  fontSize: 11,
+                  color: memberMappingStats.mapped === memberMappingStats.total
+                    ? '#b7eb8f'
+                    : 'rgba(255,255,255,0.85)',
+                  fontWeight: 600,
+                }}>
+                  {memberMappingStats.mapped}/{memberMappingStats.total}
+                </span>
+              )}
+            </span>
+          ),
+        },
+        {
+          key: '/plans/my-onboarding/decisions',
+          title: 'Decisions',
+          label: (
+            <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: 8 }}>
+              Decisions
+              {memberDecisionStats && memberDecisionStats.open > 0 && (
+                <Badge count={memberDecisionStats.open} size="small" />
+              )}
+            </span>
+          ),
+        },
+        { key: '/plans/my-onboarding/data-review', label: 'Data Review' },
         { key: '/plans/my-onboarding/status', label: 'Status' },
         { key: '/plans/my-onboarding/activity', icon: <HistoryOutlined />, label: 'Activity' },
       ],
     }] : []),
-    ...(hasFeature('projects') ? [{ key: '/workspaces/projects', icon: <ProjectOutlined />, label: 'Projects' }] : []),
+    ...(hasFeature('projects') && !hasFeature('migration') ? [{ key: '/workspaces/projects', icon: <ProjectOutlined />, label: 'Projects' }] : []),
     ...(hasFeature('migration') ? [{
       key: 'sub:migration', icon: <SwapOutlined />, label: 'Onboardings',
       children: [
-        { key: '/plans/onboarding-projects', label: 'Overview' },
         {
           key: '/plans/onboarding-projects/projects',
           title: 'Projects',
@@ -190,11 +284,10 @@ export default function AppLayout({ children }: { children?: React.ReactNode }) 
       ],
     }] : []),
     ...(isTenantAdmin ? [{ key: '/team', icon: <TeamOutlined />, label: 'Team Members' }] : []),
-    { key: '/chat', icon: <MessageOutlined />, label: 'Chat' },
     ...(isPlatformUser ? [{
       key: 'sub:analytics', icon: <BarChartOutlined />, label: 'Analytics',
       children: [
-        { key: '/admin/analytics', label: 'Dashboard' },
+        { key: '/admin/analytics', label: 'Overview' },
         ...(isPlatformAdmin ? [{ key: '/admin/analytics/coaches', label: 'Coach Performance' }] : []),
       ],
     }] : []),
@@ -225,6 +318,10 @@ export default function AppLayout({ children }: { children?: React.ReactNode }) 
   const userMenuItems = [
     { key: 'profile', icon: <UserOutlined />, label: 'Profile' },
     { key: 'settings', icon: <SettingOutlined />, label: 'Settings' },
+    ...(isDevLogin ? [
+      { type: 'divider' as const },
+      { key: 'bounce', icon: <SyncOutlined />, label: 'Bounce UI' },
+    ] : []),
     { type: 'divider' as const },
     { key: 'logout', icon: <LogoutOutlined />, label: 'Sign Out', danger: true },
   ];
@@ -292,9 +389,9 @@ export default function AppLayout({ children }: { children?: React.ReactNode }) 
 
   // Compute best-matching selectedKey for nested paths
   const allMenuKeys = [
-    '/', '/team', '/chat',
+    '/', '/team',
     '/plans/my-onboarding', '/plans/my-onboarding/upload', '/plans/my-onboarding/mappings',
-    '/plans/my-onboarding/decisions', '/plans/my-onboarding/status', '/plans/my-onboarding/activity',
+    '/plans/my-onboarding/decisions', '/plans/my-onboarding/data-review', '/plans/my-onboarding/status', '/plans/my-onboarding/activity',
     '/plans/onboarding-projects', '/plans/onboarding-projects/projects', '/plans/onboarding-projects/mappings', '/plans/onboarding-projects/decisions', '/plans/onboarding-projects/approvals',
     '/admin/tenants', '/admin/users', '/admin/invitations', '/admin/assignments', '/admin/activity',
   ];
@@ -455,6 +552,9 @@ export default function AppLayout({ children }: { children?: React.ReactNode }) 
                 if (key === 'logout') logout();
                 else if (key === 'profile') navigate('/profile');
                 else if (key === 'settings') navigate('/settings');
+                else if (key === 'bounce' && user?.email) {
+                  devLogin(user.email).then(() => window.location.reload());
+                }
               },
             }} trigger={['click']}>
               <Space style={{ cursor: 'pointer' }}>
@@ -489,6 +589,59 @@ export default function AppLayout({ children }: { children?: React.ReactNode }) 
           {children || <Outlet />}
         </Content>
       </Layout>
+
+      {/* Floating action buttons — Chat + Scroll to top */}
+      <div style={{
+        position: 'fixed', bottom: 24, right: 24,
+        display: 'flex', flexDirection: 'column', gap: 12,
+        zIndex: 1000,
+      }}>
+        {isPlatformUser ? (
+          <div
+            onClick={() => navigate('/chat')}
+            style={{
+              width: 48, height: 48, borderRadius: '50%',
+              background: '#2d1854', color: '#fff',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', fontSize: 22,
+              boxShadow: '0 4px 12px rgba(45,24,84,0.4)',
+              transition: 'transform 0.2s, box-shadow 0.2s',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.1)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(45,24,84,0.5)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(45,24,84,0.4)'; }}
+            title="Chat Dashboard"
+            role="button"
+            aria-label="Open chat dashboard"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') navigate('/chat'); }}
+          >
+            <MessageOutlined />
+          </div>
+        ) : !location.pathname.startsWith('/chat') ? (
+          <Suspense fallback={null}>
+            <ChatBubble />
+          </Suspense>
+        ) : null}
+        {showScrollTop && (
+          <div
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            style={{
+              width: 48, height: 48, borderRadius: '50%',
+              background: '#fff', color: '#2d1854',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', fontSize: 20,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+              border: '1px solid #e0d4f5',
+              transition: 'transform 0.2s, box-shadow 0.2s',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.1)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)'; }}
+            title="Scroll to top"
+          >
+            <VerticalAlignTopOutlined />
+          </div>
+        )}
+      </div>
 
     </Layout>
   );

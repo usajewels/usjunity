@@ -8,7 +8,7 @@ import { tenantApi } from '../services/api';
 const { Text } = Typography;
 
 const ROLES = ['PLATFORM_ADMIN', 'COACH_ADMIN', 'PLATFORM_SUPPORT', 'TENANT_ADMIN', 'TENANT_USER'] as const;
-const FEATURES = ['onboarding', 'projects', 'migration', 'my-onboarding'] as const;
+const FEATURES = ['onboarding', 'projects', 'migration', 'my-onboarding', 'chat-files'] as const;
 
 const ROLE_LABELS: Record<string, string> = {
   PLATFORM_ADMIN: 'Platform Admin',
@@ -21,11 +21,11 @@ const ROLE_LABELS: Record<string, string> = {
 type FeatureConfig = Record<string, string[]>;
 
 const DEFAULTS: FeatureConfig = {
-  PLATFORM_ADMIN: ['projects', 'migration'],
-  COACH_ADMIN: ['projects', 'migration'],
-  PLATFORM_SUPPORT: ['projects', 'migration'],
-  TENANT_ADMIN: ['my-onboarding'],
-  TENANT_USER: ['my-onboarding'],
+  PLATFORM_ADMIN: ['projects', 'migration', 'chat-files'],
+  COACH_ADMIN: ['projects', 'migration', 'chat-files'],
+  PLATFORM_SUPPORT: ['projects', 'migration', 'chat-files'],
+  TENANT_ADMIN: ['my-onboarding', 'chat-files'],
+  TENANT_USER: ['my-onboarding', 'chat-files'],
 };
 
 interface Props {

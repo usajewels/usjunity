@@ -21,6 +21,7 @@ import { migrationApi } from '../../services/migrationApi';
 import type { FieldChangeHistoryDto } from '@mxsuite/shared';
 import MappingVersionHistory from '../../components/migration/MappingVersionHistory';
 import EntityCoveragePanel from '../../components/migration/EntityCoveragePanel';
+import ProjectSubNav from '../../components/migration/ProjectSubNav';
 
 const { Text } = Typography;
 
@@ -77,10 +78,10 @@ const STATUS_STYLE = {
 };
 const STATUS_CONFIG: Record<string, { style: React.CSSProperties; icon: React.ReactNode; label: string }> = {
   MAPPED:       { style: STATUS_STYLE.success, icon: <CheckCircleOutlined />, label: 'Approved' },
-  NEEDS_REVIEW: { style: STATUS_STYLE.outline, icon: <ClockCircleOutlined />, label: 'Needs Review' },
-  CFV_PROPOSAL: { style: STATUS_STYLE.medium,  icon: <ExclamationCircleOutlined />, label: 'AI Proposal' },
+  NEEDS_REVIEW: { style: STATUS_STYLE.outline, icon: <ClockCircleOutlined />, label: 'Pending' },
+  CFV_PROPOSAL: { style: STATUS_STYLE.medium,  icon: <ExclamationCircleOutlined />, label: 'Suggested' },
   REJECTED:     { style: STATUS_STYLE.muted,   icon: <StopOutlined />, label: 'Skipped' },
-  UNMAPPED:     { style: STATUS_STYLE.light,   icon: null, label: 'Unmapped' },
+  UNMAPPED:     { style: STATUS_STYLE.light,   icon: null, label: 'Not Mapped' },
 };
 
 const STATUS_SORT_ORDER: Record<string, number> = {
@@ -183,6 +184,7 @@ export default function MappingsPage() {
 
   // Entity scope detection
   const [entityScope, setEntityScope] = useState<EntityCoverageEntry[]>([]);
+  const [reqWarningExpanded, setReqWarningExpanded] = useState(false);
 
   // Right-side detail panel state (Target → Source)
   const [panelField, setPanelField] = useState<GzField | null>(null);
@@ -326,7 +328,7 @@ export default function MappingsPage() {
     const entities = new Set(filteredSchemaFields.map((f) => f.entity).filter(Boolean));
     return [
       { value: 'all', label: 'All entities' },
-      ...Array.from(entities).sort().map((e) => ({ value: e, label: e })),
+      ...Array.from(entities).sort().map((e) => ({ value: e, label: toLabel(e) })),
     ];
   }, [filteredSchemaFields]);
 
@@ -1088,9 +1090,7 @@ export default function MappingsPage() {
     setPanelField(null);
   };
 
-  /** Navigate to a specific GZ field — context-aware:
-   *  - In Target→Source: expand entity, select it in table + detail tab
-   *  - In Source→Target: switch to Coverage tab, expand entity, highlight the field */
+  /** Navigate to a specific GZ field — context-aware per view mode. */
   const navigateToField = (field: GzField) => {
     if (viewMode === 'target-source') {
       setEntityFilter('all');
@@ -1106,10 +1106,9 @@ export default function MappingsPage() {
       });
       selectGzField(field);
     } else {
-      // Stay in Source→Target — open Coverage tab and highlight
+      // Source→Target: show field in the Coverage sidebar panel
       setPanelTab('coverage');
       setHighlightedCoverageField(field.name);
-      // Ensure the entity is expanded in the sidebar
       setSchemaSidebarCollapsed((prev) => {
         if (prev.has(field.entity)) {
           const next = new Set(prev);
@@ -1121,10 +1120,41 @@ export default function MappingsPage() {
     }
   };
 
+  /** Jump to the next field that needs review */
+  const handleReviewNext = () => {
+    if (viewMode === 'target-source') {
+      const next = filteredSchemaFields.find((f) => {
+        const m = mappingByTarget[f.name];
+        return m && (m.mappingStatus === 'NEEDS_REVIEW' || m.mappingStatus === 'CFV_PROPOSAL')
+          && f.name !== panelField?.name;
+      });
+      if (next) {
+        setEntityFilter('all');
+        setStatusFilter('all');
+        setCollapsedEntities((prev) => {
+          if (prev.has(next.entity)) {
+            const s = new Set(prev);
+            s.delete(next.entity);
+            localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...s]));
+            return s;
+          }
+          return prev;
+        });
+        selectGzField(next);
+      }
+    } else {
+      const next = mappings.find((m) =>
+        (m.mappingStatus === 'NEEDS_REVIEW' || m.mappingStatus === 'CFV_PROPOSAL')
+        && m.id !== panelRecord?.id
+      );
+      if (next) selectRecord(next);
+    }
+  };
+
   /* ---------- Source → Target columns (grouped by source) ---------- */
 
   const [stColWidths, setStColWidths] = useState<Record<string, number>>({
-    sourceField: 200, targetField: 220, confidence: 100, status: 130, customerComment: 160,
+    sourceField: 200, targetField: 220, confidence: 120, status: 130, customerComment: 160,
   });
 
   const handleStColumnResize = useCallback(
@@ -1279,7 +1309,7 @@ export default function MappingsPage() {
   /* ---------- Target → Source columns ---------- */
 
   const [tsColWidths, setTsColWidths] = useState<Record<string, number>>({
-    field: 200, source: 230, sample: 160, confidence: 100, status: 130,
+    field: 200, source: 230, sample: 160, confidence: 120, status: 130,
   });
 
   const handleTsColumnResize = useCallback(
@@ -1293,7 +1323,7 @@ export default function MappingsPage() {
 
   const tsBaseColumns: ColumnsType<DisplayRow> = [
     {
-      title: 'GrowthZone Field',
+      title: 'Target Field',
       key: 'field',
       width: tsColWidths.field,
       onCell: (f: DisplayRow) => isHeaderRow(f)
@@ -1305,7 +1335,7 @@ export default function MappingsPage() {
           return (
             <Space size={8} align="center">
               {collapsed ? <RightOutlined style={{ color: '#6b4fa0', fontSize: 12 }} /> : <DownOutlined style={{ color: '#6b4fa0', fontSize: 12 }} />}
-              <Text strong style={{ color: '#2d1854', fontSize: 14 }}>{f._entityHeader}</Text>
+              <Text strong style={{ color: '#2d1854', fontSize: 14 }}>{toLabel(f._entityHeader!)}</Text>
               <Tag style={{ background: '#e0d4f5', color: '#2d1854', border: 'none', fontSize: 11 }}>
                 {f._entityMapped} / {f._entityTotal} mapped
               </Tag>
@@ -1372,7 +1402,7 @@ export default function MappingsPage() {
       },
     },
     {
-      title: 'AI Match',
+      title: 'Confidence',
       key: 'confidence',
       width: tsColWidths.confidence,
       align: 'center',
@@ -1406,8 +1436,8 @@ export default function MappingsPage() {
         const current = mappingByTarget[f.name];
         if (!current) {
           return f.required
-            ? <Tag style={{ backgroundColor: '#fff1f0', color: '#d32029', borderColor: '#ffa39e' }}>Unmapped</Tag>
-            : <Tag style={{ backgroundColor: '#f5f5f5', color: '#595959', borderColor: '#d9d9d9' }}>Unmapped</Tag>;
+            ? <Tag style={{ backgroundColor: '#fff1f0', color: '#d32029', borderColor: '#ffa39e' }}>Not Mapped</Tag>
+            : <Tag style={{ backgroundColor: '#f5f5f5', color: '#595959', borderColor: '#d9d9d9' }}>Not Mapped</Tag>;
         }
         const cfg = STATUS_CONFIG[current.mappingStatus] || STATUS_CONFIG.UNMAPPED;
         return <Tag icon={cfg.icon} style={cfg.style}>{cfg.label}</Tag>;
@@ -1428,16 +1458,16 @@ export default function MappingsPage() {
   const tabs = viewMode === 'source-target'
     ? [
         { key: 'all', label: `All (${stats.all})` },
-        { key: 'needs_review', label: `Needs Review (${stats.needsReview})` },
+        { key: 'needs_review', label: `Pending (${stats.needsReview})` },
         { key: 'mapped', label: `Approved (${stats.mapped})` },
-        { key: 'unmapped', label: `Unmapped (${stats.unmapped})` },
+        { key: 'unmapped', label: `Not Mapped (${stats.unmapped})` },
         ...((stats.rejected ?? 0) > 0 ? [{ key: 'rejected', label: `Skipped (${stats.rejected})` }] : []),
       ]
     : [
         { key: 'all', label: `All (${filteredSchemaFields.length})` },
-        { key: 'needs_review', label: `Needs Review (${needsReviewCount})` },
+        { key: 'needs_review', label: `Pending (${needsReviewCount})` },
         { key: 'approved', label: `Approved (${approvedCount})` },
-        { key: 'unmapped', label: `Unmapped (${filteredSchemaFields.filter((f) => !mappingByTarget[f.name]).length})` },
+        { key: 'unmapped', label: `Not Mapped (${filteredSchemaFields.filter((f) => !mappingByTarget[f.name]).length})` },
       ];
 
   /* ---------- Active bulk counts ---------- */
@@ -1489,8 +1519,8 @@ export default function MappingsPage() {
     RESTORED: 'Restored',
   };
   const FRIENDLY: Record<string, string> = {
-    MAPPED: 'Approved', NEEDS_REVIEW: 'Needs Review', CFV_PROPOSAL: 'Proposal',
-    REJECTED: 'Skipped', UNMAPPED: 'Unmapped',
+    MAPPED: 'Approved', NEEDS_REVIEW: 'Pending', CFV_PROPOSAL: 'Suggested',
+    REJECTED: 'Skipped', UNMAPPED: 'Not Mapped',
   };
   const friendly = (v: string | null) => (v && FRIENDLY[v]) || v || '';
 
@@ -1738,6 +1768,7 @@ export default function MappingsPage() {
             { title: <span style={{ color: '#2d1854', fontWeight: 500 }}>Field Mappings</span> },
           ]}
         />
+        <ProjectSubNav projectId={projectId!} activeKey="mappings" />
         <Row align="middle" justify="space-between">
           <Col>
             <Text strong style={{ fontSize: 20, color: '#2d1854' }}>{projectName}</Text>
@@ -1819,51 +1850,82 @@ export default function MappingsPage() {
         />
       )}
 
-      {filteredSchemaFields.length > 0 && (
+      {filteredSchemaFields.length > 0 && (() => {
+        const totalMapped = Object.keys(mappingByTarget).length;
+        const totalFields = filteredSchemaFields.length;
+        const mappedPct = totalFields > 0 ? Math.round((totalMapped / totalFields) * 100) : 0;
+        return (
         <Card size="small" style={{ marginBottom: unmappedRequired.length > 0 ? 8 : 16, borderColor: '#e0d4f5', borderTop: '3px solid #2d1854' }}>
+          {/* Progress bar */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+            <Text style={{ fontSize: 12, color: '#2d1854', fontWeight: 600, whiteSpace: 'nowrap' }}>
+              {totalMapped} of {totalFields} fields mapped
+            </Text>
+            <Progress
+              percent={mappedPct}
+              size="small"
+              strokeColor={mappedPct >= 80 ? '#52c41a' : mappedPct >= 50 ? '#fa8c16' : '#2d1854'}
+              style={{ flex: 1, marginBottom: 0 }}
+            />
+            <Space size={12}>
+              <span>
+                <Text style={{ fontSize: 11, color: 'rgba(0,0,0,0.65)' }}>Required: </Text>
+                <Text strong style={{ fontSize: 11, color: requiredMapped === requiredTotal ? '#237804' : '#d32029' }}>
+                  {requiredMapped}/{requiredTotal}
+                </Text>
+              </span>
+              <span>
+                <Text style={{ fontSize: 11, color: 'rgba(0,0,0,0.65)' }}>Approved: </Text>
+                <Text strong style={{ fontSize: 11, color: '#237804' }}>{approvedCount}</Text>
+              </span>
+              <span>
+                <Text style={{ fontSize: 11, color: 'rgba(0,0,0,0.65)' }}>Pending: </Text>
+                <Text strong style={{ fontSize: 11, color: '#6b4fa0' }}>{needsReviewCount}</Text>
+              </span>
+            </Space>
+          </div>
+          {/* Entity pills */}
           <Row align="middle" gutter={[8, 6]} wrap>
             <Col>
-              <Text style={{ fontSize: 12, color: '#2d1854', fontWeight: 600 }}>SCHEMA COVERAGE</Text>
+              <Text style={{ fontSize: 11, color: '#6b4fa0', fontWeight: 600 }}>BY ENTITY</Text>
             </Col>
             {entityCoverage.map((ec) => {
               const complete = ec.mapped === ec.total;
               const hasReqGap = ec.reqMapped < ec.required;
+              const isSelected = entityFilter === ec.entity && viewMode === 'target-source';
               return (
                 <Col key={ec.entity}>
-                  <Tag style={{
-                    fontSize: 11,
-                    backgroundColor: complete ? '#f6ffed' : hasReqGap ? '#fff1f0' : '#f3eeff',
-                    color: complete ? '#237804' : hasReqGap ? '#d32029' : '#2d1854',
-                    borderColor: complete ? '#b7eb8f' : hasReqGap ? '#ffa39e' : '#e0d4f5',
-                  }}>
-                    {ec.entity} {ec.mapped}/{ec.total}
+                  <Tag
+                    style={{
+                      fontSize: 11,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      backgroundColor: isSelected ? '#2d1854' : complete ? '#f6ffed' : hasReqGap ? '#fff1f0' : '#f3eeff',
+                      color: isSelected ? '#fff' : complete ? '#237804' : hasReqGap ? '#d32029' : '#2d1854',
+                      borderColor: isSelected ? '#2d1854' : complete ? '#b7eb8f' : hasReqGap ? '#ffa39e' : '#e0d4f5',
+                      fontWeight: isSelected ? 600 : 400,
+                    }}
+                    onClick={() => {
+                      if (isSelected) {
+                        setEntityFilter('all');
+                      } else {
+                        setEntityFilter(ec.entity);
+                        setStatusFilter('all');
+                        if (viewMode !== 'target-source') setViewMode('target-source');
+                      }
+                    }}
+                  >
+                    {toLabel(ec.entity)} {ec.mapped}/{ec.total}
                   </Tag>
                 </Col>
               );
             })}
-            <Col style={{ marginLeft: 'auto' }}>
-              <Space size={16}>
-                <span>
-                  <Text style={{ fontSize: 12, color: 'rgba(0,0,0,0.65)' }}>Required: </Text>
-                  <Text strong style={{ fontSize: 12, color: requiredMapped === requiredTotal ? '#237804' : '#d32029' }}>
-                    {requiredMapped}/{requiredTotal}
-                  </Text>
-                </span>
-                <span>
-                  <Text style={{ fontSize: 12, color: 'rgba(0,0,0,0.65)' }}>Approved: </Text>
-                  <Text strong style={{ fontSize: 12, color: '#237804' }}>{approvedCount}</Text>
-                </span>
-                <span>
-                  <Text style={{ fontSize: 12, color: 'rgba(0,0,0,0.65)' }}>Needs Review: </Text>
-                  <Text strong style={{ fontSize: 12, color: '#6b4fa0' }}>{needsReviewCount}</Text>
-                </span>
-              </Space>
-            </Col>
           </Row>
         </Card>
-      )}
+        );
+      })()}
 
-      {/* Unmapped required fields alert */}
+      {/* Unmapped required fields alert — collapsible */}
       {unmappedRequired.length > 0 && (
         <Alert
           type="warning"
@@ -1871,18 +1933,28 @@ export default function MappingsPage() {
           style={{ marginBottom: 16 }}
           message={
             <span>
-              <Text strong>{unmappedRequired.length} required field{unmappedRequired.length !== 1 ? 's' : ''} still need a source column: </Text>
-              {unmappedRequired.map((f, i) => (
-                <span key={f.name}>
-                  {i > 0 && ', '}
-                  <a
-                    onClick={() => navigateToField(f)}
-                    style={{ color: '#d32029', fontWeight: 500, cursor: 'pointer' }}
-                  >
-                    {f.entity}.{f.label}
-                  </a>
-                </span>
-              ))}
+              <Text strong>{unmappedRequired.length} required field{unmappedRequired.length !== 1 ? 's' : ''} still need a source column </Text>
+              <a
+                onClick={() => setReqWarningExpanded(!reqWarningExpanded)}
+                style={{ color: '#d48806', fontWeight: 500, cursor: 'pointer', fontSize: 12 }}
+              >
+                {reqWarningExpanded ? '▾ Hide fields' : '▸ Show fields'}
+              </a>
+              {reqWarningExpanded && (
+                <div style={{ marginTop: 8, lineHeight: 2 }}>
+                  {unmappedRequired.map((f, i) => (
+                    <span key={f.name}>
+                      {i > 0 && ', '}
+                      <a
+                        onClick={() => navigateToField(f)}
+                        style={{ color: '#d32029', fontWeight: 500, cursor: 'pointer' }}
+                      >
+                        {toLabel(f.entity)}.{f.label}
+                      </a>
+                    </span>
+                  ))}
+                </div>
+              )}
             </span>
           }
         />
@@ -1922,6 +1994,16 @@ export default function MappingsPage() {
                 options={entityOptions}
               />
             )}
+            {needsReviewCount > 0 && (
+              <Button
+                size="small"
+                icon={<RightOutlined />}
+                onClick={handleReviewNext}
+                style={{ color: '#6b4fa0', borderColor: '#e0d4f5' }}
+              >
+                Review Next
+              </Button>
+            )}
           </Space>
         </Col>
       </Row>
@@ -1945,7 +2027,7 @@ export default function MappingsPage() {
                     icon={<CheckCircleOutlined />}
                     disabled={!activeBulkApprovable.length}
                     onClick={handleBulkApproveSelected}
-                    style={{ background: '#2d1854', borderColor: '#2d1854' }}
+                    style={{ background: '#2d1854', borderColor: '#2d1854', color: '#fff' }}
                   >
                     Approve{activeBulkApprovable.length > 0 ? ` (${activeBulkApprovable.length})` : ''}
                   </Button>
@@ -2342,7 +2424,7 @@ export default function MappingsPage() {
                               loading={panelSaving}
                               disabled={!addTargetField}
                               onClick={() => { if (addTargetField) handleAddTarget(addTargetField); }}
-                              style={{ background: '#2d1854', borderColor: '#2d1854' }}
+                              style={{ background: '#2d1854', borderColor: '#2d1854', color: '#fff' }}
                             >
                               Add
                             </Button>
@@ -2404,8 +2486,8 @@ export default function MappingsPage() {
                             {(() => {
                               if (!panelMapping) {
                                 return panelField.required
-                                  ? <Tag style={{ backgroundColor: '#fff1f0', color: '#d32029', borderColor: '#ffa39e', margin: 0 }}>Unmapped</Tag>
-                                  : <Tag style={{ backgroundColor: '#f5f5f5', color: '#595959', borderColor: '#d9d9d9', margin: 0 }}>Unmapped</Tag>;
+                                  ? <Tag style={{ backgroundColor: '#fff1f0', color: '#d32029', borderColor: '#ffa39e', margin: 0 }}>Not Mapped</Tag>
+                                  : <Tag style={{ backgroundColor: '#f5f5f5', color: '#595959', borderColor: '#d9d9d9', margin: 0 }}>Not Mapped</Tag>;
                               }
                               const cfg = STATUS_CONFIG[panelMapping.mappingStatus] || STATUS_CONFIG.UNMAPPED;
                               return <Tag icon={cfg.icon} style={{ ...cfg.style, margin: 0 }}>{cfg.label}</Tag>;
@@ -2468,7 +2550,7 @@ export default function MappingsPage() {
                             <>
                               {panelMapping && panelMapping.mappingStatus !== 'MAPPED' && (
                                 <Button type="primary" loading={panelSaving} onClick={handlePanelApprove}
-                                  style={{ flex: 1, background: '#2d1854', borderColor: '#2d1854' }}>
+                                  style={{ flex: 1, background: '#2d1854', borderColor: '#2d1854', color: '#fff' }}>
                                   Approve mapping
                                 </Button>
                               )}

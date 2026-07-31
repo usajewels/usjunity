@@ -1,32 +1,25 @@
-import React, { useState } from 'react';
-import { Layout, Typography } from 'antd';
-import ChatSidebar from './components/ChatSidebar';
-import ChatWindow from './components/ChatWindow';
-import AiAssistant from './components/AiAssistant';
+import React from 'react';
+import { AuthProvider, useAuth } from '@mxsuite/shared';
+import CoachChatDashboard from './components/coach/CoachChatDashboard';
+import ChatBubble from './components/member/ChatBubble';
 
-const { Content } = Layout;
+function ChatAppInner() {
+  const { isPlatformUser } = useAuth();
 
-export type ChatView = 'conversations' | 'ai-assistant';
+  if (isPlatformUser) {
+    return <CoachChatDashboard />;
+  }
+
+  // Members get the floating ChatBubble (which contains ChatDrawer).
+  // This avoids dual-instance conflicts — the same ChatBubble component
+  // is used whether the member accesses /chat directly or via the shell floating button.
+  return <ChatBubble />;
+}
 
 export default function ChatApp() {
-  const [activeView, setActiveView] = useState<ChatView>('conversations');
-  const [activeConversation, setActiveConversation] = useState<string | null>(null);
-
   return (
-    <Layout style={{ height: 'calc(100vh - 160px)', background: '#fff' }}>
-      <ChatSidebar
-        activeView={activeView}
-        onViewChange={setActiveView}
-        activeConversation={activeConversation}
-        onConversationSelect={setActiveConversation}
-      />
-      <Content style={{ display: 'flex', flexDirection: 'column' }}>
-        {activeView === 'ai-assistant' ? (
-          <AiAssistant />
-        ) : (
-          <ChatWindow conversationId={activeConversation} />
-        )}
-      </Content>
-    </Layout>
+    <AuthProvider>
+      <ChatAppInner />
+    </AuthProvider>
   );
 }

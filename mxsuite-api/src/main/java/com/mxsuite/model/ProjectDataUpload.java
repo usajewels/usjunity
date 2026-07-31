@@ -8,6 +8,7 @@ import lombok.Setter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
@@ -62,4 +63,32 @@ public class ProjectDataUpload extends BaseEntity {
 
     @Column(name = "chunks_total")
     private Integer chunksTotal = 0;
+
+    // --- SQL Server staging ---
+
+    @Column(name = "staging_status", length = 30)
+    private String stagingStatus = "NONE";
+
+    @Column(name = "staging_db_name", length = 200)
+    private String stagingDbName;
+
+    @Column(name = "staging_schema_name", length = 200)
+    private String stagingSchemaName;
+
+    @Column(name = "staging_error", columnDefinition = "TEXT")
+    private String stagingError;
+
+    // --- S3 Parquet export ---
+
+    @Column(name = "s3_export_status", length = 30)
+    private String s3ExportStatus = "NONE";
+
+    @Column(name = "s3_base_path", length = 1000)
+    private String s3BasePath;
+
+    @Column(name = "s3_export_error", columnDefinition = "TEXT")
+    private String s3ExportError;
+
+    @Column(name = "s3_exported_at")
+    private Instant s3ExportedAt;
 }

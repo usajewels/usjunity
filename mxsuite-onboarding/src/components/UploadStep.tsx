@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { Upload, Button, Card, Table, Typography, Space, Modal, Radio, message, Alert, Grid } from 'antd';
-import { InboxOutlined, ArrowLeftOutlined, ArrowRightOutlined, FileExcelOutlined } from '@ant-design/icons';
-import type { Onboarding } from '@mxsuite/shared';
+import { useState, useEffect, useRef } from 'react';
+import { Upload, Button, Card, Table, Typography, Space, Modal, Radio, message, Alert, Grid, Spin } from 'antd';
+import { InboxOutlined, ArrowLeftOutlined, ArrowRightOutlined, FileExcelOutlined, CheckCircleOutlined, CloseCircleOutlined, DatabaseOutlined } from '@ant-design/icons';
+import type { Onboarding, StagingStatusDto } from '@mxsuite/shared';
 import { onboardingApi } from '../services/api';
 
 const { Dragger } = Upload;
@@ -28,6 +28,29 @@ export default function UploadStep({ onboarding, onUpdate, onNext, onBack }: Pro
   const [sheets, setSheets] = useState<SheetInfo[] | null>(null);
   const [selectedSheet, setSelectedSheet] = useState<number>(0);
   const [selectingSheet, setSelectingSheet] = useState(false);
+  const [stagingStatus, setStagingStatus] = useState<StagingStatusDto | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Poll staging status after upload
+  useEffect(() => {
+    if (!onboarding.originalFilename) return;
+
+    const poll = async () => {
+      try {
+        const { data } = await onboardingApi.stagingStatus();
+        setStagingStatus(data);
+        if (data.stagingStatus === 'STAGED' || data.stagingStatus === 'FAILED') {
+          if (pollRef.current) clearInterval(pollRef.current);
+        }
+      } catch {
+        // silently ignore — endpoint may 404 if no upload yet
+      }
+    };
+
+    poll(); // initial check
+    pollRef.current = setInterval(poll, 3000);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [onboarding.originalFilename]);
 
   const handleUpload = async (file: File) => {
     setUploading(true);
@@ -131,6 +154,31 @@ export default function UploadStep({ onboarding, onUpdate, onNext, onBack }: Pro
               size="small"
             />
           </>
+        )}
+
+        {onboarding.originalFilename && stagingStatus && stagingStatus.stagingStatus !== 'NONE' && (
+          <div style={{ marginTop: 16, padding: '12px 16px', borderRadius: 8, border: '1px solid #e0d4f5', background: '#f9f7ff' }}>
+            <Space>
+              {stagingStatus.stagingStatus === 'STAGING' && (
+                <>
+                  <Spin size="small" />
+                  <Text><DatabaseOutlined style={{ color: '#6b4fa0', marginRight: 4 }} />Staging your data into the validation engine...</Text>
+                </>
+              )}
+              {stagingStatus.stagingStatus === 'STAGED' && (
+                <>
+                  <CheckCircleOutlined style={{ color: '#52c41a', fontSize: 16 }} />
+                  <Text>Data staged successfully. {onboarding.rowCount} rows ready for validation.</Text>
+                </>
+              )}
+              {stagingStatus.stagingStatus === 'FAILED' && (
+                <>
+                  <CloseCircleOutlined style={{ color: '#ff4d4f', fontSize: 16 }} />
+                  <Text type="danger">Staging failed{stagingStatus.stagingError ? `: ${stagingStatus.stagingError}` : ''}. Contact your coach for assistance.</Text>
+                </>
+              )}
+            </Space>
+          </div>
         )}
 
         <div style={{ marginTop: 24, display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', gap: isMobile ? 12 : 0 }}>

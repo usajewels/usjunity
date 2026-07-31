@@ -5,18 +5,13 @@ import {
 } from 'antd';
 import {
   UploadOutlined, CheckCircleOutlined, ClockCircleOutlined,
-  FileTextOutlined, BulbOutlined, SafetyCertificateOutlined,
+  FileTextOutlined, BulbOutlined, SafetyCertificateOutlined, HeartOutlined,
 } from '@ant-design/icons';
 import type { TenantOnboardingDto } from '@mxsuite/shared';
 import { usePageTitle } from '@mxsuite/shared';
 import { tenantOnboardingApi } from '../../services/tenantOnboardingApi';
 
 const { Title, Text } = Typography;
-
-const PHASE_LABELS: Record<string, string> = {
-  DISCOVER: 'Discover', MAP: 'Map', GENERATE: 'Generate',
-  DRY_RUN: 'Dry Run', MIGRATE: 'Migrate', CUT_OVER: 'Cut Over',
-};
 
 export default function TenantOverviewPage() {
   usePageTitle('Onboarding Overview');
@@ -45,28 +40,72 @@ export default function TenantOverviewPage() {
   const mappingPct = mappingTotal > 0
     ? Math.round((data.mappingStats!.mapped / mappingTotal) * 100) : 0;
 
+  const isGenerateOrLater = ['GENERATE', 'DRY_RUN', 'MIGRATE', 'CUT_OVER'].includes(data.migrationPhase);
+  const allMappingsDone = data.mappingStats && data.mappingStats.needsReview === 0 && data.mappingStats.mapped > 0;
+  const allDecisionsDone = !data.decisionStats || data.decisionStats.open === 0;
+  const memberWorkComplete = allMappingsDone && allDecisionsDone && !isGenerateOrLater;
+
   const nextStep = data.uploadStatus === 'NONE'
     ? { label: 'Upload your data to get started', action: 'Upload Data', path: '/plans/my-onboarding/upload' }
     : data.mappingStats && data.mappingStats.needsReview > 0
     ? { label: 'Review proposed field mappings', action: 'Review Mappings', path: '/plans/my-onboarding/mappings' }
     : data.decisionStats && data.decisionStats.open > 0
     ? { label: 'Decisions need your input', action: 'View Decisions', path: '/plans/my-onboarding/decisions' }
+    : isGenerateOrLater
+    ? { label: 'Review your data and fix any issues before migration', action: 'Data Review', path: '/plans/my-onboarding/data-review' }
+    : memberWorkComplete
+    ? { label: "You're all caught up! Your onboarding coach will review and advance to the next step.", action: 'View Status', path: '/plans/my-onboarding/status' }
     : { label: 'Check your onboarding status', action: 'View Status', path: '/plans/my-onboarding/status' };
 
-  const PHASE_ORDER: string[] = ['DISCOVER', 'MAP', 'GENERATE', 'DRY_RUN', 'MIGRATE', 'CUT_OVER'];
-  const currentPhaseIdx = PHASE_ORDER.indexOf(data.migrationPhase);
+  // Member-focused onboarding steps
+  const uploaded = data.uploadStatus !== 'NONE';
+  const hasDataHealth = isGenerateOrLater;
 
-  const gateMap = new Map<string, string>(
-    (data.phaseGates || []).map((g) => [g.phase as string, g.gateStatus as string])
-  );
+  type MemberStep = { title: string; description: string; done: boolean; active: boolean; icon: React.ReactNode };
+  const memberSteps: MemberStep[] = [
+    {
+      title: 'Upload Data',
+      description: uploaded ? (data.uploadFilename || 'File uploaded') : 'Upload your data file',
+      done: uploaded,
+      active: !uploaded,
+      icon: <UploadOutlined />,
+    },
+    {
+      title: 'Review Mappings',
+      description: allMappingsDone
+        ? `${data.mappingStats?.mapped ?? 0} fields mapped`
+        : `${data.mappingStats?.needsReview ?? 0} of ${mappingTotal} to review`,
+      done: !!allMappingsDone,
+      active: uploaded && !allMappingsDone,
+      icon: <FileTextOutlined />,
+    },
+    {
+      title: 'Decisions',
+      description: allDecisionsDone
+        ? `${data.decisionStats?.approved ?? 0} resolved`
+        : `${data.decisionStats?.open ?? 0} need your input`,
+      done: allDecisionsDone && uploaded,
+      active: !!allMappingsDone && !allDecisionsDone,
+      icon: <BulbOutlined />,
+    },
+    {
+      title: 'Data Review',
+      description: hasDataHealth ? 'Review and fix any issues' : 'Waiting for coach review',
+      done: hasDataHealth && isGenerateOrLater && data.migrationPhase !== 'GENERATE',
+      active: hasDataHealth && data.migrationPhase === 'GENERATE',
+      icon: <HeartOutlined />,
+    },
+    {
+      title: 'Migration',
+      description: data.migrationPhase === 'CUT_OVER' ? 'Complete!' : 'Your coach will handle this',
+      done: data.migrationPhase === 'CUT_OVER',
+      active: ['DRY_RUN', 'MIGRATE'].includes(data.migrationPhase),
+      icon: <SafetyCertificateOutlined />,
+    },
+  ];
 
-  const phaseStepStatus = (idx: number): 'finish' | 'process' | 'wait' => {
-    if (idx < currentPhaseIdx) return 'finish';
-    if (idx === currentPhaseIdx) return 'process';
-    const phase = PHASE_ORDER[idx];
-    if (gateMap.get(phase) === 'CLEARED') return 'finish';
-    return 'wait';
-  };
+  const completedSteps = memberSteps.filter((s) => s.done).length;
+  const overallPct = Math.round((completedSteps / memberSteps.length) * 100);
 
   return (
     <div style={{ margin: '0 auto' }}>
@@ -91,21 +130,35 @@ export default function TenantOverviewPage() {
             <Text>{nextStep.label}</Text>
           </div>
           <Button type="primary" onClick={() => navigate(nextStep.path)}
-            style={{ background: '#2d1854', borderColor: '#2d1854' }}>
+            style={{ background: '#2d1854', borderColor: '#2d1854', color: '#fff' }}>
             {nextStep.action}
           </Button>
         </div>
       </Card>
 
-      {/* Phase lifecycle — full-width stepper */}
+      {/* Member onboarding progress */}
       <Card size="small" style={{ marginBottom: 16, borderColor: '#e0d4f5', borderTop: '3px solid #2d1854' }}>
-        <Text strong style={{ display: 'block', marginBottom: 16, color: '#2d1854' }}>Onboarding Progress</Text>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <Text strong style={{ color: '#2d1854' }}>Your Progress</Text>
+          <Space size={8}>
+            <Text type="secondary" style={{ fontSize: 12 }}>{completedSteps} of {memberSteps.length} complete</Text>
+            <Progress type="circle" size={32} percent={overallPct} strokeColor="#2d1854"
+              format={() => <span style={{ fontSize: 10 }}>{overallPct}%</span>} />
+          </Space>
+        </div>
         <Steps
-          current={currentPhaseIdx}
+          direction="vertical"
           size="small"
-          items={PHASE_ORDER.map((phase, idx) => ({
-            title: PHASE_LABELS[phase] || phase,
-            status: phaseStepStatus(idx),
+          current={memberSteps.findIndex((s) => s.active)}
+          items={memberSteps.map((step) => ({
+            title: step.title,
+            description: step.description,
+            status: step.done ? 'finish' as const : step.active ? 'process' as const : 'wait' as const,
+            icon: step.done
+              ? <CheckCircleOutlined style={{ color: '#52c41a' }} />
+              : step.active
+              ? <span style={{ color: '#2d1854' }}>{step.icon}</span>
+              : undefined,
           }))}
         />
       </Card>
@@ -181,6 +234,25 @@ export default function TenantOverviewPage() {
           </Card>
         </Col>
       </Row>
+
+      {/* All-done banner */}
+      {memberWorkComplete && (
+        <Card size="small" style={{ marginBottom: 16, background: '#f6ffed', borderColor: '#b7eb8f' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <CheckCircleOutlined style={{ fontSize: 24, color: '#52c41a' }} />
+            <div>
+              <Text strong style={{ color: '#237804' }}>All tasks complete</Text>
+              <div>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  All mappings approved and decisions resolved. Your onboarding coach will review
+                  everything and advance you to the next step. You'll be notified when there's
+                  something new for you to look at.
+                </Text>
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
 
       {/* Quick actions */}
       <Card size="small" title={<span style={{ color: '#2d1854' }}>Quick Actions</span>} style={{ borderColor: '#e0d4f5', borderTop: '3px solid #2d1854' }}>

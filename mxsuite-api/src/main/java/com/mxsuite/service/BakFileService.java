@@ -32,8 +32,14 @@ public class BakFileService {
     public record BakParseResult(
             String databaseName,
             List<TableInfo> tables,
-            List<TablePreviewData> previews
-    ) {}
+            List<TablePreviewData> previews,
+            String tempDbName
+    ) {
+        /** Backward-compatible constructor (drops temp DB). */
+        public BakParseResult(String databaseName, List<TableInfo> tables, List<TablePreviewData> previews) {
+            this(databaseName, tables, previews, null);
+        }
+    }
 
     public record TableInfo(
             String schemaName,
@@ -73,7 +79,17 @@ public class BakFileService {
      * Parse a .bak file: copy to SQL Server-accessible path, restore to temp DB,
      * extract schema, drop temp DB, clean up.
      */
+    /** Parse backup, dropping the temp DB afterward. */
     public BakParseResult parseBackup(Path bakFilePath) throws IOException {
+        return parseBackup(bakFilePath, false);
+    }
+
+    /**
+     * Parse a .bak file. When {@code keepDatabase} is true the restored temp DB
+     * is kept alive for staging; the caller is responsible for cleanup via
+     * {@link #dropDatabaseByName(String)}.
+     */
+    public BakParseResult parseBackup(Path bakFilePath, boolean keepDatabase) throws IOException {
         String tempDbName = "mxtemp_" + UUID.randomUUID().toString().replace("-", "").substring(0, 8);
 
         // Copy .bak to a directory SQL Server can read from
@@ -85,7 +101,7 @@ public class BakFileService {
         log.info("Copied .bak to SQL Server-accessible path: {}", restorePath);
 
         try {
-            return restoreAndExtract(restorePath, tempDbName);
+            return restoreAndExtract(restorePath, tempDbName, keepDatabase);
         } finally {
             // Always clean up the copied .bak file
             try {
@@ -98,7 +114,7 @@ public class BakFileService {
 
     // ---- internal ----
 
-    private BakParseResult restoreAndExtract(Path restorePath, String tempDbName) throws IOException {
+    private BakParseResult restoreAndExtract(Path restorePath, String tempDbName, boolean keepDatabase) throws IOException {
         // SQL Server sees the container/server-side path, not the host path
         String sqlBasePath = mssqlProps.backupRestorePathSql();
         String bakPathSql = sqlBasePath + "/" + restorePath.getFileName().toString();
@@ -163,12 +179,17 @@ public class BakFileService {
             // 4. Extract sample data (TOP 5 rows + row count per table)
             List<TablePreviewData> previews = extractSampleData(conn, tempDbName, tables);
 
-            // 5. Drop temp database
-            dropDatabase(conn, tempDbName);
+            // 5. Drop temp database (unless caller wants to keep it for staging)
+            if (!keepDatabase) {
+                dropDatabase(conn, tempDbName);
+            } else {
+                log.info("Keeping temp database [{}] for staging", tempDbName);
+            }
 
             return new BakParseResult(
                     originalDbName != null ? originalDbName : "Unknown",
-                    tables, previews
+                    tables, previews,
+                    keepDatabase ? tempDbName : null
             );
 
         } catch (SQLException e) {
@@ -300,6 +321,16 @@ public class BakFileService {
 
         log.info("Extracted sample data from {} tables", previews.size());
         return previews;
+    }
+
+    /** Drop a SQL Server database by name. Used for staging cleanup. */
+    public void dropDatabaseByName(String dbName) {
+        try (Connection conn = DriverManager.getConnection(
+                mssqlProps.jdbcUrl(), mssqlProps.username(), mssqlProps.password())) {
+            dropDatabase(conn, dbName);
+        } catch (SQLException e) {
+            log.warn("Could not connect to drop database [{}]: {}", dbName, e.getMessage());
+        }
     }
 
     private void dropDatabase(Connection conn, String tempDbName) {

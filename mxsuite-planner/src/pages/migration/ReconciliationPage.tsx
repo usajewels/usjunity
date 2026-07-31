@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
-  Button, Card, Col, Modal, Row, Spin, Table, Tag, Typography, message,
+  Breadcrumb, Button, Card, Col, Modal, Row, Spin, Table, Tag, Typography, message,
 } from 'antd';
 import {
-  CheckCircleOutlined, ExclamationCircleOutlined, CloseCircleOutlined,
+  ArrowLeftOutlined, CheckCircleOutlined, ExclamationCircleOutlined, CloseCircleOutlined,
   SafetyCertificateOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import type { ReconciliationReportDto, ReconTierDto, ReconTableRowDto, ReconStatus } from '@mxsuite/shared';
 import { usePageTitle } from '@mxsuite/shared';
+import ProjectSubNav from '../../components/migration/ProjectSubNav';
 import { migrationApi } from '../../services/migrationApi';
 
 const { Title, Text, Paragraph } = Typography;
@@ -57,10 +58,19 @@ function TierCard({ tier }: { tier: ReconTierDto }) {
 export default function ReconciliationPage() {
   usePageTitle('Reconciliation');
   const { projectId } = useParams<{ projectId: string }>();
+  const navigate = useNavigate();
+  const [projectName, setProjectName] = useState<string>('');
   const [report, setReport] = useState<ReconciliationReportDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [signOffOpen, setSignOffOpen] = useState(false);
   const [signing, setSigning] = useState(false);
+
+  useEffect(() => {
+    if (!projectId) return;
+    migrationApi.getProject(projectId)
+      .then(({ data }) => setProjectName(data.name || projectId))
+      .catch(() => {});
+  }, [projectId]);
 
   useEffect(() => {
     if (!projectId) return;
@@ -85,19 +95,70 @@ export default function ReconciliationPage() {
     }
   };
 
+  const headerBlock = (
+    <div style={{
+      background: 'linear-gradient(135deg, #f3eeff 0%, #ece4fc 100%)',
+      margin: '-24px -24px 20px -24px',
+      padding: '28px 32px 16px 32px',
+      borderBottom: '2px solid #e0d4f5',
+    }}>
+      <Breadcrumb
+        style={{ marginBottom: 10 }}
+        items={[
+          { title: <Button type="link" size="small" icon={<ArrowLeftOutlined />} style={{ padding: 0, color: '#1a0e3a' }} onClick={() => navigate('/plans/onboarding-projects/projects')}>Projects</Button> },
+          { title: <span style={{ color: '#6b4fa0' }}>{projectName || '…'}</span> },
+          { title: <span style={{ color: '#2d1854', fontWeight: 500 }}>Reconciliation</span> },
+        ]}
+      />
+      <ProjectSubNav projectId={projectId!} activeKey="reconciliation" />
+    </div>
+  );
+
   if (loading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}>
-        <Spin tip="Loading reconciliation..." />
+      <div>
+        {headerBlock}
+        <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}>
+          <Spin tip="Loading reconciliation..." />
+        </div>
       </div>
     );
   }
 
   if (!report) {
     return (
-      <div style={{ padding: 48, textAlign: 'center' }}>
-        <Title level={5}>No reconciliation report</Title>
-        <Text type="secondary">No reconciliation report has been generated for this project yet.</Text>
+      <div>
+        {headerBlock}
+        <div style={{ padding: '32px 24px', maxWidth: 600, margin: '0 auto' }}>
+          <Card style={{ textAlign: 'center', borderColor: '#e0d4f5', borderTop: '3px solid #6b4fa0' }}>
+            <SafetyCertificateOutlined style={{ fontSize: 40, color: '#6b4fa0', marginBottom: 16 }} />
+            <Title level={5} style={{ color: '#2d1854', marginBottom: 8 }}>No reconciliation report yet</Title>
+            <Text type="secondary" style={{ display: 'block', marginBottom: 20, lineHeight: 1.6 }}>
+              Reconciliation runs automatically after a Dry Run or Migration to verify that data
+              moved faithfully. It checks row counts, checksums, referential integrity, and
+              field-level accuracy across four tiers.
+            </Text>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 4, flexWrap: 'wrap' }}>
+              {['Discover', 'Map', 'Generate', 'Dry Run', 'Migrate', 'Cut Over'].map((phase, i) => (
+                <Tag
+                  key={phase}
+                  style={{
+                    fontSize: 11,
+                    backgroundColor: phase === 'Dry Run' || phase === 'Migrate' ? '#f3eeff' : '#fafafa',
+                    color: phase === 'Dry Run' || phase === 'Migrate' ? '#2d1854' : 'rgba(0,0,0,0.45)',
+                    borderColor: phase === 'Dry Run' || phase === 'Migrate' ? '#e0d4f5' : '#d9d9d9',
+                    fontWeight: phase === 'Dry Run' || phase === 'Migrate' ? 600 : 400,
+                  }}
+                >
+                  {i > 0 && '→ '}{phase}
+                </Tag>
+              ))}
+            </div>
+            <Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 8 }}>
+              Reconciliation is generated after the Dry Run or Migrate phases
+            </Text>
+          </Card>
+        </div>
       </div>
     );
   }
@@ -127,30 +188,26 @@ export default function ReconciliationPage() {
 
   return (
     <div>
-      <div style={{
-        background: 'linear-gradient(135deg, #f3eeff 0%, #ece4fc 100%)',
-        margin: '-24px -24px 20px -24px',
-        padding: '28px 32px 16px 32px',
-        borderBottom: '2px solid #e0d4f5',
-        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-      }}>
-        <div>
-          <Title level={4} style={{ marginBottom: 4, color: '#2d1854' }}>Full reconciliation</Title>
-          <Text style={{ fontSize: 12, color: '#6b4fa0' }}>
-            Four tiers, cheapest to strongest. Reconciliation proves data moved faithfully.
-          </Text>
+      {headerBlock}
+      <div style={{ padding: '0 24px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+          <div>
+            <Title level={4} style={{ marginBottom: 4, color: '#2d1854' }}>Full reconciliation</Title>
+            <Text style={{ fontSize: 12, color: '#6b4fa0' }}>
+              Four tiers, cheapest to strongest. Reconciliation proves data moved faithfully.
+            </Text>
+          </div>
+          {!report.signedOff && (
+            <Button
+              type="primary"
+              icon={<SafetyCertificateOutlined />}
+              onClick={() => setSignOffOpen(true)}
+              style={{ background: '#2d1854', borderColor: '#2d1854', color: '#fff' }}
+            >
+              Sign Off
+            </Button>
+          )}
         </div>
-        {!report.signedOff && (
-          <Button
-            type="primary"
-            icon={<SafetyCertificateOutlined />}
-            onClick={() => setSignOffOpen(true)}
-            style={{ background: '#2d1854', borderColor: '#2d1854' }}
-          >
-            Sign Off
-          </Button>
-        )}
-      </div>
 
       {/* Signed-off banner */}
       {report.signedOff && (
@@ -242,6 +299,7 @@ export default function ReconciliationPage() {
           {report.warningCount > 0 && ` (${report.warningCount} warnings)`}
         </Paragraph>
       </Modal>
+      </div>
     </div>
   );
 }

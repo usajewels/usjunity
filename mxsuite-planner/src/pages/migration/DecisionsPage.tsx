@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Table, Tag, Tabs, Typography, Spin, Button, Divider, List, message } from 'antd';
-import { CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
+import { Table, Tag, Tabs, Typography, Spin, Button, Divider, List, Modal, Input, Select, Checkbox, Space, message } from 'antd';
+import { CheckCircleOutlined, CloseCircleOutlined, RobotOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import type { SemanticDecisionDto, DecisionStatsDto, DecisionStatus } from '@mxsuite/shared';
 import { usePageTitle } from '@mxsuite/shared';
@@ -14,6 +14,8 @@ const STATUS_COLORS: Record<string, string> = {
   REJECTED: 'red',
 };
 
+const LAST_VISIT_KEY = 'mxsuite:coach-decisions:lastVisit';
+
 function daysAgo(dateStr: string): number {
   return Math.floor((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24));
 }
@@ -26,6 +28,28 @@ export default function DecisionsPage() {
   const [selected, setSelected] = useState<SemanticDecisionDto | null>(null);
   const [activeTab, setActiveTab] = useState('all');
   const [actionLoading, setActionLoading] = useState(false);
+
+  // Create modal state
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createLoading, setCreateLoading] = useState(false);
+  const [projects, setProjects] = useState<Array<{ id: string; name: string; tenantId?: string; tenantName?: string }>>([]);
+  const [form, setForm] = useState({
+    title: '',
+    summary: '',
+    tenantId: undefined as string | undefined,
+    projectId: undefined as string | undefined,
+    fieldContext: '',
+    options: [{ label: '', description: '', isRecommended: false }, { label: '', description: '', isRecommended: false }] as Array<{ label: string; description: string; isRecommended: boolean }>,
+    requirements: [] as Array<{ description: string }>,
+  });
+
+  // Track "New" decisions since last visit
+  const [lastVisit] = useState(() => {
+    const stored = localStorage.getItem(LAST_VISIT_KEY);
+    return stored ? parseInt(stored, 10) : 0;
+  });
+  const isNew = (d: SemanticDecisionDto) =>
+    d.decisionStatus === 'OPEN' && new Date(d.createdAt).getTime() > lastVisit;
 
   const load = async (status?: DecisionStatus) => {
     try {
@@ -42,7 +66,11 @@ export default function DecisionsPage() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    const timer = setTimeout(() => localStorage.setItem(LAST_VISIT_KEY, String(Date.now())), 2000);
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleTabChange = (key: string) => {
     setActiveTab(key);
@@ -83,12 +111,84 @@ export default function DecisionsPage() {
     }
   };
 
+  // Derive unique organizations from the projects list (already coach-scoped, only orgs with data)
+  const orgs = projects.reduce<Array<{ id: string; name: string }>>((acc, p) => {
+    if (p.tenantId && p.tenantName && !acc.some(o => o.id === p.tenantId)) {
+      acc.push({ id: p.tenantId, name: p.tenantName });
+    }
+    return acc;
+  }, []);
+
+  const openCreateModal = async () => {
+    setCreateOpen(true);
+    if (projects.length === 0) {
+      try {
+        const projectsRes = await migrationApi.listProjects({ page: 0, size: 200 });
+        setProjects(projectsRes.data.content.map((p: any) => ({
+          id: p.id, name: p.name, tenantId: p.tenantId, tenantName: p.tenantName,
+        })));
+      } catch { /* ignore */ }
+    }
+  };
+
+  const resetForm = () => setForm({
+    title: '', summary: '', tenantId: undefined, projectId: undefined, fieldContext: '',
+    options: [{ label: '', description: '', isRecommended: false }, { label: '', description: '', isRecommended: false }],
+    requirements: [],
+  });
+
+  const handleCreate = async () => {
+    if (!form.tenantId) { message.warning('Organization is required'); return; }
+    if (!form.title.trim()) { message.warning('Title is required'); return; }
+    const validOptions = form.options.filter(o => o.label.trim());
+    if (validOptions.length < 2) { message.warning('At least 2 options are required'); return; }
+
+    setCreateLoading(true);
+    try {
+      await migrationApi.createDecision({
+        title: form.title.trim(),
+        summary: form.summary.trim() || undefined,
+        tenantId: form.tenantId,
+        projectId: form.projectId,
+        fieldContext: form.fieldContext.trim() || undefined,
+        options: validOptions,
+        requirements: form.requirements.filter(r => r.description.trim()),
+      });
+      message.success('Decision created');
+      setCreateOpen(false);
+      resetForm();
+      load(activeTab === 'all' ? undefined : activeTab.toUpperCase() as DecisionStatus);
+    } catch {
+      message.error('Failed to create decision');
+    } finally {
+      setCreateLoading(false);
+    }
+  };
+
+  const updateOption = (idx: number, field: string, value: any) => {
+    setForm(prev => {
+      const options = [...prev.options];
+      options[idx] = { ...options[idx], [field]: value };
+      return { ...prev, options };
+    });
+  };
+
   const columns: ColumnsType<SemanticDecisionDto> = [
     {
       title: 'Decision',
       dataIndex: 'title',
       key: 'title',
-      render: (title: string) => <Text strong style={{ fontSize: 13 }}>{title}</Text>,
+      render: (title: string, record: SemanticDecisionDto) => (
+        <span>
+          <Text strong style={{ fontSize: 13 }}>{title}</Text>
+          {isNew(record) && (
+            <Tag color="blue" style={{ marginLeft: 6, fontSize: 10 }}>New</Tag>
+          )}
+          {record.source === 'AI' && (
+            <Tag icon={<RobotOutlined />} style={{ marginLeft: 6, fontSize: 10, backgroundColor: '#f3eeff', color: '#6b4fa0', borderColor: '#e0d4f5' }}>AI</Tag>
+          )}
+        </span>
+      ),
     },
     {
       title: 'Project',
@@ -137,10 +237,22 @@ export default function DecisionsPage() {
           padding: '28px 32px 16px 32px',
           borderBottom: '2px solid #e0d4f5',
         }}>
-          <Title level={4} style={{ marginBottom: 4, color: '#2d1854' }}>Semantic decisions</Title>
-          <Text style={{ fontSize: 12, color: '#6b4fa0' }}>
-            Every open semantic decision across all projects. Each item carries a description, its options, an owner and a status.
-          </Text>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <Title level={4} style={{ marginBottom: 4, color: '#2d1854' }}>Semantic decisions</Title>
+              <Text style={{ fontSize: 12, color: '#6b4fa0' }}>
+                Every open semantic decision across all projects. Each item carries a description, its options, an owner and a status.
+              </Text>
+            </div>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={openCreateModal}
+              style={{ background: '#2d1854', borderColor: '#2d1854', color: '#fff' }}
+            >
+              New Decision
+            </Button>
+          </div>
         </div>
 
         <Tabs
@@ -278,6 +390,177 @@ export default function DecisionsPage() {
           )}
         </div>
       )}
+
+      {/* Create Decision Modal */}
+      <Modal
+        title="New Decision"
+        open={createOpen}
+        onCancel={() => { setCreateOpen(false); resetForm(); }}
+        onOk={handleCreate}
+        confirmLoading={createLoading}
+        okText="Create"
+        width={560}
+      >
+        <Space direction="vertical" style={{ width: '100%' }} size="small">
+          <div>
+            <Text strong style={{ fontSize: 12 }}>Organization *</Text>
+            <Select
+              value={form.tenantId}
+              onChange={v => setForm(prev => ({ ...prev, tenantId: v, projectId: undefined }))}
+              placeholder="Select organization"
+              showSearch
+              optionFilterProp="label"
+              style={{ width: '100%' }}
+              options={orgs.map(t => ({ value: t.id, label: t.name }))}
+            />
+          </div>
+
+          <div>
+            <Text strong style={{ fontSize: 12 }}>Title *</Text>
+            <Input
+              value={form.title}
+              onChange={e => setForm(prev => ({ ...prev, title: e.target.value }))}
+              placeholder="e.g. How should duplicate contacts be handled?"
+              maxLength={100}
+            />
+          </div>
+
+          <div>
+            <Text strong style={{ fontSize: 12 }}>Summary</Text>
+            <Input.TextArea
+              value={form.summary}
+              onChange={e => setForm(prev => ({ ...prev, summary: e.target.value }))}
+              placeholder="Describe the issue and why a decision is needed"
+              rows={3}
+            />
+          </div>
+
+          <div style={{ display: 'flex', gap: 12 }}>
+            <div style={{ flex: 1 }}>
+              <Text strong style={{ fontSize: 12 }}>Project</Text>
+              <Select
+                value={form.projectId}
+                onChange={v => setForm(prev => ({ ...prev, projectId: v }))}
+                placeholder="Select project (optional)"
+                allowClear
+                style={{ width: '100%' }}
+                options={projects
+                  .filter(p => !form.tenantId || p.tenantId === form.tenantId)
+                  .map(p => ({ value: p.id, label: p.name }))}
+              />
+            </div>
+            <div style={{ flex: 1 }}>
+              <Text strong style={{ fontSize: 12 }}>Field / Context</Text>
+              <Input
+                value={form.fieldContext}
+                onChange={e => setForm(prev => ({ ...prev, fieldContext: e.target.value }))}
+                placeholder="e.g. Contact.email"
+              />
+            </div>
+          </div>
+
+          <Divider style={{ margin: '8px 0' }} />
+
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+              <Text strong style={{ fontSize: 12 }}>Options * (min 2)</Text>
+              <Button
+                size="small"
+                type="dashed"
+                icon={<PlusOutlined />}
+                onClick={() => setForm(prev => ({
+                  ...prev,
+                  options: [...prev.options, { label: '', description: '', isRecommended: false }],
+                }))}
+              >
+                Add
+              </Button>
+            </div>
+            {form.options.map((opt, idx) => (
+              <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 6, alignItems: 'flex-start' }}>
+                <div style={{ flex: 1 }}>
+                  <Input
+                    size="small"
+                    value={opt.label}
+                    onChange={e => updateOption(idx, 'label', e.target.value)}
+                    placeholder={`Option ${idx + 1} label`}
+                  />
+                  <Input
+                    size="small"
+                    value={opt.description}
+                    onChange={e => updateOption(idx, 'description', e.target.value)}
+                    placeholder="Description (optional)"
+                    style={{ marginTop: 2 }}
+                  />
+                </div>
+                <Checkbox
+                  checked={opt.isRecommended}
+                  onChange={e => updateOption(idx, 'isRecommended', e.target.checked)}
+                  style={{ marginTop: 4 }}
+                >
+                  <Text style={{ fontSize: 11 }}>Rec.</Text>
+                </Checkbox>
+                {form.options.length > 2 && (
+                  <Button
+                    size="small"
+                    type="text"
+                    danger
+                    icon={<DeleteOutlined />}
+                    onClick={() => setForm(prev => ({
+                      ...prev,
+                      options: prev.options.filter((_, i) => i !== idx),
+                    }))}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+
+          <Divider style={{ margin: '8px 0' }} />
+
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+              <Text strong style={{ fontSize: 12 }}>Requirements</Text>
+              <Button
+                size="small"
+                type="dashed"
+                icon={<PlusOutlined />}
+                onClick={() => setForm(prev => ({
+                  ...prev,
+                  requirements: [...prev.requirements, { description: '' }],
+                }))}
+              >
+                Add
+              </Button>
+            </div>
+            {form.requirements.map((req, idx) => (
+              <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
+                <Input
+                  size="small"
+                  value={req.description}
+                  onChange={e => setForm(prev => {
+                    const requirements = [...prev.requirements];
+                    requirements[idx] = { description: e.target.value };
+                    return { ...prev, requirements };
+                  })}
+                  placeholder="Requirement description"
+                  style={{ flex: 1 }}
+                />
+                <Button
+                  size="small"
+                  type="text"
+                  danger
+                  icon={<DeleteOutlined />}
+                  onClick={() => setForm(prev => ({
+                    ...prev,
+                    requirements: prev.requirements.filter((_, i) => i !== idx),
+                  }))}
+                />
+              </div>
+            ))}
+          </div>
+        </Space>
+      </Modal>
     </div>
   );
 }

@@ -8,7 +8,10 @@ export default defineConfig({
     federation({
       name: 'mxsuiteChat',
       filename: 'remoteEntry.js',
-      exposes: { './ChatApp': './src/ChatApp.tsx' },
+      exposes: {
+        './ChatApp': './src/ChatApp.tsx',
+        './ChatBubble': './src/components/member/ChatBubble.tsx',
+      },
       // Type assertion needed: plugin typings lack singleton/requiredVersion
       // but the underlying Module Federation runtime supports them.
       shared: {

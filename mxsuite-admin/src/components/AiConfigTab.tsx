@@ -11,7 +11,8 @@ import { tenantApi, aiConfigApi, type AiProviderInfo } from '../services/api';
 const { Text } = Typography;
 
 const TASKS = [
-  { key: 'mapping', label: 'Field Mapping', description: 'AI-powered source\u2192target field mapping' },
+  { key: 'mapping', label: 'Field Mapping & Auto-Map', description: 'AI-powered source\u2192target field mapping (upload + Auto-Map button)' },
+  { key: 'decisions', label: 'Decision Generation', description: 'Auto-generate decisions from validation results' },
   { key: 'entity-detection', label: 'Entity Detection', description: 'Detect relevant entities from uploaded data' },
   { key: 'chat', label: 'Chat', description: 'AI chat assistant for coaches and members' },
 ];

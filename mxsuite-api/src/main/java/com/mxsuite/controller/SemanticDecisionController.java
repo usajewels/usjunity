@@ -2,7 +2,10 @@ package com.mxsuite.controller;
 
 import com.mxsuite.audit.AuditService;
 import com.mxsuite.model.SemanticDecision;
+import com.mxsuite.model.enums.DecisionSource;
 import com.mxsuite.model.enums.DecisionStatus;
+import com.mxsuite.repository.OnboardingRepository;
+import com.mxsuite.repository.PlatformAssignmentRepository;
 import com.mxsuite.repository.ProjectRepository;
 import com.mxsuite.repository.SemanticDecisionRepository;
 import com.mxsuite.repository.TenantRepository;
@@ -29,15 +32,21 @@ public class SemanticDecisionController {
     private final SemanticDecisionRepository decisionRepository;
     private final ProjectRepository projectRepository;
     private final TenantRepository tenantRepository;
+    private final PlatformAssignmentRepository assignmentRepository;
+    private final OnboardingRepository onboardingRepository;
     private final AuditService auditService;
 
     public SemanticDecisionController(SemanticDecisionRepository decisionRepository,
                                        ProjectRepository projectRepository,
                                        TenantRepository tenantRepository,
+                                       PlatformAssignmentRepository assignmentRepository,
+                                       OnboardingRepository onboardingRepository,
                                        AuditService auditService) {
         this.decisionRepository = decisionRepository;
         this.projectRepository = projectRepository;
         this.tenantRepository = tenantRepository;
+        this.assignmentRepository = assignmentRepository;
+        this.onboardingRepository = onboardingRepository;
         this.auditService = auditService;
     }
 
@@ -47,12 +56,12 @@ public class SemanticDecisionController {
             UUID id, String title, String summary, UUID projectId, String projectName,
             String fieldContext, DecisionStatus decisionStatus, UUID ownerId, String ownerName,
             List<Map<String, Object>> options, Integer selectedOption,
-            List<Map<String, Object>> requirements, Instant createdAt) {}
+            List<Map<String, Object>> requirements, DecisionSource source, Instant createdAt) {}
 
     public record DecisionStatsDto(long all, long open, long approved, long rejected) {}
 
     public record CreateDecisionRequest(
-            String title, String summary, UUID projectId, String fieldContext,
+            String title, String summary, UUID projectId, UUID tenantId, String fieldContext,
             List<Map<String, Object>> options, List<Map<String, Object>> requirements) {}
 
     public record UpdateDecisionRequest(
@@ -83,8 +92,25 @@ public class SemanticDecisionController {
     @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','COACH_ADMIN','PLATFORM_SUPPORT')")
     public ResponseEntity<DecisionDto> create(@RequestBody CreateDecisionRequest request,
                                                @AuthenticationPrincipal UserPrincipal principal) {
-        UUID tenantId = TenantContext.getCurrentTenantId();
+        // Platform users can target a specific tenant; others use their own context
+        UUID tenantId = (request.tenantId() != null && principal.isPlatformUser())
+                ? request.tenantId()
+                : TenantContext.getCurrentTenantId();
         var tenant = tenantRepository.findById(tenantId).orElseThrow();
+
+        // Validate coach has access to this tenant
+        if (principal.isPlatformSupport()) {
+            boolean assigned = assignmentRepository.existsByPlatformUserIdAndTenantIdAndActiveTrue(
+                    principal.id(), tenantId);
+            if (!assigned && !tenant.isOpenToAllCoaches()) {
+                return ResponseEntity.status(403).build();
+            }
+        }
+
+        // Validate tenant has data (onboarding record exists)
+        if (onboardingRepository.findByTenantId(tenantId).isEmpty()) {
+            return ResponseEntity.badRequest().build();
+        }
 
         SemanticDecision decision = new SemanticDecision();
         decision.setTitle(request.title());
@@ -177,6 +203,6 @@ public class SemanticDecisionController {
         return new DecisionDto(
                 d.getId(), d.getTitle(), d.getSummary(), projectId, projectName,
                 d.getFieldContext(), d.getDecisionStatus(), d.getOwnerId(), null,
-                d.getOptions(), d.getSelectedOption(), d.getRequirements(), d.getCreatedAt());
+                d.getOptions(), d.getSelectedOption(), d.getRequirements(), d.getSource(), d.getCreatedAt());
     }
 }

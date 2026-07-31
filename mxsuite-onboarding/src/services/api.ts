@@ -1,5 +1,5 @@
 import { api } from '@mxsuite/shared';
-import type { Onboarding } from '@mxsuite/shared';
+import type { Onboarding, StagingStatusDto, PipelineStatusDto, DataHealthDto } from '@mxsuite/shared';
 
 export const onboardingApi = {
   get: () =>
@@ -38,6 +38,16 @@ export const onboardingApi = {
 
   reset: (id: string) =>
     api.delete(`/onboarding/${id}`),
+
+  // Pipeline status endpoints
+  stagingStatus: () =>
+    api.get<StagingStatusDto>('/my-onboarding/upload/staging-status'),
+
+  pipelineStatus: () =>
+    api.get<PipelineStatusDto>('/my-onboarding/status'),
+
+  dataHealth: () =>
+    api.get<DataHealthDto>('/my-onboarding/data-health'),
 };
 
 export default api;

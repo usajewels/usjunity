@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Card, Form, Input, Button, Typography, Alert, Space, List, Avatar, Tag, Divider, ConfigProvider } from 'antd';
+import { Card, Form, Input, Button, Typography, Alert, Space, List, Avatar, Tag, Divider, ConfigProvider, Tabs } from 'antd';
 import { LockOutlined, MailOutlined, UserOutlined } from '@ant-design/icons';
 import { usePageTitle } from '@mxsuite/shared';
 import { useAuth } from '../store/AuthContext';
@@ -42,8 +42,9 @@ interface DevUser {
 }
 
 function getRedirectPath(): string {
+  // Default to remembering last page — user can opt out in Settings
   const remember = localStorage.getItem('mxsuite_remember_last_page');
-  if (remember === 'true') {
+  if (remember !== 'false') {
     const lastPath = localStorage.getItem('mxsuite_last_path');
     if (lastPath && lastPath !== '/login') return lastPath;
   }
@@ -65,14 +66,17 @@ export default function LoginPage() {
       .then(({ data }) => { if (data.brandName) setBrandName(data.brandName); })
       .catch(() => {});
 
-    if (import.meta.env.DEV) {
-      axios.get<DevUser[]>('/api/auth/dev/users')
-        .then(({ data }) => {
-          setDevUsers(data);
+    // Check if devlogin mode is enabled on the server
+    axios.get<{ enabled: boolean }>('/api/auth/dev/enabled')
+      .then(({ data }) => {
+        if (data.enabled) {
           setDevMode(true);
-        })
-        .catch(() => {});
-    }
+          axios.get<DevUser[]>('/api/auth/dev/users')
+            .then(({ data: users }) => setDevUsers(users))
+            .catch(() => {});
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const onFinish = async (values: { email: string; password: string }) => {
@@ -123,37 +127,54 @@ export default function LoginPage() {
 
           {error && <Alert message={error} type="error" showIcon closable onClose={() => setError(null)} />}
 
-          {devMode && devUsers.length > 0 && (
-            <>
-              <div style={{ textAlign: 'left' }}>
-                <Text strong style={{ fontSize: 14, color: '#2d1854' }}>Quick Login (Dev Mode)</Text>
-                <List
-                  size="small"
-                  style={{ marginTop: 8, maxHeight: 240, overflowY: 'auto' }}
-                  dataSource={devUsers}
-                  renderItem={(u) => (
-                    <List.Item
-                      style={{ cursor: 'pointer', padding: '8px 12px', borderRadius: 6 }}
-                      onClick={() => handleDevLogin(u.email)}
-                      className="dev-user-item"
-                    >
-                      <List.Item.Meta
-                        avatar={<Avatar icon={<UserOutlined />} size="small" style={{ backgroundColor: ROLE_AVATAR_COLORS[u.role] || '#d9d9d9' }} />}
-                        title={
-                          <span>
-                            {u.firstName} {u.lastName}{' '}
-                            <Tag style={{ ...ROLE_STYLES[u.role], fontSize: 10 }}>{ROLE_LABELS[u.role] || u.role}</Tag>
-                          </span>
-                        }
-                        description={<span style={{ fontSize: 12 }}>{u.email}{u.tenantName ? ` — ${u.tenantName}` : ''}</span>}
-                      />
-                    </List.Item>
-                  )}
-                />
-              </div>
-              <Divider style={{ margin: '8px 0', borderColor: '#e0d4f5', color: '#6b4fa0' }}>or sign in manually</Divider>
-            </>
-          )}
+          {devMode && devUsers.length > 0 && (() => {
+            // Group users by role, preserving tab order
+            const roleOrder = ['PLATFORM_ADMIN', 'COACH_ADMIN', 'PLATFORM_SUPPORT', 'TENANT_ADMIN', 'TENANT_USER'];
+            const grouped = devUsers.reduce<Record<string, DevUser[]>>((acc, u) => {
+              (acc[u.role] ??= []).push(u);
+              return acc;
+            }, {});
+            const tabs = roleOrder
+              .filter(role => grouped[role]?.length)
+              .map(role => ({
+                key: role,
+                label: ROLE_LABELS[role] || role,
+                children: (
+                  <List
+                    size="small"
+                    style={{ maxHeight: 200, overflowY: 'auto' }}
+                    dataSource={grouped[role]}
+                    renderItem={(u) => (
+                      <List.Item
+                        style={{ cursor: 'pointer', padding: '8px 12px', borderRadius: 6 }}
+                        onClick={() => handleDevLogin(u.email)}
+                        className="dev-user-item"
+                      >
+                        <List.Item.Meta
+                          avatar={<Avatar icon={<UserOutlined />} size="small" style={{ backgroundColor: ROLE_AVATAR_COLORS[u.role] || '#d9d9d9' }} />}
+                          title={<span>{u.firstName} {u.lastName}</span>}
+                          description={<span style={{ fontSize: 12 }}>{u.email}{u.tenantName ? ` — ${u.tenantName}` : ''}</span>}
+                        />
+                      </List.Item>
+                    )}
+                  />
+                ),
+              }));
+            return (
+              <>
+                <div style={{ textAlign: 'left' }}>
+                  <Text strong style={{ fontSize: 14, color: '#2d1854' }}>Quick Login (Dev Mode)</Text>
+                  <Tabs
+                    size="small"
+                    items={tabs}
+                    style={{ marginTop: 4 }}
+                    tabBarStyle={{ marginBottom: 4 }}
+                  />
+                </div>
+                <Divider style={{ margin: '8px 0', borderColor: '#e0d4f5', color: '#6b4fa0' }}>or sign in manually</Divider>
+              </>
+            );
+          })()}
 
           <ConfigProvider theme={{ token: { colorPrimary: '#2d1854' } }}>
             <Form layout="vertical" onFinish={onFinish} size="large">

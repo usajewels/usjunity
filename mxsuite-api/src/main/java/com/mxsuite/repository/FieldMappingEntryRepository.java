@@ -25,6 +25,8 @@ public interface FieldMappingEntryRepository extends JpaRepository<FieldMappingE
     @Query("SELECT f FROM FieldMappingEntry f LEFT JOIN FETCH f.candidates WHERE f.id = :id")
     Optional<FieldMappingEntry> findByIdWithCandidates(@Param("id") UUID id);
 
+    long countByProjectId(UUID projectId);
+
     long countByProjectIdAndMappingStatus(UUID projectId, MappingStatus status);
 
     List<FieldMappingEntry> findAllByProjectId(UUID projectId);

@@ -19,4 +19,5 @@ public interface TenantRepository extends JpaRepository<Tenant, UUID> {
     boolean existsBySlug(String slug);
     long countByTenantTypeAndActive(TenantType tenantType, boolean active);
     List<Tenant> findByOpenToAllCoachesTrue();
+    List<Tenant> findByTenantType(TenantType type);
 }

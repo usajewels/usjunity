@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { Typography, Spin, Tag, Space, Tooltip } from 'antd';
-import { ClockCircleOutlined } from '@ant-design/icons';
+import { useNavigate, useParams } from 'react-router-dom';
+import { Breadcrumb, Button, Card, Typography, Spin, Tag, Space, Tooltip } from 'antd';
+import { ArrowLeftOutlined, ClockCircleOutlined, ReloadOutlined, WarningOutlined } from '@ant-design/icons';
 import { usePageTitle } from '@mxsuite/shared';
 import type { PhaseBenchmarkDto } from '@mxsuite/shared';
+import ProjectSubNav from '../../components/migration/ProjectSubNav';
 import { migrationApi } from '../../services/migrationApi';
 import type { PhaseTimeDto } from '../../services/migrationApi';
 
@@ -35,11 +36,13 @@ function formatDuration(minutes: number): string {
 export default function ProjectMetricsPage() {
   usePageTitle('Onboarding Metrics');
   const { projectId } = useParams<{ projectId: string }>();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [phaseTimes, setPhaseTimes] = useState<PhaseTimeDto[]>([]);
   const [benchmarks, setBenchmarks] = useState<Map<string, PhaseBenchmarkDto>>(new Map());
   const [projectName, setProjectName] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
     if (!projectId) return;
@@ -71,31 +74,70 @@ export default function ProjectMetricsPage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [projectId]);
+  }, [projectId, retryKey]);
+
+  const headerBlock = (
+    <div style={{
+      background: 'linear-gradient(135deg, #f3eeff 0%, #ece4fc 100%)',
+      margin: '-24px -24px 20px -24px',
+      padding: '28px 32px 16px 32px',
+      borderBottom: '2px solid #e0d4f5',
+    }}>
+      <Breadcrumb
+        style={{ marginBottom: 10 }}
+        items={[
+          { title: <Button type="link" size="small" icon={<ArrowLeftOutlined />} style={{ padding: 0, color: '#1a0e3a' }} onClick={() => navigate('/plans/onboarding-projects/projects')}>Projects</Button> },
+          { title: <span style={{ color: '#6b4fa0' }}>{projectName || '…'}</span> },
+          { title: <span style={{ color: '#2d1854', fontWeight: 500 }}>Metrics</span> },
+        ]}
+      />
+      <ProjectSubNav projectId={projectId!} activeKey="metrics" />
+    </div>
+  );
 
   if (loading) {
     return (
-      <div style={{ textAlign: 'center', padding: 64 }}>
-        <Spin size="large" tip="Loading metrics..." />
+      <div>
+        {headerBlock}
+        <div style={{ textAlign: 'center', padding: 64 }}>
+          <Spin size="large" tip="Loading metrics..." />
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div style={{ padding: 24 }}>
-        <Text type="danger">{error}</Text>
+      <div>
+        {headerBlock}
+        <div style={{ padding: '32px 24px', maxWidth: 500, margin: '0 auto' }}>
+          <Card style={{ textAlign: 'center', borderColor: '#ffa39e', borderTop: '3px solid #ff4d4f' }}>
+            <WarningOutlined style={{ fontSize: 36, color: '#ff4d4f', marginBottom: 12 }} />
+            <Title level={5} style={{ color: '#cf1322', marginBottom: 8 }}>{error}</Title>
+            <Button icon={<ReloadOutlined />} onClick={() => setRetryKey((k) => k + 1)}>
+              Retry
+            </Button>
+          </Card>
+        </div>
       </div>
     );
   }
 
   if (phaseTimes.length === 0) {
     return (
-      <div style={{ padding: 24 }}>
-        <Title level={4}><ClockCircleOutlined /> Onboarding Metrics</Title>
-        <Text type="secondary">
-          No phase timing data recorded yet. Timers begin when the onboarding project is created.
-        </Text>
+      <div>
+        {headerBlock}
+        <div style={{ padding: '32px 24px', maxWidth: 500, margin: '0 auto' }}>
+          <Card style={{ textAlign: 'center', borderColor: '#e0d4f5', borderTop: '3px solid #6b4fa0' }}>
+            <ClockCircleOutlined style={{ fontSize: 40, color: '#6b4fa0', marginBottom: 16 }} />
+            <Title level={5} style={{ color: '#2d1854', marginBottom: 8 }}>No metrics recorded yet</Title>
+            <Text type="secondary" style={{ display: 'block', lineHeight: 1.6 }}>
+              Phase timers track how long each stage of onboarding takes. Timing begins
+              automatically when the project is created and phases are advanced through
+              the pipeline.
+            </Text>
+          </Card>
+        </div>
       </div>
     );
   }
@@ -107,11 +149,16 @@ export default function ProjectMetricsPage() {
   const activePhase = phaseTimes.find((pt) => pt.active);
 
   return (
-    <div style={{ padding: 24, maxWidth: 800 }}>
-      <Title level={4} style={{ marginBottom: 24 }}>
+    <div>
+      {headerBlock}
+    <div style={{ padding: '0 24px', maxWidth: 800 }}>
+      <Title level={4} style={{ marginBottom: 4, color: '#2d1854' }}>
         <ClockCircleOutlined style={{ marginRight: 8 }} />
         Onboarding Metrics — {projectName}
       </Title>
+      <Text style={{ fontSize: 12, color: '#6b4fa0', display: 'block', marginBottom: 20 }}>
+        Track time spent in each onboarding phase.
+      </Text>
 
       {/* Summary cards */}
       <div style={{ display: 'flex', gap: 24, marginBottom: 32, flexWrap: 'wrap' }}>
@@ -208,6 +255,7 @@ export default function ProjectMetricsPage() {
           {formatDuration(totalMinutes)}
         </Text>
       </div>
+    </div>
     </div>
   );
 }

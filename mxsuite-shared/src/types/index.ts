@@ -294,6 +294,7 @@ export interface MigrationProject {
   migrationStatus: MigrationStatus;
   reconciliationPct: number;
   ownerName?: string;
+  tenantId?: string;
   tenantName?: string;
   phaseGates: PhaseGateDto[];
   phaseTimes?: PhaseTimeDto[];
@@ -447,6 +448,7 @@ export interface SemanticDecisionDto {
   options?: DecisionOptionDto[];
   selectedOption?: number;
   requirements?: Record<string, unknown>[];
+  source?: 'MANUAL' | 'AI';
   createdAt: string;
 }
 
@@ -526,6 +528,44 @@ export interface ReconciliationReportDto {
   createdAt: string;
 }
 
+// Pipeline status types
+export type StagingStatus = 'NONE' | 'STAGING' | 'STAGED' | 'FAILED';
+export type S3ExportStatus = 'NONE' | 'EXPORTING' | 'EXPORTED' | 'FAILED';
+
+export interface StagingStatusDto {
+  uploadId: string;
+  stagingStatus: StagingStatus;
+  stagingError: string;
+}
+
+export interface DataHealthDto {
+  runId: string;
+  status: string;
+  totalRows: number;
+  validRows: number;
+  warningRows: number;
+  errorRows: number;
+  qualityPct: number;
+  startedAt: string;
+  completedAt: string;
+}
+
+export interface PipelineStatusDto {
+  projectName: string;
+  migrationPhase: MigrationPhase;
+  migrationStatus: MigrationStatus;
+  reconciliationPct: number;
+  hasReport: boolean;
+  overallStatus: string;
+  warningCount: number;
+  signedOff: boolean;
+  signerName?: string;
+  signerRole?: string;
+  tiers: ReconTierDto[];
+  tableBreakdown: ReconTableRowDto[];
+  warningDetail?: string;
+}
+
 // Tenant onboarding types
 export interface TenantOnboardingDto {
   projectId: string;
@@ -537,6 +577,10 @@ export interface TenantOnboardingDto {
   uploadStatus: 'NONE' | 'UPLOADED' | 'PARSED';
   uploadFilename?: string;
   uploadRowCount?: number;
+  uploadId?: string;
+  stagingStatus?: StagingStatus;
+  s3ExportStatus?: S3ExportStatus;
+  s3ExportedAt?: string;
   mappingStats?: MappingStatsDto;
   decisionStats?: DecisionStatsDto;
   createdAt: string;

@@ -11,15 +11,16 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 WORKDIR /app
 
 # Copy workspace config + all package.json files first (cache layer)
-COPY pnpm-workspace.yaml .npmrc package.json ./
+COPY pnpm-workspace.yaml pnpm-lock.yaml .npmrc package.json ./
 COPY mxsuite-shared/package.json mxsuite-shared/package.json
 COPY mxsuite-admin/package.json mxsuite-admin/package.json
 COPY mxsuite-workspaces/package.json mxsuite-workspaces/package.json
 COPY mxsuite-planner/package.json mxsuite-planner/package.json
 COPY mxsuite-chat/package.json mxsuite-chat/package.json
+COPY mxsuite-onboarding/package.json mxsuite-onboarding/package.json
 COPY mxsuite-shell/package.json mxsuite-shell/package.json
 
-RUN pnpm install --frozen-lockfile --ignore-scripts
+RUN pnpm install --no-frozen-lockfile --ignore-scripts
 
 # ── Stage 2: Build shared library ────────────────────────
 FROM deps AS shared-build
@@ -46,7 +47,12 @@ FROM shared-build AS chat-build
 COPY mxsuite-chat/ mxsuite-chat/
 RUN pnpm --filter @mxsuite/chat build
 
-# ── Stage 7: Build Shell host app ────────────────────────
+# ── Stage 7: Build Onboarding micro-frontend ──────────────
+FROM shared-build AS onboarding-build
+COPY mxsuite-onboarding/ mxsuite-onboarding/
+RUN pnpm --filter @mxsuite/onboarding build
+
+# ── Stage 8: Build Shell host app ────────────────────────
 FROM shared-build AS shell-build
 COPY mxsuite-shell/ mxsuite-shell/
 RUN pnpm --filter @mxsuite/shell build
@@ -66,6 +72,7 @@ COPY --from=admin-build /app/mxsuite-admin/dist /usr/share/nginx/html/mfe/admin
 COPY --from=workspaces-build /app/mxsuite-workspaces/dist /usr/share/nginx/html/mfe/workspaces
 COPY --from=planner-build /app/mxsuite-planner/dist /usr/share/nginx/html/mfe/planner
 COPY --from=chat-build /app/mxsuite-chat/dist /usr/share/nginx/html/mfe/chat
+COPY --from=onboarding-build /app/mxsuite-onboarding/dist /usr/share/nginx/html/mfe/onboarding
 
 # Copy production nginx config
 COPY mxsuite-shell/nginx.docker.conf /etc/nginx/conf.d/default.conf

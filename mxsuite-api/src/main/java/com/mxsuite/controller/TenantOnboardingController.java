@@ -14,6 +14,9 @@ import com.mxsuite.service.EntityDetectionService;
 import com.mxsuite.service.FileParsingService;
 import com.mxsuite.service.MappingImportExportService;
 import com.mxsuite.service.MappingVersionService;
+import com.mxsuite.service.NotificationService;
+import com.mxsuite.service.PhaseGateService;
+import com.mxsuite.service.StagingService;
 import com.mxsuite.service.TargetSchemaService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -64,6 +67,11 @@ public class TenantOnboardingController {
     private final TargetSchemaService targetSchemaService;
     private final OnboardingRepository onboardingRepository;
     private final PhaseTimeEntryRepository phaseTimeEntryRepository;
+    private final ValidationRunRepository validationRunRepository;
+    private final ValidationIssueRepository validationIssueRepository;
+    private final PhaseGateService phaseGateService;
+    private final NotificationService notificationService;
+    private StagingService stagingService;
     private final String basePath;
 
     public TenantOnboardingController(TenantRepository tenantRepository,
@@ -86,6 +94,10 @@ public class TenantOnboardingController {
                                        TargetSchemaService targetSchemaService,
                                        OnboardingRepository onboardingRepository,
                                        PhaseTimeEntryRepository phaseTimeEntryRepository,
+                                       ValidationRunRepository validationRunRepository,
+                                       ValidationIssueRepository validationIssueRepository,
+                                       PhaseGateService phaseGateService,
+                                       NotificationService notificationService,
                                        @Value("${mxsuite.storage.local.base-path}") String basePath) {
         this.tenantRepository = tenantRepository;
         this.projectRepository = projectRepository;
@@ -107,7 +119,16 @@ public class TenantOnboardingController {
         this.targetSchemaService = targetSchemaService;
         this.onboardingRepository = onboardingRepository;
         this.phaseTimeEntryRepository = phaseTimeEntryRepository;
+        this.validationRunRepository = validationRunRepository;
+        this.validationIssueRepository = validationIssueRepository;
+        this.phaseGateService = phaseGateService;
+        this.notificationService = notificationService;
         this.basePath = basePath;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setStagingService(StagingService stagingService) {
+        this.stagingService = stagingService;
     }
 
     // --- DTOs ---
@@ -263,16 +284,16 @@ public class TenantOnboardingController {
             Files.createDirectories(storageDir);
             Files.copy(file.getInputStream(), resolvedFile);
 
-            // Check for existing user-finalized mappings (MAPPED or REJECTED)
-            long existingMapped = mappingRepository.countByProjectIdAndMappingStatus(
-                    project.getId(), MappingStatus.MAPPED);
-            long existingRejected = mappingRepository.countByProjectIdAndMappingStatus(
-                    project.getId(), MappingStatus.REJECTED);
-            long existingFinalized = existingMapped + existingRejected;
+            // Check for ANY existing mappings — prompt user to keep or clear on re-upload
+            long existingMappingCount = mappingRepository.countByProjectId(project.getId());
+            long existingFinalized = existingMappingCount > 0
+                    ? mappingRepository.countByProjectIdAndMappingStatus(project.getId(), MappingStatus.MAPPED)
+                    + mappingRepository.countByProjectIdAndMappingStatus(project.getId(), MappingStatus.REJECTED)
+                    : 0;
 
             // SQL Server .bak backup file
             if (isBackup) {
-                return handleBackupUpload(project, sanitized, resolvedFile, existingFinalized);
+                return handleBackupUpload(project, sanitized, resolvedFile, existingMappingCount);
             }
 
             if (isExcel) {
@@ -292,28 +313,28 @@ public class TenantOnboardingController {
 
                     return ResponseEntity.ok(new UploadResultDto(
                             upload.getId(), sanitized, 0, List.of(), true, sheetDtos,
-                            false, List.of(), existingFinalized > 0, existingFinalized));
+                            false, List.of(), existingMappingCount > 0, existingMappingCount));
                 }
 
                 // Single sheet
                 FileParsingService.ParsedFileResult result = fileParsingService.parseExcelSheet(resolvedFile, 0);
 
-                if (existingFinalized > 0) {
+                if (existingMappingCount > 0) {
                     // Defer processing — store upload as PENDING, let frontend confirm
                     return savePendingUpload(project, sanitized, resolvedFile, result,
-                            sheets.get(0).name(), existingFinalized);
+                            sheets.get(0).name(), existingMappingCount);
                 }
 
-                return saveUploadResult(project, sanitized, resolvedFile, result, sheets.get(0).name());
+                return saveUploadResult(project, sanitized, resolvedFile, result, sheets.get(0).name(), principal.id());
             } else {
                 FileParsingService.ParsedFileResult result = fileParsingService.parseCsvFile(resolvedFile);
 
-                if (existingFinalized > 0) {
+                if (existingMappingCount > 0) {
                     return savePendingUpload(project, sanitized, resolvedFile, result,
-                            null, existingFinalized);
+                            null, existingMappingCount);
                 }
 
-                return saveUploadResult(project, sanitized, resolvedFile, result, null);
+                return saveUploadResult(project, sanitized, resolvedFile, result, null, principal.id());
             }
 
         } catch (IOException e) {
@@ -344,14 +365,10 @@ public class TenantOnboardingController {
             return ResponseEntity.badRequest().body(Map.of("message", "No headers found in preview data"));
         }
 
-        // Check for existing user-finalized mappings
-        long existingMapped = mappingRepository.countByProjectIdAndMappingStatus(
-                project.getId(), MappingStatus.MAPPED);
-        long existingRejected = mappingRepository.countByProjectIdAndMappingStatus(
-                project.getId(), MappingStatus.REJECTED);
-        long existingFinalized = existingMapped + existingRejected;
+        // Check for ANY existing mappings — prompt user to keep or clear on re-upload
+        long existingMappingCount = mappingRepository.countByProjectId(project.getId());
 
-        if (existingFinalized > 0) {
+        if (existingMappingCount > 0) {
             // Save as PENDING — let frontend confirm preserve/fresh
             ProjectDataUpload upload = new ProjectDataUpload();
             upload.setProject(project);
@@ -362,12 +379,12 @@ public class TenantOnboardingController {
             upload.setTotalFileSize(request.totalFileSize());
             uploadRepository.save(upload);
 
-            log.info("Preview upload pending confirmation for project {}: {} (existing finalized: {})",
-                    project.getId(), filename, existingFinalized);
+            log.info("Preview upload pending confirmation for project {}: {} (existing mappings: {})",
+                    project.getId(), filename, existingMappingCount);
 
             return ResponseEntity.ok(new UploadResultDto(
                     upload.getId(), filename, result.totalRows(),
-                    result.sourceColumns(), false, List.of(), false, List.of(), true, existingFinalized));
+                    result.sourceColumns(), false, List.of(), false, List.of(), true, existingMappingCount));
         }
 
         // No existing mappings — process immediately
@@ -419,12 +436,8 @@ public class TenantOnboardingController {
                     fileParsingService.parseExcelSheet(filePath, request.sheetIndex());
             String sheetName = sheets.get(request.sheetIndex()).name();
 
-            // Check for existing user-finalized mappings
-            long existingMapped = mappingRepository.countByProjectIdAndMappingStatus(
-                    project.getId(), MappingStatus.MAPPED);
-            long existingRejected = mappingRepository.countByProjectIdAndMappingStatus(
-                    project.getId(), MappingStatus.REJECTED);
-            long existingFinalized = existingMapped + existingRejected;
+            // Check for ANY existing mappings
+            long existingMappingCount = mappingRepository.countByProjectId(project.getId());
 
             ProjectDataUpload upload = uploadRepository.findFirstByProjectIdOrderByCreatedAtDesc(project.getId())
                     .orElse(new ProjectDataUpload());
@@ -434,12 +447,12 @@ public class TenantOnboardingController {
             upload.setRowCount(result.totalRows());
             upload.setSourceColumns(result.sourceColumns());
 
-            if (existingFinalized > 0) {
+            if (existingMappingCount > 0) {
                 upload.setUploadStatus(UploadStatus.PENDING);
                 uploadRepository.save(upload);
                 return ResponseEntity.ok(new UploadResultDto(
                         upload.getId(), upload.getOriginalFilename(), result.totalRows(),
-                        result.sourceColumns(), false, List.of(), false, List.of(), true, existingFinalized));
+                        result.sourceColumns(), false, List.of(), false, List.of(), true, existingMappingCount));
             }
 
             upload.setUploadStatus(UploadStatus.PARSED);
@@ -447,6 +460,11 @@ public class TenantOnboardingController {
             createSchemaNodes(project, result);
             detectAndStoreEntityCoverage(project, result.sourceColumns());
             createAutoMappings(project, result);
+
+            // Stage data into SQL Server asynchronously (if configured)
+            if (stagingService != null) {
+                stagingService.stageUpload(upload.getId(), principal.id());
+            }
 
             return ResponseEntity.ok(new UploadResultDto(
                     upload.getId(), upload.getOriginalFilename(), result.totalRows(),
@@ -492,13 +510,9 @@ public class TenantOnboardingController {
             Files.createDirectories(storageDir);
             Files.copy(bakPath, resolvedFile, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
 
-            long existingMapped = mappingRepository.countByProjectIdAndMappingStatus(
-                    project.getId(), MappingStatus.MAPPED);
-            long existingRejected = mappingRepository.countByProjectIdAndMappingStatus(
-                    project.getId(), MappingStatus.REJECTED);
-            long existingFinalized = existingMapped + existingRejected;
+            long existingMappingCount = mappingRepository.countByProjectId(project.getId());
 
-            return handleBackupUpload(project, sanitized, resolvedFile, existingFinalized);
+            return handleBackupUpload(project, sanitized, resolvedFile, existingMappingCount);
 
         } catch (IOException e) {
             log.error("Backup path upload failed for project {}: {}", project.getId(), e.getMessage(), e);
@@ -546,11 +560,7 @@ public class TenantOnboardingController {
             upload.setSourceColumns(parseResult.sourceColumns());
             uploadRepository.save(upload);
 
-            long existingMapped = mappingRepository.countByProjectIdAndMappingStatus(
-                    project.getId(), MappingStatus.MAPPED);
-            long existingRejected = mappingRepository.countByProjectIdAndMappingStatus(
-                    project.getId(), MappingStatus.REJECTED);
-            long existingFinalized = existingMapped + existingRejected;
+            long existingMappingCount = mappingRepository.countByProjectId(project.getId());
 
             log.info("Re-extracted schema for project {}: {} tables from '{}'",
                     project.getId(), bakResult.tables().size(), bakResult.databaseName());
@@ -558,7 +568,7 @@ public class TenantOnboardingController {
             return ResponseEntity.ok(new UploadResultDto(
                     upload.getId(), upload.getOriginalFilename(), bakResult.tables().size(),
                     parseResult.sourceColumns(), false, List.of(),
-                    true, tableDtos, existingFinalized > 0, existingFinalized));
+                    true, tableDtos, existingMappingCount > 0, existingMappingCount));
 
         } catch (IOException e) {
             String msg = e.getMessage();
@@ -639,6 +649,11 @@ public class TenantOnboardingController {
             upload.setUploadStatus(UploadStatus.PARSED);
             uploadRepository.save(upload);
 
+            // Stage data into SQL Server asynchronously (if configured)
+            if (stagingService != null) {
+                stagingService.stageUpload(upload.getId(), principal.id());
+            }
+
             auditService.log("SELECT_TABLES", "OnboardingProject", project.getId(),
                     selectedTables.size() + " tables selected from " + upload.getOriginalFilename());
 
@@ -706,6 +721,11 @@ public class TenantOnboardingController {
             upload.setUploadStatus(UploadStatus.PARSED);
             uploadRepository.save(upload);
 
+            // Stage data into SQL Server asynchronously (if configured)
+            if (stagingService != null) {
+                stagingService.stageUpload(upload.getId(), principal.id());
+            }
+
             auditService.log("UPLOAD", "OnboardingProject", project.getId(),
                     upload.getOriginalFilename() + (request.preserveApproved() ? " (preserved)" : " (fresh)"));
             log.info("Upload confirmed for project {}: {} preserveApproved={}",
@@ -766,6 +786,25 @@ public class TenantOnboardingController {
                 false, List.of(),
                 false, tableDtos,
                 false, 0));
+    }
+
+    // --- GET /my-onboarding/upload/staging-status — Check SQL Server staging progress ---
+
+    @GetMapping("/upload/staging-status")
+    public ResponseEntity<?> stagingStatus(@AuthenticationPrincipal UserPrincipal principal) {
+        Project project = resolveProject();
+        if (project == null) return notFound();
+
+        ProjectDataUpload upload = uploadRepository.findFirstByProjectIdOrderByCreatedAtDesc(project.getId())
+                .orElse(null);
+        if (upload == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        return ResponseEntity.ok(Map.of(
+                "uploadId", upload.getId(),
+                "stagingStatus", upload.getStagingStatus() != null ? upload.getStagingStatus() : "NONE",
+                "stagingError", upload.getStagingError() != null ? upload.getStagingError() : ""));
     }
 
     // --- GET /my-onboarding/upload/preview — Preview uploaded data ---
@@ -874,11 +913,22 @@ public class TenantOnboardingController {
         if (tenantId == null) return notFound();
 
         var onboarding = onboardingRepository.findByTenantId(tenantId).orElse(null);
-        List<Map<String, Object>> schema = (onboarding != null && onboarding.getTargetSchema() != null
-                && !onboarding.getTargetSchema().isEmpty())
-                ? onboarding.getTargetSchema()
-                : targetSchemaService.getFlatFields();
+        List<Map<String, Object>> stored = (onboarding != null) ? onboarding.getTargetSchema() : null;
+
+        // Use stored schema only if it's a v2 format (has entity info).
+        // Legacy schemas without entity grouping fall through to the default v2 schema.
+        List<Map<String, Object>> schema;
+        if (stored != null && !stored.isEmpty() && hasEntityInfo(stored)) {
+            schema = stored;
+        } else {
+            schema = targetSchemaService.getFlatFields();
+        }
         return ResponseEntity.ok(Map.of("targetSchema", schema));
+    }
+
+    /** Returns true if at least one field in the schema has an "entity" property. */
+    private static boolean hasEntityInfo(List<Map<String, Object>> schema) {
+        return schema.stream().anyMatch(f -> f.get("entity") != null);
     }
 
     // --- GET /my-onboarding/mappings — List mappings ---
@@ -940,6 +990,115 @@ public class TenantOnboardingController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("message", "Failed to process import: " + e.getMessage()));
         }
+    }
+
+    // --- POST /my-onboarding/mappings/auto-map — AI-powered re-mapping of unmapped fields ---
+
+    @PostMapping("/mappings/auto-map")
+    @Transactional
+    public ResponseEntity<?> autoMap(@AuthenticationPrincipal UserPrincipal principal) {
+        Project project = resolveProject();
+        if (project == null) return notFound();
+
+        // Gather unmapped entries
+        List<FieldMappingEntry> unmapped = mappingRepository.findByProjectId(project.getId(),
+                        org.springframework.data.domain.Pageable.unpaged())
+                .stream()
+                .filter(e -> e.getMappingStatus() == MappingStatus.UNMAPPED)
+                .toList();
+
+        if (unmapped.isEmpty()) {
+            return ResponseEntity.ok(Map.of("mapped", 0, "message", "No unmapped fields to process"));
+        }
+
+        // Collect already-used targets to avoid duplicates
+        Set<String> usedTargets = new HashSet<>();
+        for (FieldMappingEntry e : mappingRepository.findByProjectId(project.getId(),
+                org.springframework.data.domain.Pageable.unpaged())) {
+            if (e.getTargetField() != null && e.getMappingStatus() != MappingStatus.UNMAPPED) {
+                usedTargets.add(e.getTargetEntity() + "." + e.getTargetField());
+            }
+        }
+
+        Set<String> activeEntities = getActiveEntities(project);
+        int matched = 0;
+
+        if (aiMappingService.isAvailable()) {
+            try {
+                // Build AI inputs from unmapped entries
+                List<AiMappingService.FieldInput> sourceFields = unmapped.stream()
+                        .map(e -> new AiMappingService.FieldInput(e.getSourceField(), e.getSampleValue()))
+                        .toList();
+
+                List<AiMappingService.TargetFieldDef> targetDefs = targetSchemaService.getTargetFieldDefs().stream()
+                        .filter(t -> activeEntities.isEmpty() || activeEntities.contains(t.entity()))
+                        .filter(t -> !usedTargets.contains(t.entity() + "." + t.field()))
+                        .map(t -> new AiMappingService.TargetFieldDef(t.entity(), t.field(), t.description()))
+                        .toList();
+
+                List<AiMappingService.AiMapping> aiMappings = aiMappingService.mapFields(sourceFields, targetDefs);
+
+                // Apply results to existing entries
+                Map<String, FieldMappingEntry> bySource = new HashMap<>();
+                for (FieldMappingEntry e : unmapped) {
+                    bySource.put(e.getSourceField(), e);
+                }
+
+                for (AiMappingService.AiMapping aim : aiMappings) {
+                    FieldMappingEntry entry = bySource.get(aim.sourceField());
+                    if (entry == null) continue;
+
+                    String targetKey = aim.targetEntity() + "." + aim.targetField();
+                    if (aim.targetField() != null && !usedTargets.contains(targetKey)
+                            && aim.confidence().compareTo(java.math.BigDecimal.valueOf(40)) > 0) {
+                        usedTargets.add(targetKey);
+                        entry.setTargetEntity(aim.targetEntity());
+                        entry.setTargetField(aim.targetField());
+                        entry.setConfidencePct(aim.confidence());
+                        entry.setMappingStatus(MappingStatus.NEEDS_REVIEW);
+                        mappingRepository.save(entry);
+                        matched++;
+                    }
+                }
+
+                log.info("Auto-map (AI): mapped {} of {} unmapped fields for project {}",
+                        matched, unmapped.size(), project.getId());
+
+                return ResponseEntity.ok(Map.of("mapped", matched, "total", unmapped.size(), "method", "ai"));
+            } catch (Exception e) {
+                log.warn("AI auto-map failed for project {}, falling back to rule-based: {}",
+                        project.getId(), e.getMessage());
+            }
+        }
+
+        // Rule-based fallback
+        for (FieldMappingEntry entry : unmapped) {
+            String normalized = normalize(entry.getSourceField());
+            List<FieldMatch> matches = findMatches(normalized);
+            if (!activeEntities.isEmpty()) {
+                matches = matches.stream()
+                        .filter(m -> activeEntities.contains(m.target().entity()))
+                        .toList();
+            }
+            for (FieldMatch m : matches) {
+                String targetKey = m.target().entity() + "." + m.target().field();
+                if (!usedTargets.contains(targetKey)) {
+                    usedTargets.add(targetKey);
+                    entry.setTargetEntity(m.target().entity());
+                    entry.setTargetField(m.target().field());
+                    entry.setConfidencePct(m.confidence());
+                    entry.setMappingStatus(MappingStatus.NEEDS_REVIEW);
+                    mappingRepository.save(entry);
+                    matched++;
+                    break;
+                }
+            }
+        }
+
+        log.info("Auto-map (rule-based): mapped {} of {} unmapped fields for project {}",
+                matched, unmapped.size(), project.getId());
+
+        return ResponseEntity.ok(Map.of("mapped", matched, "total", unmapped.size(), "method", "rule-based"));
     }
 
     // --- PUT /my-onboarding/mappings/{id} — Update mapping (tenant: customerComment only) ---
@@ -1049,6 +1208,19 @@ public class TenantOnboardingController {
         mappingRepository.save(mapping);
 
         auditService.log("APPROVE", "FieldMapping", id, mapping.getSourceField() + " → " + mapping.getTargetField());
+
+        // Auto-evaluate MAP gate when no more NEEDS_REVIEW mappings remain
+        long remaining = mappingRepository.countByProjectIdAndMappingStatus(
+                project.getId(), MappingStatus.NEEDS_REVIEW);
+        if (remaining == 0) {
+            try {
+                phaseGateService.evaluateMapGate(project.getId());
+                log.info("All mappings approved for project {} — MAP gate evaluated", project.getId());
+            } catch (Exception e) {
+                log.warn("MAP gate evaluation failed for project {}: {}", project.getId(), e.getMessage());
+            }
+        }
+
         return ResponseEntity.ok(toMappingDto(mapping));
     }
 
@@ -1345,6 +1517,182 @@ public class TenantOnboardingController {
                 previewOnly));
     }
 
+    // ---- Data Health (Validation Results) ----
+
+    public record DataHealthDto(
+            UUID runId, String status, int totalRows, int validRows,
+            int warningRows, int errorRows, double qualityPct,
+            String startedAt, String completedAt) {}
+
+    public record DataHealthIssueDto(
+            UUID id, int rowNumber, String sourceEntity, String targetEntity,
+            String targetField, String sourceColumn, String currentValue,
+            String severity, String ruleCode, String message,
+            boolean resolved, String resolvedValue,
+            String resolvedBy, String resolvedByName, Instant resolvedAt) {}
+
+    public record EntityHealthDto(String entity, long errors, long warnings, long infos, long total) {}
+
+    /**
+     * Get the latest data health summary for the member's onboarding project.
+     */
+    @GetMapping("/data-health")
+    public ResponseEntity<?> getDataHealth() {
+        Project project = resolveProject();
+        if (project == null) return notFound();
+
+        return validationRunRepository.findFirstByProjectIdOrderByCreatedAtDesc(project.getId())
+                .map(run -> {
+                    int total = run.getTotalRows();
+                    double qualityPct = total > 0
+                            ? (double) run.getValidRows() / total * 100.0 : 100.0;
+                    return ResponseEntity.ok(new DataHealthDto(
+                            run.getId(), run.getStatus(), run.getTotalRows(),
+                            run.getValidRows(), run.getWarningRows(), run.getErrorRows(),
+                            Math.round(qualityPct * 10.0) / 10.0,
+                            run.getStartedAt() != null ? run.getStartedAt().toString() : null,
+                            run.getCompletedAt() != null ? run.getCompletedAt().toString() : null));
+                })
+                .orElse(ResponseEntity.ok(null));
+    }
+
+    /**
+     * List validation issues for the member's project (paginated with filters).
+     */
+    @GetMapping("/data-health/issues")
+    public ResponseEntity<?> getDataHealthIssues(
+            @RequestParam(required = false) String severity,
+            @RequestParam(required = false) String entity,
+            @RequestParam(required = false) Boolean resolved,
+            Pageable pageable) {
+        Project project = resolveProject();
+        if (project == null) return notFound();
+
+        var latestRun = validationRunRepository
+                .findFirstByProjectIdOrderByCreatedAtDesc(project.getId()).orElse(null);
+        if (latestRun == null) {
+            return ResponseEntity.ok(Map.of("content", List.of(), "totalElements", 0));
+        }
+
+        Page<ValidationIssue> page;
+        UUID runId = latestRun.getId();
+
+        if (severity != null && resolved != null) {
+            page = validationIssueRepository.findByValidationRunIdAndSeverityAndResolved(
+                    runId, ValidationSeverity.valueOf(severity), resolved, pageable);
+        } else if (severity != null) {
+            page = validationIssueRepository.findByValidationRunIdAndSeverity(
+                    runId, ValidationSeverity.valueOf(severity), pageable);
+        } else if (entity != null) {
+            page = validationIssueRepository.findByValidationRunIdAndTargetEntity(
+                    runId, entity, pageable);
+        } else if (resolved != null) {
+            page = validationIssueRepository.findByValidationRunIdAndResolved(
+                    runId, resolved, pageable);
+        } else {
+            page = validationIssueRepository.findByValidationRunId(runId, pageable);
+        }
+
+        var content = page.getContent().stream().map(issue -> new DataHealthIssueDto(
+                issue.getId(), issue.getRowNumber(),
+                issue.getSourceEntity(), issue.getTargetEntity(), issue.getTargetField(),
+                issue.getSourceColumn(), issue.getCurrentValue(),
+                issue.getSeverity().name(), issue.getRuleCode().name(), issue.getMessage(),
+                issue.isResolved(), issue.getResolvedValue(),
+                issue.getResolvedBy(), issue.getResolvedByName(), issue.getResolvedAt()
+        )).toList();
+
+        return ResponseEntity.ok(Map.of(
+                "content", content,
+                "totalElements", page.getTotalElements(),
+                "totalPages", page.getTotalPages()));
+    }
+
+    /**
+     * Issue counts grouped by target entity.
+     */
+    @GetMapping("/data-health/issues/by-entity")
+    public ResponseEntity<?> getDataHealthByEntity() {
+        Project project = resolveProject();
+        if (project == null) return notFound();
+
+        var latestRun = validationRunRepository
+                .findFirstByProjectIdOrderByCreatedAtDesc(project.getId()).orElse(null);
+        if (latestRun == null) return ResponseEntity.ok(List.of());
+
+        List<Object[]> rows = validationIssueRepository.countByEntityAndSeverity(latestRun.getId());
+        Map<String, EntityHealthDto> map = new LinkedHashMap<>();
+
+        for (Object[] row : rows) {
+            String entityName = row[0] != null ? row[0].toString() : "Unknown";
+            String sev = row[1].toString();
+            long count = (Long) row[2];
+
+            EntityHealthDto existing = map.get(entityName);
+            long errors = existing != null ? existing.errors() : 0;
+            long warnings = existing != null ? existing.warnings() : 0;
+            long infos = existing != null ? existing.infos() : 0;
+            long total = existing != null ? existing.total() : 0;
+
+            switch (sev) {
+                case "ERROR" -> errors += count;
+                case "WARNING" -> warnings += count;
+                case "INFO" -> infos += count;
+            }
+            map.put(entityName, new EntityHealthDto(entityName, errors, warnings, infos, total + count));
+        }
+        return ResponseEntity.ok(map.values());
+    }
+
+    /**
+     * Resolve a validation issue — the member provides a corrected value.
+     */
+    @PutMapping("/data-health/issues/{issueId}/resolve")
+    @Transactional
+    public ResponseEntity<?> resolveDataHealthIssue(
+            @PathVariable UUID issueId,
+            @RequestBody Map<String, String> body,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        Project project = resolveProject();
+        if (project == null) return notFound();
+
+        return validationIssueRepository.findById(issueId)
+                .map(issue -> {
+                    // Verify this issue belongs to the member's project
+                    if (!issue.getValidationRun().getProject().getId().equals(project.getId())) {
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                                .body(Map.of("message", "Issue does not belong to your project"));
+                    }
+                    String beforeValue = issue.getResolvedValue();
+                    issue.setResolved(true);
+                    issue.setResolvedValue(body.get("resolvedValue"));
+                    issue.setResolvedBy(principal.id().toString());
+                    issue.setResolvedByName(principal.getFullName());
+                    issue.setResolvedAt(Instant.now());
+                    validationIssueRepository.save(issue);
+
+                    auditService.log("DATA_CORRECTION", "ValidationIssue", issueId,
+                            issue.getTargetField(),
+                            beforeValue != null ? Map.of("value", beforeValue) : null,
+                            Map.of("value", body.get("resolvedValue")));
+
+                    // Notify the coach
+                    notificationService.notifyDataCorrected(
+                            project.getTenant().getId(), project.getId(), issueId,
+                            issue.getTargetField(), body.get("resolvedValue"),
+                            principal.getFullName(), false);
+
+                    return ResponseEntity.ok(new DataHealthIssueDto(
+                            issue.getId(), issue.getRowNumber(),
+                            issue.getSourceEntity(), issue.getTargetEntity(), issue.getTargetField(),
+                            issue.getSourceColumn(), issue.getCurrentValue(),
+                            issue.getSeverity().name(), issue.getRuleCode().name(), issue.getMessage(),
+                            issue.isResolved(), issue.getResolvedValue(),
+                            issue.getResolvedBy(), issue.getResolvedByName(), issue.getResolvedAt()));
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
     // ---- Internal helpers ----
 
     private Project resolveProject() {
@@ -1399,7 +1747,8 @@ public class TenantOnboardingController {
     }
 
     private ResponseEntity<?> saveUploadResult(Project project, String filename, Path filePath,
-                                                FileParsingService.ParsedFileResult result, String sheetName) {
+                                                FileParsingService.ParsedFileResult result,
+                                                String sheetName, UUID userId) {
         ProjectDataUpload upload = new ProjectDataUpload();
         upload.setProject(project);
         upload.setOriginalFilename(filename);
@@ -1414,6 +1763,11 @@ public class TenantOnboardingController {
         createSchemaNodes(project, result);
         detectAndStoreEntityCoverage(project, result.sourceColumns());
         createAutoMappings(project, result);
+
+        // Stage data into SQL Server asynchronously (if configured)
+        if (stagingService != null) {
+            stagingService.stageUpload(upload.getId(), userId);
+        }
 
         auditService.log("UPLOAD", "OnboardingProject", project.getId(), filename);
         log.info("File uploaded for onboarding project {}: {}", project.getId(), filename);
@@ -1682,16 +2036,7 @@ public class TenantOnboardingController {
     private record FieldMatch(TargetSchemaService.TargetFieldDef target, BigDecimal confidence) {}
 
     private void createAutoMappings(Project project, FileParsingService.ParsedFileResult result) {
-        // If headers haven't changed, just update sample values — don't re-map
-        List<FieldMappingEntry> existing = mappingRepository.findAllByProjectId(project.getId());
-        if (!existing.isEmpty() && headersMatch(existing, result.headers())) {
-            updateSampleValues(existing, result);
-            log.info("Headers unchanged for project {} — preserved {} existing mappings",
-                    project.getId(), existing.size());
-            return;
-        }
-
-        // Clear existing mappings for this project
+        // Clear existing mappings for this project — always start fresh
         mappingRepository.deleteByProjectId(project.getId());
 
         // Try AI-powered mapping first, fall back to rule-based

@@ -3,11 +3,11 @@ import { authService, type UserData, type TenantData, type PlatformBranding, typ
 import { api } from '@mxsuite/shared';
 
 const DEFAULT_FEATURE_CONFIG: FeatureConfig = {
-  PLATFORM_ADMIN: ['projects', 'migration'],
-  COACH_ADMIN: ['projects', 'migration'],
-  PLATFORM_SUPPORT: ['projects', 'migration'],
-  TENANT_ADMIN: ['my-onboarding'],
-  TENANT_USER: ['my-onboarding'],
+  PLATFORM_ADMIN: ['projects', 'migration', 'chat-files'],
+  COACH_ADMIN: ['projects', 'migration', 'chat-files'],
+  PLATFORM_SUPPORT: ['projects', 'migration', 'chat-files'],
+  TENANT_ADMIN: ['my-onboarding', 'chat-files'],
+  TENANT_USER: ['my-onboarding', 'chat-files'],
 };
 
 interface AuthContextType {

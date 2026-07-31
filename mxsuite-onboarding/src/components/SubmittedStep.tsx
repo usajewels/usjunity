@@ -1,8 +1,11 @@
-import { useState } from 'react';
-import { Result, Card, Button, Space, Popconfirm, message, Grid } from 'antd';
-import { CheckCircleOutlined, EditOutlined, RedoOutlined } from '@ant-design/icons';
-import type { Onboarding } from '@mxsuite/shared';
+import { useState, useEffect, useRef } from 'react';
+import { Card, Button, Space, Popconfirm, message, Grid, Typography, Divider } from 'antd';
+import { EditOutlined, RedoOutlined } from '@ant-design/icons';
+import type { Onboarding, StagingStatusDto, PipelineStatusDto, DataHealthDto } from '@mxsuite/shared';
 import { onboardingApi } from '../services/api';
+import PipelineStatus from './PipelineStatus';
+
+const { Title } = Typography;
 
 interface Props {
   onboarding: Onboarding;
@@ -13,8 +16,33 @@ interface Props {
 export default function SubmittedStep({ onboarding, onUpdate, onReset }: Props) {
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.md;
-  const isCompleted = onboarding.status === 'COMPLETED';
   const [loading, setLoading] = useState<string | null>(null);
+  const [stagingStatus, setStagingStatus] = useState<StagingStatusDto | null>(null);
+  const [pipelineStatus, setPipelineStatus] = useState<PipelineStatusDto | null>(null);
+  const [dataHealth, setDataHealth] = useState<DataHealthDto | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Poll pipeline status
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        const [staging, pipeline, health] = await Promise.allSettled([
+          onboardingApi.stagingStatus(),
+          onboardingApi.pipelineStatus(),
+          onboardingApi.dataHealth(),
+        ]);
+        if (staging.status === 'fulfilled') setStagingStatus(staging.value.data);
+        if (pipeline.status === 'fulfilled') setPipelineStatus(pipeline.value.data);
+        if (health.status === 'fulfilled') setDataHealth(health.value.data);
+      } catch {
+        // silently ignore
+      }
+    };
+
+    fetchStatus();
+    pollRef.current = setInterval(fetchStatus, 10000);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, []);
 
   const handleReopen = async () => {
     setLoading('reopen');
@@ -43,44 +71,45 @@ export default function SubmittedStep({ onboarding, onUpdate, onReset }: Props) 
   };
 
   return (
-    <div style={{ maxWidth: isMobile ? '100%' : 600, margin: isMobile ? '16px auto' : '40px auto' }}>
+    <div style={{ maxWidth: isMobile ? '100%' : 700, margin: isMobile ? '16px auto' : '40px auto' }}>
       <Card>
-        <Result
-          icon={<CheckCircleOutlined style={{ color: isCompleted ? '#52c41a' : '#1e3a5f' }} />}
-          status={isCompleted ? 'success' : 'info'}
-          title={isCompleted ? 'Onboarding Complete!' : 'Mappings Submitted'}
-          subTitle={
-            isCompleted
-              ? 'Your data has been successfully onboarded into MemberSuite.'
-              : 'Your column mappings have been submitted. Your GrowthZone representative will review and finalize the import.'
-          }
-          extra={
-            !isCompleted && (
-              <Space>
-                <Button
-                  icon={<EditOutlined />}
-                  onClick={handleReopen}
-                  loading={loading === 'reopen'}
-                >
-                  Edit Mappings
-                </Button>
-                <Popconfirm
-                  title="Start over?"
-                  description="This will delete your current onboarding including the uploaded file. You'll need to upload and map again."
-                  onConfirm={handleReset}
-                >
-                  <Button
-                    danger
-                    icon={<RedoOutlined />}
-                    loading={loading === 'reset'}
-                  >
-                    Start Over
-                  </Button>
-                </Popconfirm>
-              </Space>
-            )
-          }
+        <Title level={4} style={{ marginBottom: 4 }}>Onboarding Progress</Title>
+
+        <PipelineStatus
+          stagingStatus={stagingStatus}
+          pipelineStatus={pipelineStatus}
+          dataHealth={dataHealth}
+          uploadFilename={onboarding.originalFilename}
+          rowCount={onboarding.rowCount}
         />
+
+        {onboarding.status !== 'COMPLETED' && (
+          <>
+            <Divider />
+            <Space>
+              <Button
+                icon={<EditOutlined />}
+                onClick={handleReopen}
+                loading={loading === 'reopen'}
+              >
+                Edit Mappings
+              </Button>
+              <Popconfirm
+                title="Start over?"
+                description="This will delete your current onboarding including the uploaded file. You'll need to upload and map again."
+                onConfirm={handleReset}
+              >
+                <Button
+                  danger
+                  icon={<RedoOutlined />}
+                  loading={loading === 'reset'}
+                >
+                  Start Over
+                </Button>
+              </Popconfirm>
+            </Space>
+          </>
+        )}
       </Card>
     </div>
   );

@@ -9,7 +9,9 @@ public record MssqlProperties(
         String username,
         String password,
         String backupRestorePath,
-        String backupRestorePathSql
+        String backupRestorePathSql,
+        String stagingDatabase,
+        int batchSize
 ) {
     public MssqlProperties {
         if (host == null) host = "localhost";
@@ -17,10 +19,16 @@ public record MssqlProperties(
         if (username == null) username = "sa";
         if (backupRestorePath == null) backupRestorePath = "C:/temp/mxsuite-backups";
         if (backupRestorePathSql == null) backupRestorePathSql = backupRestorePath;
+        if (stagingDatabase == null) stagingDatabase = "mxsuite_staging";
+        if (batchSize == 0) batchSize = 1000;
     }
 
     public String jdbcUrl() {
         return "jdbc:sqlserver://" + host + ":" + port
                 + ";encrypt=false;trustServerCertificate=true";
+    }
+
+    public String stagingJdbcUrl() {
+        return jdbcUrl() + ";databaseName=" + stagingDatabase;
     }
 }

@@ -39,6 +39,7 @@ All repos live under `D:\growthzone\`:
 | `danny/doc/onboarding-current-state/docs/` | 6-part detailed onboarding documentation |
 | `sample-data/` | Test data including `SampleTenantDB.bak` |
 | `docs/` | Generated docs, coach docs, platform docs |
+| `docs/chat-system.md` | Chat system architecture, endpoints, WebSocket, presence, file sharing |
 
 ### Key Config Files
 - `pnpm-workspace.yaml` — frontend monorepo config
@@ -76,6 +77,8 @@ Browser → mxsuite-shell (micro-frontend host)
 - `FileUploadController.java` — Generic file upload with content-type validation
 - `FieldMappingController.java` — CRUD for field mappings
 - `AdminOnboardingController.java` — Admin view of onboarding projects
+- `ChatController.java` — Chat REST endpoints (member + coach messaging, file upload/download, presence)
+- `ChatWebSocketController.java` — STOMP message handlers (send, typing indicators)
 
 ### Services (in `mxsuite-api/src/main/java/com/mxsuite/service/`)
 - **`BakFileService.java`** — SQL Server .bak restore → schema extraction → cleanup
@@ -84,6 +87,9 @@ Browser → mxsuite-shell (micro-frontend host)
 - `BatchImportService.java` — Chunked data import
 - `MappingVersionService.java` — Version history for mappings
 - `TargetSchemaService.java` — Target schema definitions (GrowthZone/MemberSuite)
+- `ChatService.java` — Chat business logic (messaging, takeover/release, auth, WebSocket broadcasts)
+- `ChatFileService.java` — Chat file upload/download with S3/local dual-mode storage
+- `PresenceService.java` — In-memory online user tracking via WebSocket connect/disconnect events
 
 ### Config (in `mxsuite-api/src/main/java/com/mxsuite/config/`)
 - `MssqlProperties.java` — SQL Server connection config (host, port, credentials, paths)

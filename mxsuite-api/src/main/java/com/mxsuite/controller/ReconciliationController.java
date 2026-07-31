@@ -4,6 +4,8 @@ import com.mxsuite.audit.AuditService;
 import com.mxsuite.model.ReconciliationReport;
 import com.mxsuite.repository.ReconciliationReportRepository;
 import com.mxsuite.security.UserPrincipal;
+import com.mxsuite.service.ParquetExportService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -22,11 +24,17 @@ public class ReconciliationController {
 
     private final ReconciliationReportRepository reconRepository;
     private final AuditService auditService;
+    private ParquetExportService parquetExportService;
 
     public ReconciliationController(ReconciliationReportRepository reconRepository,
                                      AuditService auditService) {
         this.reconRepository = reconRepository;
         this.auditService = auditService;
+    }
+
+    @Autowired(required = false)
+    public void setParquetExportService(ParquetExportService parquetExportService) {
+        this.parquetExportService = parquetExportService;
     }
 
     // --- DTOs ---
@@ -76,6 +84,12 @@ public class ReconciliationController {
                     report.setSignedAt(Instant.now());
                     reconRepository.save(report);
                     auditService.log("SIGN_OFF", "ReconciliationReport", report.getId(), "Signed off");
+
+                    // Trigger async Parquet export to S3 (if configured)
+                    if (parquetExportService != null) {
+                        parquetExportService.exportAsync(projectId, principal.id());
+                    }
+
                     return ResponseEntity.ok(toDto(report));
                 })
                 .orElse(ResponseEntity.notFound().build());

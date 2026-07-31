@@ -20,6 +20,7 @@ export type {
   DecisionStatus, ApprovalStatus, DecisionOptionDto, SemanticDecisionDto, DecisionStatsDto,
   ApprovalRequestDto, ApprovalStatsDto,
   ReconStatus, ReconTierDto, ReconTableRowDto, ReconciliationReportDto,
+  StagingStatusDto, DataHealthDto, PipelineStatusDto,
   TenantOnboardingDto, UploadPreviewDto, UploadResultDto, ImportStatusDto,
   CoachDashboardDto, OrgProgressDto, CoachActivityDto, AttentionItemDto, EntityCoverageEntry,
   AdminDashboardDto, SystemHealthDto, DependencyDto,

@@ -45,7 +45,7 @@ const EntityCoveragePanel: React.FC<Props> = ({ coverage, readOnly = false, onTo
               key={entry.entity}
               title={
                 <div style={{ maxWidth: 280 }}>
-                  <div><strong>{entry.entity}</strong></div>
+                  <div><strong>{entry.entity.replace(/([a-z])([A-Z])/g, '$1 $2')}</strong></div>
                   <div style={{ marginTop: 4 }}>{entry.reasoning}</div>
                   <div style={{ marginTop: 4, color: '#aaa' }}>
                     Confidence: {entry.confidence}%
@@ -74,7 +74,7 @@ const EntityCoveragePanel: React.FC<Props> = ({ coverage, readOnly = false, onTo
                     backgroundColor: confidenceColor(entry.confidence),
                   }}
                 />
-                <span style={{ fontSize: 12 }}>{entry.entity}</span>
+                <span style={{ fontSize: 12 }}>{entry.entity.replace(/([a-z])([A-Z])/g, '$1 $2')}</span>
                 {!readOnly && (
                   <Switch
                     size="small"

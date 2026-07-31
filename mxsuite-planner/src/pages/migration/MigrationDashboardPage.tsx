@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, usePageTitle } from '@mxsuite/shared';
 import {
-  Table, Tag, Typography, Spin, message, Row, Col, Card, Input, Select, Space, Button, Tooltip, Timeline,
+  Table, Tag, Typography, Spin, message, Row, Col, Card, Input, Select, Space, Button, Tooltip, Timeline, Modal,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { SearchOutlined, AppstoreOutlined, UnorderedListOutlined, WarningOutlined } from '@ant-design/icons';
+import { SearchOutlined, AppstoreOutlined, UnorderedListOutlined, WarningOutlined, ForwardOutlined } from '@ant-design/icons';
 import type { MigrationProject, MigrationStats, MigrationBlueprint, SlaAlertDto } from '@mxsuite/shared';
 import { migrationApi } from '../../services/migrationApi';
 import type { AuditEventDto } from '../../services/migrationApi';
@@ -84,10 +84,61 @@ export default function MigrationDashboardPage() {
     const key = `migration_dashboard_view_${user?.id ?? 'default'}`;
     return (localStorage.getItem(key) as 'cards' | 'table') || 'cards';
   });
+  const [advanceTarget, setAdvanceTarget] = useState<MigrationProject | null>(null);
+  const [advancing, setAdvancing] = useState(false);
 
   const switchView = (mode: 'cards' | 'table') => {
     setViewMode(mode);
     localStorage.setItem(viewKey, mode);
+  };
+
+  /** Get the current phase's gate status and blocked reason for a project */
+  const getCurrentGate = (project: MigrationProject) => {
+    const gate = (project.phaseGates || []).find(
+      (g) => g.phase === project.migrationPhase,
+    );
+    return gate || null;
+  };
+
+  /** Can the project advance? Gate must be CLEARED or SKIPPED, and not at final phase */
+  const canAdvance = (project: MigrationProject): { allowed: boolean; reason?: string } => {
+    if (project.migrationStatus === 'COMPLETED' || project.migrationStatus === 'CANCELLED') {
+      return { allowed: false, reason: 'Project is ' + project.migrationStatus.toLowerCase() };
+    }
+    if (project.migrationPhase === 'CUT_OVER') {
+      return { allowed: false, reason: 'Already at the final phase' };
+    }
+    const gate = getCurrentGate(project);
+    if (!gate) return { allowed: true }; // no gate found — allow
+    if (gate.gateStatus === 'CLEARED' || gate.gateStatus === 'SKIPPED') {
+      return { allowed: true };
+    }
+    return {
+      allowed: false,
+      reason: gate.blockedReason || `Gate is ${gate.gateStatus} — resolve before advancing`,
+    };
+  };
+
+  const handleAdvancePhase = async () => {
+    if (!advanceTarget) return;
+    setAdvancing(true);
+    try {
+      await migrationApi.advancePhase(advanceTarget.id);
+      message.success(`Advanced to ${PHASE_LABELS[PHASE_ORDER[PHASE_ORDER.indexOf(advanceTarget.migrationPhase) + 1]] || 'next phase'}`);
+      // Refresh dashboard data
+      const [projRes, statsRes] = await Promise.all([
+        migrationApi.listProjects({ page: 0, size: 100 }),
+        migrationApi.getStats(),
+      ]);
+      setProjects(projRes.data.content);
+      setStats(statsRes.data);
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || 'Failed to advance phase';
+      message.error(msg);
+    } finally {
+      setAdvancing(false);
+      setAdvanceTarget(null);
+    }
   };
 
   useEffect(() => {
@@ -220,23 +271,45 @@ export default function MigrationDashboardPage() {
     {
       title: '',
       key: 'actions',
-      width: 170,
-      render: (_, record) => (
-        <Space size={0}>
-          <Button size="small" type="link" style={{ color: '#6b4fa0', padding: '0 4px' }}
-            onClick={(e) => { e.stopPropagation(); navigate(`projects/${record.id}/mappings`); }}>
-            Mappings
-          </Button>
-          <Button size="small" type="link" style={{ color: '#6b4fa0', padding: '0 4px' }}
-            onClick={(e) => { e.stopPropagation(); navigate(`projects/${record.id}/reconciliation`); }}>
-            Recon
-          </Button>
-          <Button size="small" type="link" style={{ color: '#6b4fa0', padding: '0 4px' }}
-            onClick={(e) => { e.stopPropagation(); navigate(`projects/${record.id}/metrics`); }}>
-            Metrics
-          </Button>
-        </Space>
-      ),
+      width: 220,
+      render: (_, record) => {
+        const { allowed, reason } = canAdvance(record);
+        const nextPhase = PHASE_ORDER[PHASE_ORDER.indexOf(record.migrationPhase) + 1];
+        return (
+          <Space size={0}>
+            <Button size="small" type="link" style={{ color: '#6b4fa0', padding: '0 4px' }}
+              onClick={(e) => { e.stopPropagation(); navigate(`projects/${record.id}/mappings`); }}>
+              Mappings
+            </Button>
+            <Button size="small" type="link" style={{ color: '#6b4fa0', padding: '0 4px' }}
+              onClick={(e) => { e.stopPropagation(); navigate(`projects/${record.id}/data-review`); }}>
+              Review
+            </Button>
+            <Button size="small" type="link" style={{ color: '#6b4fa0', padding: '0 4px' }}
+              onClick={(e) => { e.stopPropagation(); navigate(`projects/${record.id}/reconciliation`); }}>
+              Recon
+            </Button>
+            <Button size="small" type="link" style={{ color: '#6b4fa0', padding: '0 4px' }}
+              onClick={(e) => { e.stopPropagation(); navigate(`projects/${record.id}/metrics`); }}>
+              Metrics
+            </Button>
+            {nextPhase && (
+              <Tooltip title={allowed ? `Advance to ${PHASE_LABELS[nextPhase]}` : reason}>
+                <Button
+                  size="small"
+                  type="link"
+                  disabled={!allowed}
+                  icon={<ForwardOutlined />}
+                  style={{ color: allowed ? '#237804' : undefined, padding: '0 4px' }}
+                  onClick={(e) => { e.stopPropagation(); setAdvanceTarget(record); }}
+                >
+                  Advance
+                </Button>
+              </Tooltip>
+            )}
+          </Space>
+        );
+      },
     },
   ];
 
@@ -310,7 +383,7 @@ export default function MigrationDashboardPage() {
                 onClick={() => switchView('cards')}
                 aria-label="Card view"
                 aria-pressed={viewMode === 'cards'}
-                style={viewMode === 'cards' ? { background: '#2d1854', borderColor: '#2d1854' } : {}}
+                style={viewMode === 'cards' ? { background: '#2d1854', borderColor: '#2d1854', color: '#fff' } : {}}
               />
             </Tooltip>
             <Tooltip title="Table view">
@@ -321,7 +394,7 @@ export default function MigrationDashboardPage() {
                 onClick={() => switchView('table')}
                 aria-label="Table view"
                 aria-pressed={viewMode === 'table'}
-                style={viewMode === 'table' ? { background: '#2d1854', borderColor: '#2d1854' } : {}}
+                style={viewMode === 'table' ? { background: '#2d1854', borderColor: '#2d1854', color: '#fff' } : {}}
               />
             </Tooltip>
           </Space>
@@ -403,6 +476,28 @@ export default function MigrationDashboardPage() {
                           </div>
                         </div>
                       )}
+                      {/* Card action bar */}
+                      {(() => {
+                        const { allowed, reason } = canAdvance(project);
+                        const nextPhase = PHASE_ORDER[PHASE_ORDER.indexOf(project.migrationPhase) + 1];
+                        if (!nextPhase) return null;
+                        return (
+                          <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid rgba(0,0,0,0.06)', display: 'flex', justifyContent: 'flex-end' }}>
+                            <Tooltip title={allowed ? `Advance to ${PHASE_LABELS[nextPhase]}` : reason}>
+                              <Button
+                                size="small"
+                                type={allowed ? 'primary' : 'default'}
+                                disabled={!allowed}
+                                icon={<ForwardOutlined />}
+                                style={allowed ? { background: '#237804', borderColor: '#237804', fontSize: 12 } : { fontSize: 12 }}
+                                onClick={(e) => { e.stopPropagation(); setAdvanceTarget(project); }}
+                              >
+                                Advance to {PHASE_LABELS[nextPhase]}
+                              </Button>
+                            </Tooltip>
+                          </div>
+                        );
+                      })()}
                     </Card>
                   </Col>
                 );
@@ -519,6 +614,8 @@ export default function MigrationDashboardPage() {
                     APPROVE_DECISION: 'Approved decision',
                     REJECT_DECISION: 'Rejected decision',
                     CREATE_PROJECT: 'Created project',
+                    GATE_CLEARED: 'Gate cleared',
+                    GENERATE_RECON: 'Generated reconciliation report',
                   };
                   const label = ACTION_LABELS[evt.action] ?? evt.action.replace(/_/g, ' ').toLowerCase();
                   const when = new Date(evt.timestamp);
@@ -551,6 +648,46 @@ export default function MigrationDashboardPage() {
           </Card>
         </Col>
       </Row>
+
+      {/* Advance Phase confirmation modal */}
+      <Modal
+        title="Advance Phase"
+        open={!!advanceTarget}
+        onOk={handleAdvancePhase}
+        onCancel={() => setAdvanceTarget(null)}
+        confirmLoading={advancing}
+        okText="Advance"
+        okButtonProps={{ style: { background: '#237804', borderColor: '#237804' } }}
+      >
+        {advanceTarget && (() => {
+          const nextPhase = PHASE_ORDER[PHASE_ORDER.indexOf(advanceTarget.migrationPhase) + 1];
+          const gate = getCurrentGate(advanceTarget);
+          return (
+            <div>
+              <p>
+                Advance <strong>{advanceTarget.name}</strong> from{' '}
+                <Tag style={{ backgroundColor: '#f3eeff', color: '#2d1854', borderColor: '#e0d4f5' }}>
+                  {PHASE_LABELS[advanceTarget.migrationPhase]}
+                </Tag>
+                {' '}to{' '}
+                <Tag style={{ backgroundColor: '#f6ffed', color: '#237804', borderColor: '#b7eb8f' }}>
+                  {PHASE_LABELS[nextPhase]}
+                </Tag>
+              </p>
+              {advanceTarget.migrationPhase === 'MAP' && (
+                <p style={{ color: '#6b4fa0', fontSize: 13 }}>
+                  This will auto-trigger data validation on the latest uploaded file.
+                </p>
+              )}
+              {gate && gate.gateStatus === 'CLEARED' && (
+                <p style={{ color: '#237804', fontSize: 13 }}>
+                  Gate is cleared — ready to proceed.
+                </p>
+              )}
+            </div>
+          );
+        })()}
+      </Modal>
     </div>
   );
 }
