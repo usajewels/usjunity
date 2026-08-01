@@ -13,6 +13,7 @@ import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import { invitationApi, type Invitation } from '../services/api';
+import AlphaBar from '../components/AlphaBar';
 
 dayjs.extend(relativeTime);
 
@@ -98,6 +99,9 @@ export default function InvitationListPage() {
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(20);
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [letter, setLetter] = useState<string | null>(() => {
+    return localStorage.getItem('mxsuite:invitations:letter') || null;
+  });
   const [counts, setCounts] = useState<Record<string, number>>({});
 
   /* ---- send invitation modal ---- */
@@ -115,6 +119,7 @@ export default function InvitationListPage() {
     try {
       const params: Record<string, unknown> = { page, size: pageSize };
       if (statusFilter !== 'ALL') params.status = statusFilter;
+      if (letter) params.letter = letter;
       const { data } = await invitationApi.list(params as any);
       setInvitations((data.content ?? []) as Invitation[]);
       setTotal(data.totalElements ?? 0);
@@ -123,7 +128,7 @@ export default function InvitationListPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, statusFilter]);
+  }, [page, pageSize, statusFilter, letter]);
 
   const fetchCounts = useCallback(async () => {
     try {
@@ -201,6 +206,17 @@ export default function InvitationListPage() {
   const handleStatusChange = (key: string) => {
     setStatusFilter(key);
     setPage(0);
+  };
+
+  /* ---- letter change ---- */
+  const handleLetterChange = (l: string | null) => {
+    setLetter(l);
+    setPage(0);
+    if (l) {
+      localStorage.setItem('mxsuite:invitations:letter', l);
+    } else {
+      localStorage.removeItem('mxsuite:invitations:letter');
+    }
   };
 
   /* ---- helper: is invitation expired or nearly expired ---- */
@@ -350,22 +366,25 @@ export default function InvitationListPage() {
     <div>
       {/* Header */}
       <div style={{
-        background: 'linear-gradient(135deg, #f3eeff 0%, #ece4fc 100%)',
-        margin: '-24px -24px 20px -24px',
-        padding: '28px 32px 16px 32px',
-        borderBottom: '2px solid #e0d4f5',
+        background: 'linear-gradient(135deg, #2d1854 0%, #1a0e3a 100%)',
+        margin: '-24px -24px 24px -24px',
+        padding: '28px 32px 20px 32px',
+        borderBottom: '3px solid #6b4fa0',
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
       }}>
-        <div>
-          <Title level={3} style={{ margin: 0, color: '#2d1854' }}>Invitations</Title>
-          <Text style={{ color: '#6b4fa0' }}>Send and manage user invitations</Text>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <MailOutlined style={{ fontSize: 24, color: 'rgba(255,255,255,0.7)' }} />
+          <div>
+            <Title level={3} style={{ margin: 0, color: '#fff' }}>Invitations</Title>
+            <Text style={{ color: 'rgba(255,255,255,0.7)' }}>Send and manage user invitations</Text>
+          </div>
         </div>
         <Button
           type="primary"
           icon={<SendOutlined />}
           size="large"
           onClick={() => setSendModalOpen(true)}
-          style={{ background: '#2d1854', borderColor: '#2d1854' }}
+          style={{ borderColor: '#fff', color: '#fff', background: 'transparent' }}
         >
           Send Invitation
         </Button>
@@ -373,7 +392,7 @@ export default function InvitationListPage() {
     <div style={{ maxWidth: 1200, margin: '0 auto' }}>
       {/* Status filter tabs + Table */}
       <Card
-        style={{ borderRadius: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}
+        style={{}}
       >
         <Tabs
           activeKey={statusFilter}
@@ -394,6 +413,14 @@ export default function InvitationListPage() {
           })}
           style={{ marginBottom: 8 }}
         />
+
+        <AlphaBar activeLetter={letter} onChange={handleLetterChange} />
+
+        <div style={{ margin: '8px 0', fontSize: 13, color: '#8c8c8c' }}>
+          {total} invitation{total !== 1 ? 's' : ''}
+          {letter ? ` starting with "${letter}"` : ''}
+          {statusFilter !== 'ALL' ? ` (${statusFilter.toLowerCase()})` : ''}
+        </div>
 
         <Table<Invitation>
           columns={columns}

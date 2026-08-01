@@ -162,17 +162,18 @@ export default function AnalyticsDashboardPage() {
     <div>
       {/* Header */}
       <div style={{
-        background: 'linear-gradient(135deg, #f3eeff 0%, #ece4fc 100%)',
-        margin: '-24px -24px 20px -24px',
-        padding: '28px 32px 16px 32px',
-        borderBottom: '2px solid #e0d4f5',
+        background: 'linear-gradient(135deg, #2d1854 0%, #1a0e3a 100%)',
+        margin: '-24px -24px 24px -24px',
+        padding: '28px 32px 20px 32px',
+        borderBottom: '3px solid #6b4fa0',
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
       }}>
-        <div>
-          <Title level={3} style={{ margin: 0, color: '#2d1854' }}>
-            <BarChartOutlined style={{ marginRight: 8 }} />Analytics Dashboard
-          </Title>
-          <Text style={{ color: '#6b4fa0' }}>Cross-organization onboarding analytics and performance metrics</Text>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <BarChartOutlined style={{ fontSize: 24, color: 'rgba(255,255,255,0.7)' }} />
+          <div>
+            <Title level={3} style={{ margin: 0, color: '#fff' }}>Analytics Dashboard</Title>
+            <Text style={{ color: 'rgba(255,255,255,0.7)' }}>Cross-organization onboarding analytics and performance metrics</Text>
+          </div>
         </div>
         <Space>
           <Tooltip title="Download detailed phase timing data for all projects">
@@ -180,6 +181,7 @@ export default function AnalyticsDashboardPage() {
               icon={<DownloadOutlined />}
               loading={exporting === 'phase-times'}
               onClick={() => handleExport('phase-times')}
+              style={{ borderColor: '#fff', color: '#fff', background: 'transparent' }}
             >
               Phase Times CSV
             </Button>
@@ -189,6 +191,7 @@ export default function AnalyticsDashboardPage() {
               icon={<DownloadOutlined />}
               loading={exporting === 'project-summary'}
               onClick={() => handleExport('project-summary')}
+              style={{ borderColor: '#fff', color: '#fff', background: 'transparent' }}
             >
               Summary CSV
             </Button>
@@ -238,7 +241,7 @@ export default function AnalyticsDashboardPage() {
           <Card
             title="Average Duration per Phase"
             size="small"
-            style={{ flex: '1 1 58%', minWidth: 400, borderRadius: 12, border: '1px solid #e0d4f5' }}
+            style={{ flex: '1 1 58%', minWidth: 400 }}
           >
             {phaseChartData.length > 0 ? (
               <ResponsiveContainer width="100%" height={260}>
@@ -271,7 +274,7 @@ export default function AnalyticsDashboardPage() {
           <Card
             title="Current Phase Distribution"
             size="small"
-            style={{ flex: '1 1 38%', minWidth: 300, borderRadius: 12, border: '1px solid #e0d4f5' }}
+            style={{ flex: '1 1 38%', minWidth: 300 }}
           >
             {distributionData.some((d) => d.count > 0) ? (
               <ResponsiveContainer width="100%" height={260}>
@@ -301,7 +304,7 @@ export default function AnalyticsDashboardPage() {
           <Card
             title="Cycle Time Trend (Monthly)"
             size="small"
-            style={{ marginBottom: 24, borderRadius: 12, border: '1px solid #e0d4f5' }}
+            style={{ marginBottom: 24 }}
           >
             <ResponsiveContainer width="100%" height={240}>
               <LineChart data={trendData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
@@ -333,7 +336,7 @@ export default function AnalyticsDashboardPage() {
             </Space>
           }
           size="small"
-          style={{ borderRadius: 12, border: '1px solid #e0d4f5' }}
+          style={{  }}
         >
           {alerts.length > 0 ? (
             <Table

@@ -123,17 +123,20 @@ export default function TenantDataHealthPage() {
     return (
       <div>
         <div style={{
-          background: 'linear-gradient(135deg, #f3eeff 0%, #ece4fc 100%)',
+          background: 'linear-gradient(135deg, #2d1854 0%, #1a0e3a 100%)',
           margin: '-24px -24px 24px -24px',
           padding: '28px 32px 20px 32px',
-          borderBottom: '2px solid #e0d4f5',
+          borderBottom: '3px solid #6b4fa0',
         }}>
-          <Title level={4} style={{ marginBottom: 4, color: '#2d1854' }}>
-            <HeartOutlined style={{ marginRight: 8 }} />Data Review
-          </Title>
-          <Text style={{ color: '#6b4fa0' }}>
-            See how ready your data is for migration.
-          </Text>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <HeartOutlined style={{ fontSize: 24, color: 'rgba(255,255,255,0.7)' }} />
+            <div>
+              <Title level={3} style={{ margin: 0, color: '#fff' }}>Data Review</Title>
+              <Text style={{ color: 'rgba(255,255,255,0.7)' }}>
+                See how ready your data is for migration.
+              </Text>
+            </div>
+          </div>
         </div>
         <Empty
           description={
@@ -157,14 +160,18 @@ export default function TenantDataHealthPage() {
     return (
       <div>
         <div style={{
-          background: 'linear-gradient(135deg, #f3eeff 0%, #ece4fc 100%)',
+          background: 'linear-gradient(135deg, #2d1854 0%, #1a0e3a 100%)',
           margin: '-24px -24px 24px -24px',
           padding: '28px 32px 20px 32px',
-          borderBottom: '2px solid #e0d4f5',
+          borderBottom: '3px solid #6b4fa0',
         }}>
-          <Title level={4} style={{ marginBottom: 4, color: '#2d1854' }}>
-            <HeartOutlined style={{ marginRight: 8 }} />Data Review
-          </Title>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <HeartOutlined style={{ fontSize: 24, color: 'rgba(255,255,255,0.7)' }} />
+            <div>
+              <Title level={3} style={{ margin: 0, color: '#fff' }}>Data Review</Title>
+              <Text style={{ color: 'rgba(255,255,255,0.7)' }}>Checking your data...</Text>
+            </div>
+          </div>
         </div>
         <Card style={{ textAlign: 'center', padding: 32 }}>
           <Spin size="large" />
@@ -285,17 +292,20 @@ export default function TenantDataHealthPage() {
     <div>
       {/* Header */}
       <div style={{
-        background: 'linear-gradient(135deg, #f3eeff 0%, #ece4fc 100%)',
+        background: 'linear-gradient(135deg, #2d1854 0%, #1a0e3a 100%)',
         margin: '-24px -24px 24px -24px',
         padding: '28px 32px 20px 32px',
-        borderBottom: '2px solid #e0d4f5',
+        borderBottom: '3px solid #6b4fa0',
       }}>
-        <Title level={4} style={{ marginBottom: 4, color: '#2d1854' }}>
-          <HeartOutlined style={{ marginRight: 8 }} />Data Review
-        </Title>
-        <Text style={{ color: '#6b4fa0' }}>
-          Here's how your uploaded data looks. Fix any issues below so your migration goes smoothly.
-        </Text>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <HeartOutlined style={{ fontSize: 24, color: 'rgba(255,255,255,0.7)' }} />
+          <div>
+            <Title level={3} style={{ margin: 0, color: '#fff' }}>Data Review</Title>
+            <Text style={{ color: 'rgba(255,255,255,0.7)' }}>
+              Here's how your uploaded data looks. Fix any issues below so your migration goes smoothly.
+            </Text>
+          </div>
+        </div>
       </div>
 
       {/* Quality score */}
@@ -381,7 +391,7 @@ export default function TenantDataHealthPage() {
           </Space>
         }
         size="small"
-        style={{ borderTop: '3px solid #2d1854', borderColor: '#e0d4f5' }}
+        style={{}}
         extra={
           <Space size={8}>
             <Select

@@ -12,7 +12,8 @@ import {
   DashboardOutlined, DatabaseOutlined, CloudServerOutlined,
   SearchOutlined, UserOutlined, DownloadOutlined, DownOutlined,
   ApiOutlined, HddOutlined, AuditOutlined, MailOutlined,
-  GlobalOutlined, WifiOutlined,
+  GlobalOutlined, WifiOutlined, PieChartOutlined,
+  HistoryOutlined, RocketOutlined,
 } from '@ant-design/icons';
 import { Pie } from '@ant-design/charts';
 import { useNavigate } from 'react-router-dom';
@@ -238,55 +239,34 @@ export default function DashboardPage() {
       <>
         {/* KPI Cards */}
         <Row gutter={isMobile ? [12, 12] : [16, 16]} style={{ marginBottom: 24 }}>
-          <Col xs={24} sm={12} lg={6}>
-            <Card hoverable onClick={() => navigate('/admin')}
-              style={{ borderTop: '3px solid #2d1854', borderColor: '#e0d4f5' }}>
-              <Statistic
-                title="Organizations"
-                value={adminDash.totalOrganizations}
-                prefix={<BankOutlined style={{ color: '#2d1854' }} />}
-                valueStyle={{ color: '#2d1854' }}
-              />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} lg={6}>
-            <Card hoverable style={{ borderTop: '3px solid #2d1854', borderColor: '#e0d4f5' }}>
-              <Statistic
-                title="Total Users"
-                value={adminDash.totalUsers}
-                prefix={<UserOutlined style={{ color: '#6b4fa0' }} />}
-                valueStyle={{ color: '#2d1854' }}
-              />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} lg={6}>
-            <Card hoverable style={{ borderTop: '3px solid #2d1854', borderColor: '#e0d4f5' }}>
-              <Statistic
-                title="Active Coaches"
-                value={adminDash.activeCoaches}
-                prefix={<TeamOutlined style={{ color: '#6b4fa0' }} />}
-                valueStyle={{ color: '#2d1854' }}
-              />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} lg={6}>
-            <Card hoverable onClick={() => navigate('/plans/onboarding-projects/projects')}
-              style={{ borderTop: '3px solid #2d1854', borderColor: '#e0d4f5' }}>
-              <Statistic
-                title="Onboardings In Progress"
-                value={adminDash.onboardingsInProgress}
-                prefix={<PlayCircleOutlined style={{ color: '#6b4fa0' }} />}
-                valueStyle={{ color: '#2d1854' }}
-              />
-            </Card>
-          </Col>
+          {[
+            { title: 'Organizations', value: adminDash.totalOrganizations, icon: <BankOutlined />, path: '/admin/tenants', color: '#2d1854' },
+            { title: 'Total Users', value: adminDash.totalUsers, icon: <UserOutlined />, path: '/admin/users', color: '#6b4fa0' },
+            { title: 'Active Coaches', value: adminDash.activeCoaches, icon: <TeamOutlined />, path: '/admin/users?role=PLATFORM_SUPPORT', color: '#9b7fd4' },
+            { title: 'Onboardings In Progress', value: adminDash.onboardingsInProgress, icon: <PlayCircleOutlined />, path: '/plans/onboarding-projects/projects', color: '#faad14' },
+          ].map((kpi) => (
+            <Col xs={24} sm={12} lg={6} key={kpi.title}>
+              <Card hoverable onClick={() => navigate(kpi.path)}
+                style={{
+                  borderTop: '3px solid #2d1854',
+                  background: 'linear-gradient(135deg, #faf8ff 0%, #f3eeff 100%)',
+                }}>
+                <Statistic
+                  title={<span style={{ fontSize: 13, color: '#666' }}>{kpi.title}</span>}
+                  value={kpi.value}
+                  prefix={<span style={{ color: kpi.color, fontSize: 22 }}>{kpi.icon}</span>}
+                  valueStyle={{ color: '#2d1854', fontWeight: 700, fontSize: 28 }}
+                />
+              </Card>
+            </Col>
+          ))}
         </Row>
 
         {/* System Health */}
         <Card
-          title={<span style={{ color: '#2d1854' }}><DashboardOutlined style={{ marginRight: 8 }} />System Health</span>}
+          title={<><DashboardOutlined style={{ marginRight: 8 }} />System Health</>}
           size="small"
-          style={{ marginBottom: 24, borderTop: '3px solid #2d1854', borderColor: '#e0d4f5' }}
+          style={{ marginBottom: 24 }}
         >
           <Row gutter={[24, 24]}>
             {/* Heap Memory */}
@@ -395,13 +375,13 @@ export default function DashboardPage() {
         {/* Active Sessions */}
         <Card
           title={
-            <span style={{ color: '#2d1854' }}>
+            <>
               <WifiOutlined style={{ marginRight: 8 }} />
               Active Sessions ({adminDash.activeSessions.length})
-            </span>
+            </>
           }
           size="small"
-          style={{ marginBottom: 24, borderTop: '3px solid #2d1854', borderColor: '#e0d4f5' }}
+          style={{ marginBottom: 24 }}
         >
           {adminDash.activeSessions.length === 0 ? (
             <Text type="secondary">No active sessions</Text>
@@ -410,7 +390,7 @@ export default function DashboardPage() {
               dataSource={adminDash.activeSessions}
               rowKey="userId"
               size="small"
-              pagination={false}
+              pagination={adminDash.activeSessions.length > 10 ? { pageSize: 10, showSizeChanger: true, pageSizeOptions: ['10', '25', '50'], showTotal: (t) => `${t} sessions` } : false}
               columns={[
                 {
                   title: 'User', dataIndex: 'fullName', key: 'name',
@@ -451,9 +431,9 @@ export default function DashboardPage() {
           {/* API Metrics */}
           <Col xs={24} lg={12}>
             <Card
-              title={<span style={{ color: '#2d1854' }}><ApiOutlined style={{ marginRight: 8 }} />API Metrics</span>}
+              title={<><ApiOutlined style={{ marginRight: 8 }} />API Metrics</>}
               size="small"
-              style={{ height: '100%', borderTop: '3px solid #2d1854', borderColor: '#e0d4f5' }}
+              style={{ height: '100%' }}
             >
               <Row gutter={[16, 12]}>
                 <Col span={8}>
@@ -524,9 +504,8 @@ export default function DashboardPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16, height: '100%' }}>
               {/* Audit Stats */}
               <Card
-                title={<span style={{ color: '#2d1854' }}><AuditOutlined style={{ marginRight: 8 }} />Activity</span>}
+                title={<><AuditOutlined style={{ marginRight: 8 }} />Activity</>}
                 size="small"
-                style={{ borderTop: '3px solid #2d1854', borderColor: '#e0d4f5' }}
                 extra={
                   <Button type="link" size="small" onClick={() => navigate('/admin/activity')} style={{ color: '#6b4fa0' }}>
                     View All
@@ -548,9 +527,8 @@ export default function DashboardPage() {
 
               {/* Storage */}
               <Card
-                title={<span style={{ color: '#2d1854' }}><HddOutlined style={{ marginRight: 8 }} />Storage</span>}
+                title={<><HddOutlined style={{ marginRight: 8 }} />Storage</>}
                 size="small"
-                style={{ borderTop: '3px solid #2d1854', borderColor: '#e0d4f5' }}
               >
                 <Row gutter={16}>
                   <Col span={12}>
@@ -564,9 +542,8 @@ export default function DashboardPage() {
 
               {/* Invitations */}
               <Card
-                title={<span style={{ color: '#2d1854' }}><MailOutlined style={{ marginRight: 8 }} />Invitations</span>}
+                title={<><MailOutlined style={{ marginRight: 8 }} />Invitations</>}
                 size="small"
-                style={{ borderTop: '3px solid #2d1854', borderColor: '#e0d4f5' }}
                 extra={
                   <Button type="link" size="small" onClick={() => navigate('/admin/invitations')} style={{ color: '#6b4fa0' }}>
                     Manage
@@ -595,9 +572,8 @@ export default function DashboardPage() {
 
         {/* Dependencies */}
         <Card
-          title={<span style={{ color: '#2d1854' }}><CloudServerOutlined style={{ marginRight: 8 }} />Dependencies</span>}
+          title={<><CloudServerOutlined style={{ marginRight: 8 }} />Dependencies</>}
           size="small"
-          style={{ borderTop: '3px solid #2d1854', borderColor: '#e0d4f5' }}
           extra={
             <Dropdown
               menu={{
@@ -872,57 +848,35 @@ export default function DashboardPage() {
       <>
         {/* KPI Cards */}
         <Row gutter={isMobile ? [12, 12] : [16, 16]} style={{ marginBottom: 24 }}>
-          <Col xs={24} sm={12} lg={6}>
-            <Card hoverable onClick={() => navigate('/plans/onboarding-projects/projects')}
-              style={{ borderTop: '3px solid #2d1854', borderColor: '#e0d4f5' }}>
-              <Statistic
-                title="My Organizations"
-                value={dashboard.myOrganizations}
-                prefix={<BankOutlined style={{ color: '#2d1854' }} />}
-                valueStyle={{ color: '#2d1854' }}
-              />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} lg={6}>
-            <Card hoverable onClick={() => navigate('/plans/onboarding-projects/projects')}
-              style={{ borderTop: '3px solid #2d1854', borderColor: '#e0d4f5' }}>
-              <Statistic
-                title="Mappings to Review"
-                value={dashboard.totalMappingsToReview}
-                prefix={<FileTextOutlined style={{ color: '#6b4fa0' }} />}
-                valueStyle={{ color: '#2d1854' }}
-              />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} lg={6}>
-            <Card hoverable onClick={() => navigate('/plans/onboarding-projects/decisions')}
-              style={{ borderTop: '3px solid #2d1854', borderColor: '#e0d4f5' }}>
-              <Statistic
-                title="Open Decisions"
-                value={dashboard.openDecisions}
-                prefix={<BulbOutlined style={{ color: '#6b4fa0' }} />}
-                valueStyle={{ color: '#2d1854' }}
-              />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} lg={6}>
-            <Card hoverable onClick={() => navigate('/plans/onboarding-projects/approvals')}
-              style={{ borderTop: '3px solid #2d1854', borderColor: '#e0d4f5' }}>
-              <Statistic
-                title="Pending Approvals"
-                value={dashboard.pendingApprovals}
-                prefix={<SafetyCertificateOutlined style={{ color: '#6b4fa0' }} />}
-                valueStyle={{ color: '#2d1854' }}
-              />
-            </Card>
-          </Col>
+          {[
+            { title: 'My Organizations', value: dashboard.myOrganizations, icon: <BankOutlined />, path: '/admin/tenants', color: '#2d1854' },
+            { title: 'Mappings to Review', value: dashboard.totalMappingsToReview, icon: <FileTextOutlined />, path: '/plans/onboarding-projects/projects', color: '#6b4fa0' },
+            { title: 'Open Decisions', value: dashboard.openDecisions, icon: <BulbOutlined />, path: '/plans/onboarding-projects/decisions', color: '#9b7fd4' },
+            { title: 'Pending Approvals', value: dashboard.pendingApprovals, icon: <SafetyCertificateOutlined />, path: '/plans/onboarding-projects/approvals', color: '#faad14' },
+          ].map((kpi) => (
+            <Col xs={24} sm={12} lg={6} key={kpi.title}>
+              <Card hoverable onClick={() => navigate(kpi.path)}
+                style={{
+                  borderTop: '3px solid #2d1854',
+                  background: 'linear-gradient(135deg, #faf8ff 0%, #f3eeff 100%)',
+                  boxShadow: '0 4px 12px rgba(45,24,84,0.10)',
+                }}>
+                <Statistic
+                  title={<span style={{ fontSize: 13, color: '#666' }}>{kpi.title}</span>}
+                  value={kpi.value}
+                  prefix={<span style={{ color: kpi.color, fontSize: 22 }}>{kpi.icon}</span>}
+                  valueStyle={{ color: '#2d1854', fontWeight: 700, fontSize: 28 }}
+                />
+              </Card>
+            </Col>
+          ))}
         </Row>
 
         {/* Organization Progress Table */}
         <Card
-          title={<span style={{ color: '#2d1854' }}>Organization Progress</span>}
+          title={<><ProjectOutlined style={{ marginRight: 8 }} />Organization Progress</>}
           size="small"
-          style={{ marginBottom: 24, borderTop: '3px solid #2d1854', borderColor: '#e0d4f5' }}
+          style={{ marginBottom: 24 }}
           extra={
             <Button
               type="link"
@@ -956,12 +910,20 @@ export default function DashboardPage() {
         <Row gutter={[24, 24]} style={{ marginBottom: 24 }}>
           {/* Phase Distribution Donut */}
           <Col xs={24} lg={10}>
-            <Card title={<span style={{ color: '#2d1854' }}>Phase Distribution</span>} size="small" style={{ height: '100%', borderTop: '3px solid #2d1854', borderColor: '#e0d4f5' }}>
+            <Card
+              title={<><PieChartOutlined style={{ marginRight: 8 }} />Phase Distribution</>}
+              size="small"
+              style={{ height: '100%', minHeight: 320 }}
+            >
               {pieData.length > 0 ? (
                 <Pie {...pieConfig} />
               ) : (
-                <div style={{ textAlign: 'center', padding: 40 }}>
-                  <Text type="secondary">No active onboarding projects yet</Text>
+                <div style={{ textAlign: 'center', padding: '48px 24px' }}>
+                  <PieChartOutlined style={{ fontSize: 40, color: '#d9d9d9', marginBottom: 12 }} />
+                  <br />
+                  <Text type="secondary" style={{ fontSize: 13 }}>No active onboarding projects yet</Text>
+                  <br />
+                  <Text type="secondary" style={{ fontSize: 11 }}>Phase distribution will appear once projects begin</Text>
                 </div>
               )}
             </Card>
@@ -969,11 +931,19 @@ export default function DashboardPage() {
 
           {/* Recent Activity */}
           <Col xs={24} lg={14}>
-            <Card title={<span style={{ color: '#2d1854' }}>Recent Activity</span>} size="small" style={{ height: '100%' }}>
+            <Card
+              title={<><HistoryOutlined style={{ marginRight: 8 }} />Recent Activity</>}
+              size="small"
+              style={{ height: '100%', minHeight: 320 }}
+            >
               {recentActivity.length === 0 ? (
-                <Text type="secondary" style={{ fontSize: 13 }}>
-                  No recent activity yet.
-                </Text>
+                <div style={{ textAlign: 'center', padding: '48px 24px' }}>
+                  <HistoryOutlined style={{ fontSize: 40, color: '#d9d9d9', marginBottom: 12 }} />
+                  <br />
+                  <Text type="secondary" style={{ fontSize: 13 }}>No recent activity yet</Text>
+                  <br />
+                  <Text type="secondary" style={{ fontSize: 11 }}>Coach and organization actions will appear here</Text>
+                </div>
               ) : (
                 <Timeline
                   style={{ marginTop: 12 }}
@@ -1007,12 +977,13 @@ export default function DashboardPage() {
         {attentionItems.length > 0 && (
           <Card
             title={
-              <span>
-                <WarningOutlined style={{ color: '#faad14', marginRight: 8 }} />
+              <span style={{ color: '#d48806', fontWeight: 600 }}>
+                <WarningOutlined style={{ marginRight: 8 }} />
                 Needs Attention
               </span>
             }
             size="small"
+            styles={{ header: { background: '#fffbe6', borderBottom: '2px solid #ffe58f' } }}
           >
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {attentionItems.map((item, idx) => (
@@ -1048,15 +1019,20 @@ export default function DashboardPage() {
   return (
     <div>
       <div style={{
-        background: 'linear-gradient(135deg, #f3eeff 0%, #ece4fc 100%)',
-        margin: '-24px -24px 20px -24px',
-        padding: '28px 32px 16px 32px',
-        borderBottom: '2px solid #e0d4f5',
+        background: 'linear-gradient(135deg, #2d1854 0%, #1a0e3a 100%)',
+        margin: '-24px -24px 24px -24px',
+        padding: '28px 32px 20px 32px',
+        borderBottom: '3px solid #6b4fa0',
       }}>
-        <Title level={3} style={{ margin: 0, color: '#2d1854' }}>
-          Welcome back, {user?.firstName}
-        </Title>
-        <Text style={{ color: '#6b4fa0' }}>{dashboardLabel}</Text>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <RocketOutlined style={{ fontSize: 24, color: 'rgba(255,255,255,0.7)' }} />
+          <div>
+            <Title level={3} style={{ margin: 0, color: '#fff' }}>
+              Welcome back, {user?.firstName}
+            </Title>
+            <Text style={{ color: 'rgba(255,255,255,0.7)' }}>{dashboardLabel}</Text>
+          </div>
+        </div>
       </div>
 
       {!isPlatformUser && renderOnboardingCard()}

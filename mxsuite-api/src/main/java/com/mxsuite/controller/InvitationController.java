@@ -4,8 +4,11 @@ import com.mxsuite.audit.AuditService;
 import com.mxsuite.model.Invitation;
 import com.mxsuite.model.Invitation.InvitationStatus;
 import com.mxsuite.model.User;
+import com.mxsuite.model.Tenant;
+import com.mxsuite.model.enums.TenantType;
 import com.mxsuite.model.enums.UserRole;
 import com.mxsuite.repository.InvitationRepository;
+import com.mxsuite.repository.PlatformAssignmentRepository;
 import com.mxsuite.repository.TenantRepository;
 import com.mxsuite.repository.UserRepository;
 import com.mxsuite.security.TenantContext;
@@ -34,8 +37,10 @@ import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Base64;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 @RestController
 @RequestMapping("/api/invitations")
@@ -50,6 +55,7 @@ public class InvitationController {
     private final InvitationRepository invitationRepository;
     private final UserRepository userRepository;
     private final TenantRepository tenantRepository;
+    private final PlatformAssignmentRepository assignmentRepository;
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
     private final AuditService auditService;
@@ -58,6 +64,7 @@ public class InvitationController {
     public InvitationController(InvitationRepository invitationRepository,
                                  UserRepository userRepository,
                                  TenantRepository tenantRepository,
+                                 PlatformAssignmentRepository assignmentRepository,
                                  PasswordEncoder passwordEncoder,
                                  EmailService emailService,
                                  AuditService auditService,
@@ -65,6 +72,7 @@ public class InvitationController {
         this.invitationRepository = invitationRepository;
         this.userRepository = userRepository;
         this.tenantRepository = tenantRepository;
+        this.assignmentRepository = assignmentRepository;
         this.passwordEncoder = passwordEncoder;
         this.emailService = emailService;
         this.auditService = auditService;
@@ -91,6 +99,21 @@ public class InvitationController {
 
     @GetMapping("/counts")
     public Map<String, Long> counts(@AuthenticationPrincipal UserPrincipal principal) {
+        // Coach-scoped: aggregate counts across visible tenants
+        if (principal.role() == UserRole.COACH_ADMIN || principal.role() == UserRole.PLATFORM_SUPPORT) {
+            List<UUID> visibleIds = visibleTenantIds(principal);
+            if (visibleIds.isEmpty()) {
+                return Map.of("total", 0L, "pending", 0L, "accepted", 0L, "cancelled", 0L, "expired", 0L);
+            }
+            long total = invitationRepository.countByTenantIdIn(visibleIds);
+            long pending = invitationRepository.countByTenantIdInAndStatus(visibleIds, InvitationStatus.PENDING);
+            long accepted = invitationRepository.countByTenantIdInAndStatus(visibleIds, InvitationStatus.ACCEPTED);
+            long cancelled = invitationRepository.countByTenantIdInAndStatus(visibleIds, InvitationStatus.CANCELLED);
+            long expired = invitationRepository.countByTenantIdInAndStatus(visibleIds, InvitationStatus.EXPIRED);
+            return Map.of("total", total, "pending", pending, "accepted", accepted,
+                    "cancelled", cancelled, "expired", expired);
+        }
+
         UUID tenantId = TenantContext.getCurrentTenantId();
         long total = invitationRepository.countByTenantId(tenantId);
         long pending = invitationRepository.countByTenantIdAndStatus(tenantId, InvitationStatus.PENDING);
@@ -104,18 +127,52 @@ public class InvitationController {
     @GetMapping
     public Page<InvitationResponse> list(@AuthenticationPrincipal UserPrincipal principal,
                                           Pageable pageable,
-                                          @RequestParam(required = false) String status) {
-        UUID tenantId = TenantContext.getCurrentTenantId();
+                                          @RequestParam(required = false) String status,
+                                          @RequestParam(required = false) String letter) {
+        boolean hasLetter = letter != null && !letter.isBlank();
         Page<Invitation> invitations;
+
+        // Coach-scoped: query across all visible tenants
+        if (principal.role() == UserRole.COACH_ADMIN || principal.role() == UserRole.PLATFORM_SUPPORT) {
+            List<UUID> visibleIds = visibleTenantIds(principal);
+            if (visibleIds.isEmpty()) return Page.<Invitation>empty(pageable).map(this::toResponse);
+
+            if (status != null) {
+                try {
+                    InvitationStatus invStatus = InvitationStatus.valueOf(status.toUpperCase());
+                    invitations = hasLetter
+                            ? invitationRepository.findByTenantIdInAndStatusAndEmailStartingWithIgnoreCase(visibleIds, invStatus, letter.trim(), pageable)
+                            : invitationRepository.findByTenantIdInAndStatus(visibleIds, invStatus, pageable);
+                } catch (IllegalArgumentException e) {
+                    invitations = hasLetter
+                            ? invitationRepository.findByTenantIdInAndEmailStartingWithIgnoreCase(visibleIds, letter.trim(), pageable)
+                            : invitationRepository.findByTenantIdIn(visibleIds, pageable);
+                }
+            } else {
+                invitations = hasLetter
+                        ? invitationRepository.findByTenantIdInAndEmailStartingWithIgnoreCase(visibleIds, letter.trim(), pageable)
+                        : invitationRepository.findByTenantIdIn(visibleIds, pageable);
+            }
+            return invitations.map(this::toResponse);
+        }
+
+        // Tenant-scoped: PLATFORM_ADMIN, TENANT_ADMIN, TENANT_USER use TenantContext
+        UUID tenantId = TenantContext.getCurrentTenantId();
         if (status != null) {
             try {
                 InvitationStatus invStatus = InvitationStatus.valueOf(status.toUpperCase());
-                invitations = invitationRepository.findByTenantIdAndStatus(tenantId, invStatus, pageable);
+                invitations = hasLetter
+                        ? invitationRepository.findByTenantIdAndStatusAndEmailStartingWithIgnoreCase(tenantId, invStatus, letter.trim(), pageable)
+                        : invitationRepository.findByTenantIdAndStatus(tenantId, invStatus, pageable);
             } catch (IllegalArgumentException e) {
-                invitations = invitationRepository.findByTenantId(tenantId, pageable);
+                invitations = hasLetter
+                        ? invitationRepository.findByTenantIdAndEmailStartingWithIgnoreCase(tenantId, letter.trim(), pageable)
+                        : invitationRepository.findByTenantId(tenantId, pageable);
             }
         } else {
-            invitations = invitationRepository.findByTenantId(tenantId, pageable);
+            invitations = hasLetter
+                    ? invitationRepository.findByTenantIdAndEmailStartingWithIgnoreCase(tenantId, letter.trim(), pageable)
+                    : invitationRepository.findByTenantId(tenantId, pageable);
         }
         return invitations.map(this::toResponse);
     }
@@ -328,6 +385,14 @@ public class InvitationController {
                 invitation.getExpiresAt(),
                 invitation.getAcceptedAt()
         );
+    }
+
+    private List<UUID> visibleTenantIds(UserPrincipal principal) {
+        List<UUID> assigned = assignmentRepository.findByPlatformUserIdAndActiveTrue(principal.id())
+                .stream().map(a -> a.getTenant().getId()).toList();
+        List<UUID> openToAll = tenantRepository.findByOpenToAllCoachesTrue()
+                .stream().map(Tenant::getId).toList();
+        return Stream.concat(assigned.stream(), openToAll.stream()).distinct().toList();
     }
 
     private boolean isDevLoginEnabled() {

@@ -307,7 +307,6 @@ export default function AppLayout({ children }: { children?: React.ReactNode }) 
               </span>
             ),
           },
-          { key: '/admin/assignments', label: 'Assignments' },
           { key: '/admin/activity', label: 'Activity Log' },
           ...(isPlatformAdmin ? [{ key: '/admin/logs', icon: <CodeOutlined />, label: 'System Logs' }] : []),
         ],

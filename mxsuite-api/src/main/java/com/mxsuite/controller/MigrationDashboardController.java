@@ -113,19 +113,29 @@ public class MigrationDashboardController {
 
     @GetMapping("/projects")
     public Page<MigrationProjectDto> listProjects(@AuthenticationPrincipal UserPrincipal principal,
-                                                   Pageable pageable) {
+                                                   Pageable pageable,
+                                                   @RequestParam(required = false) String search) {
+        boolean hasSearch = search != null && !search.isBlank();
+        String s = hasSearch ? search.trim() : null;
+
         if (principal != null && (principal.isPlatformAdmin() || principal.isCoachAdmin())) {
-            return projectRepository.findAllMigrationProjects(pageable)
+            return (hasSearch
+                    ? projectRepository.findAllMigrationProjectsBySearch(s, pageable)
+                    : projectRepository.findAllMigrationProjects(pageable))
                     .map(this::toMigrationProjectDto);
         }
         if (principal != null && principal.isPlatformSupport()) {
             List<UUID> tenantIds = visibleTenantIds(principal);
             if (tenantIds.isEmpty()) return org.springframework.data.domain.Page.empty(pageable);
-            return projectRepository.findMigrationProjectsByTenantIds(tenantIds, pageable)
+            return (hasSearch
+                    ? projectRepository.findMigrationProjectsByTenantIdsAndSearch(tenantIds, s, pageable)
+                    : projectRepository.findMigrationProjectsByTenantIds(tenantIds, pageable))
                     .map(this::toMigrationProjectDto);
         }
         UUID tenantId = TenantContext.getCurrentTenantId();
-        return projectRepository.findMigrationProjectsByTenantId(tenantId, pageable)
+        return (hasSearch
+                ? projectRepository.findMigrationProjectsByTenantIdAndSearch(tenantId, s, pageable)
+                : projectRepository.findMigrationProjectsByTenantId(tenantId, pageable))
                 .map(this::toMigrationProjectDto);
     }
 

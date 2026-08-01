@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Button, Card, Spin, Steps, Tag, Typography, message } from 'antd';
 import {
-  CheckCircleOutlined, CloseCircleOutlined, ClockCircleOutlined,
+  AuditOutlined, CheckCircleOutlined, CloseCircleOutlined, ClockCircleOutlined,
   ExclamationCircleOutlined,
 } from '@ant-design/icons';
 import type { ApprovalRequestDto, ApprovalStatsDto, PhaseGateDto, MigrationProject } from '@mxsuite/shared';
@@ -145,29 +145,34 @@ export default function ApprovalsPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}>
-        <Spin tip="Loading approvals..." />
-      </div>
-    );
-  }
-
   return (
     <div>
       <div style={{
-        background: 'linear-gradient(135deg, #f3eeff 0%, #ece4fc 100%)',
-        margin: '-24px -24px 20px -24px',
-        padding: '28px 32px 16px 32px',
-        borderBottom: '2px solid #e0d4f5',
+        background: 'linear-gradient(135deg, #2d1854 0%, #1a0e3a 100%)',
+        margin: '-24px -24px 24px -24px',
+        padding: '28px 32px 20px 32px',
+        borderBottom: '3px solid #6b4fa0',
       }}>
-        <Title level={4} style={{ marginBottom: 4, color: '#2d1854' }}>Workflow & approval gates</Title>
-        <Text style={{ fontSize: 12, color: '#6b4fa0' }}>
-          Each project advances through the defined lifecycle. The engine enforces phase order
-          and stops at explicit human-in-the-loop gates. A gate cannot be bypassed, and a
-          project cannot advance past a gate that has not been cleared.
-        </Text>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <AuditOutlined style={{ fontSize: 24, color: 'rgba(255,255,255,0.7)' }} />
+          <div>
+            <Title level={3} style={{ margin: 0, color: '#fff' }}>Workflow & approval gates</Title>
+            <Text style={{ color: 'rgba(255,255,255,0.7)' }}>
+              Each project advances through the defined lifecycle. The engine enforces phase order
+              and stops at explicit human-in-the-loop gates.
+            </Text>
+          </div>
+        </div>
       </div>
+
+      {loading && (
+        <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}>
+          <Spin tip="Loading approvals..." />
+        </div>
+      )}
+
+      {!loading && (<>
+
 
       {/* Pipeline visualization for active projects */}
       {projects.filter(p => p.phaseGates?.length > 0).map(project => (
@@ -241,6 +246,7 @@ export default function ApprovalsPage() {
           </div>
         </Card>
       ))}
+      </>)}
     </div>
   );
 }

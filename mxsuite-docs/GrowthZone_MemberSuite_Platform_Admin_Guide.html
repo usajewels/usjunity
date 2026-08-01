@@ -146,8 +146,16 @@
 <!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
 
 <p>
-  There are two platform-level roles. Both have access to the <strong>Administration</strong> menu in the
-  sidebar, but their permissions differ:
+  The platform has five user roles organized into two tiers: <strong>platform-level</strong> roles (who manage the
+  system) and <strong>tenant-level</strong> roles (who belong to customer organizations).
+</p>
+
+<h3>2.1 Platform Roles</h3>
+
+<p>
+  All three platform roles have access to the <strong>Administration</strong> menu in the sidebar.
+  The key difference is <strong>visibility scope</strong>: Platform Admins see everything, while
+  Coach Admin and Onboarding Coach roles are scoped to their <strong>assigned organizations</strong> only.
 </p>
 
 <table>
@@ -155,7 +163,7 @@
   <tr>
     <td><span class="tag red">Platform Admin</span></td>
     <td>
-      Full read/write access to all administration features:
+      Full read/write access to all administration features across all organizations:
       <ul style="margin: 8px 0 0 16px;">
         <li>Create, edit, and activate/deactivate organizations</li>
         <li>Create, edit, and activate/deactivate users across all organizations</li>
@@ -164,30 +172,102 @@
         <li>Manage onboarding schemas per organization</li>
         <li>Customize organization themes</li>
         <li>View the full activity log across all organizations</li>
+        <li>Assign coaches and coach admins to organizations</li>
       </ul>
     </td>
     <td>GrowthZone internal team leads and administrators</td>
   </tr>
   <tr>
-    <td><span class="tag orange">Platform Support</span></td>
+    <td><span class="tag blue">Coach Admin</span></td>
     <td>
-      Read access to most administration areas plus the ability to assist customers:
+      Manages onboarding coaches and oversees assigned organizations:
       <ul style="margin: 8px 0 0 16px;">
-        <li>View organizations and their details</li>
-        <li>View users across organizations</li>
-        <li>View and manage invitations</li>
-        <li>View the activity log</li>
-        <li>Assist with onboarding and workspace management</li>
+        <li>View organizations, users, and invitations &mdash; <strong>scoped to assigned organizations only</strong></li>
+        <li>Assign and unassign coaches to organizations</li>
+        <li>View the coach dashboard with KPIs for assigned organizations</li>
+        <li>Manage onboarding projects, mappings, decisions, and approvals</li>
+        <li>Send invitations to assigned organizations</li>
+        <li>Cannot see or manage Platform Admin users</li>
       </ul>
     </td>
-    <td>GrowthZone support staff assigned to help customers</td>
+    <td>GrowthZone coaching team leads</td>
+  </tr>
+  <tr>
+    <td><span class="tag orange">Onboarding Coach</span></td>
+    <td>
+      Hands-on coaching for assigned organizations through the onboarding lifecycle:
+      <ul style="margin: 8px 0 0 16px;">
+        <li>View organizations, users, and invitations &mdash; <strong>scoped to assigned organizations only</strong></li>
+        <li>View the coach dashboard with KPIs for assigned organizations</li>
+        <li>Manage onboarding projects, mappings, decisions, and approvals</li>
+        <li>Send invitations to assigned organizations</li>
+        <li>Cannot see or manage Platform Admin users</li>
+      </ul>
+    </td>
+    <td>GrowthZone support staff who guide customers through data migration</td>
+  </tr>
+</table>
+
+<h3>2.2 Organization Assignment (Coach Scoping)</h3>
+
+<p>
+  Coach Admin and Onboarding Coach users do not automatically have access to all organizations. A
+  <strong>Platform Admin must assign</strong> them to specific organizations. Once assigned, they can see
+  that organization&rsquo;s users, invitations, onboarding projects, and dashboard metrics.
+</p>
+
+<p>An organization is visible to a coach or coach admin if <strong>either</strong> condition is met:</p>
+<ul>
+  <li>The coach/coach admin has an <strong>active assignment</strong> to that organization (created by a Platform Admin on the Organization Detail page), or</li>
+  <li>The organization is marked as <strong>"Open to All Coaches"</strong> (a setting on the Organization Detail page that makes it visible to every coach regardless of assignment)</li>
+</ul>
+
+<div class="box warning">
+  <strong>Important:</strong> Coach Admin and Onboarding Coach roles can <strong>never</strong> see Platform Admin
+  users in the Users list. This is enforced at the API level &mdash; Platform Admin accounts are automatically
+  excluded from all coach-scoped queries.
+</div>
+
+<h3>2.3 Tenant Roles</h3>
+
+<p>
+  Tenant-level roles belong to a specific customer organization. They do not have access to the
+  Administration menu or any cross-organization features.
+</p>
+
+<table>
+  <tr><th>Role</th><th>Permissions</th><th>Typical User</th></tr>
+  <tr>
+    <td><span class="tag green">Tenant Admin</span></td>
+    <td>
+      Full access within their own organization:
+      <ul style="margin: 8px 0 0 16px;">
+        <li>Manage team members and send invitations within their organization</li>
+        <li>Upload data and manage onboarding projects</li>
+        <li>Manage workspaces</li>
+        <li>Configure organization settings</li>
+      </ul>
+    </td>
+    <td>Customer organization administrators</td>
+  </tr>
+  <tr>
+    <td><span class="tag green">Tenant User</span></td>
+    <td>
+      Standard access within their own organization:
+      <ul style="margin: 8px 0 0 16px;">
+        <li>View team members</li>
+        <li>Access assigned workspaces and projects</li>
+        <li>Upload data and participate in onboarding</li>
+      </ul>
+    </td>
+    <td>Customer organization members</td>
   </tr>
 </table>
 
 <div class="tip">
-  <strong>Tip:</strong> Platform Admin and Platform Support users do not see the <strong>Onboarding</strong>
-  menu item in the sidebar. Onboarding is a tenant-facing feature only. Platform users manage onboarding
-  configuration through the Organization Detail page instead.
+  <strong>Tip:</strong> Platform-level users (Platform Admin, Coach Admin, Onboarding Coach) do not see
+  the <strong>Onboarding</strong> menu item in the sidebar. Onboarding is a tenant-facing feature only.
+  Platform users manage onboarding configuration through the Organization Detail page instead.
 </div>
 
 

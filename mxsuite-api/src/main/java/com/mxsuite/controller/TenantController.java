@@ -75,6 +75,7 @@ public class TenantController {
     private final PasswordEncoder passwordEncoder;
     private final Environment environment;
     private final EntityManager entityManager;
+    private final com.mxsuite.service.NotificationService notificationService;
     private final String basePath;
 
     private static final String DEV_DEFAULT_PASSWORD = "Admin123!";
@@ -87,6 +88,7 @@ public class TenantController {
                             PasswordEncoder passwordEncoder,
                             Environment environment,
                             EntityManager entityManager,
+                            com.mxsuite.service.NotificationService notificationService,
                             @Value("${mxsuite.storage.local.base-path}") String basePath) {
         this.tenantRepository = tenantRepository;
         this.userRepository = userRepository;
@@ -97,6 +99,7 @@ public class TenantController {
         this.passwordEncoder = passwordEncoder;
         this.environment = environment;
         this.entityManager = entityManager;
+        this.notificationService = notificationService;
         this.basePath = basePath;
     }
 
@@ -130,9 +133,40 @@ public class TenantController {
             List<UUID> coachIds) {}
 
     @GetMapping
-    public Page<Tenant> list(Pageable pageable, @RequestParam(required = false) String search) {
-        if (search != null && !search.isBlank()) {
+    public Page<Tenant> list(@AuthenticationPrincipal UserPrincipal principal,
+                             Pageable pageable,
+                             @RequestParam(required = false) String search,
+                             @RequestParam(required = false) String letter,
+                             @RequestParam(required = false) TenantType tenantType) {
+        boolean hasSearch = search != null && !search.isBlank();
+        boolean hasLetter = letter != null && !letter.isBlank();
+
+        // Coaches (PLATFORM_SUPPORT and COACH_ADMIN) only see their assigned tenants + open-to-all
+        if (principal.role() == UserRole.PLATFORM_SUPPORT || principal.role() == UserRole.COACH_ADMIN) {
+            TenantType type = tenantType != null ? tenantType : TenantType.CUSTOMER;
+            if (hasSearch) {
+                return tenantRepository.findByTenantTypeAndCoachAndSearch(type, principal.id(), search.trim(), pageable);
+            }
+            if (hasLetter) {
+                return tenantRepository.findByTenantTypeAndCoachAndLetter(type, principal.id(), letter.trim(), pageable);
+            }
+            return tenantRepository.findByTenantTypeAndCoach(type, principal.id(), pageable);
+        }
+
+        if (tenantType != null && hasSearch) {
+            return tenantRepository.findByTenantTypeAndNameContainingIgnoreCase(tenantType, search.trim(), pageable);
+        }
+        if (tenantType != null && hasLetter) {
+            return tenantRepository.findByTenantTypeAndNameStartingWithIgnoreCase(tenantType, letter.trim(), pageable);
+        }
+        if (tenantType != null) {
+            return tenantRepository.findByTenantType(tenantType, pageable);
+        }
+        if (hasSearch) {
             return tenantRepository.findByNameContainingIgnoreCase(search.trim(), pageable);
+        }
+        if (hasLetter) {
+            return tenantRepository.findByNameStartingWithIgnoreCase(letter.trim(), pageable);
         }
         return tenantRepository.findAll(pageable);
     }
@@ -171,14 +205,12 @@ public class TenantController {
         tenant.setSlug(request.slug().trim());
         tenant.setTenantType(TenantType.CUSTOMER);
         tenant.setActive(true);
-        // Default to open-to-all-coaches when no specific coaches are assigned
-        boolean hasCoaches = request.coachIds() != null && !request.coachIds().isEmpty();
-        tenant.setOpenToAllCoaches(!hasCoaches);
+        tenant.setOpenToAllCoaches(false);
         tenant = tenantRepository.save(tenant);
 
         assignCoaches(tenant, request.coachIds());
         auditService.log("CREATE", "Tenant", tenant.getId(), tenant.getName());
-        log.info("Created tenant: slug={} id={} openToAllCoaches={}", tenant.getSlug(), tenant.getId(), !hasCoaches);
+        log.info("Created tenant: slug={} id={}", tenant.getSlug(), tenant.getId());
 
         return ResponseEntity
                 .created(URI.create("/api/admin/tenants/" + tenant.getId()))
@@ -211,8 +243,7 @@ public class TenantController {
         tenant.setSlug(request.slug().trim());
         tenant.setTenantType(TenantType.CUSTOMER);
         tenant.setActive(true);
-        boolean hasCoaches = request.coachIds() != null && !request.coachIds().isEmpty();
-        tenant.setOpenToAllCoaches(!hasCoaches);
+        tenant.setOpenToAllCoaches(false);
         tenant = tenantRepository.save(tenant);
 
         assignCoaches(tenant, request.coachIds());
@@ -363,7 +394,8 @@ public class TenantController {
     @PreAuthorize("hasAnyRole('PLATFORM_ADMIN', 'COACH_ADMIN')")
     @Transactional
     public ResponseEntity<?> assignCoach(@PathVariable UUID id,
-                                          @RequestBody AssignCoachRequest request) {
+                                          @RequestBody AssignCoachRequest request,
+                                          @AuthenticationPrincipal UserPrincipal principal) {
         var tenant = tenantRepository.findById(id).orElse(null);
         if (tenant == null) return ResponseEntity.notFound().build();
         var user = userRepository.findById(request.userId()).orElse(null);
@@ -385,6 +417,9 @@ public class TenantController {
             assignmentRepository.save(pa);
         }
         auditService.log("ASSIGN_COACH", "Tenant", id, user.getFullName());
+        String assignerName = userRepository.findById(principal.id())
+                .map(User::getFullName).orElse("An administrator");
+        notificationService.notifyCoachAssigned(user.getId(), id, tenant.getName(), assignerName);
         return ResponseEntity.ok(toCoachDto(user));
     }
 
@@ -409,6 +444,8 @@ public class TenantController {
                     pa.setTenant(tenant);
                     pa.setActive(true);
                     assignmentRepository.save(pa);
+                    notificationService.notifyCoachAssigned(coachId, tenant.getId(),
+                            tenant.getName(), "An administrator");
                 }
             });
         }
@@ -418,10 +455,6 @@ public class TenantController {
     @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     @Transactional
     public ResponseEntity<?> delete(@PathVariable UUID id) {
-        if (!isDevLoginEnabled()) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
-                    "message", "Organization deletion is only available in dev mode"));
-        }
         var tenant = tenantRepository.findById(id).orElse(null);
         if (tenant == null) return ResponseEntity.notFound().build();
 
@@ -440,7 +473,7 @@ public class TenantController {
         // Delete all related records in dependency order
         // 1. Records referencing projects owned by this tenant
         entityManager.createNativeQuery(
-                "DELETE FROM mapping_candidates WHERE mapping_entry_id IN " +
+                "DELETE FROM mapping_candidates WHERE field_mapping_id IN " +
                 "(SELECT id FROM field_mapping_entries WHERE project_id IN (SELECT id FROM projects WHERE tenant_id = :tid))")
                 .setParameter("tid", id).executeUpdate();
         entityManager.createNativeQuery(
@@ -519,6 +552,109 @@ public class TenantController {
 
         log.info("DEV MODE: Deleted organization '{}' ({}) and all related data", name, id);
         return ResponseEntity.ok(Map.of("deleted", name));
+    }
+
+    @DeleteMapping("/reset-demo")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    @Transactional
+    public ResponseEntity<?> resetDemo() {
+        if (!isDevLoginEnabled()) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
+                    "message", "Reset is only available in devlogin mode"));
+        }
+
+        // Find all non-platform tenants
+        var tenants = tenantRepository.findAll().stream()
+                .filter(t -> t.getTenantType() != TenantType.PLATFORM)
+                .toList();
+
+        int orgCount = 0;
+        for (var tenant : tenants) {
+            UUID tid = tenant.getId();
+
+            // Same cascade as single delete
+            entityManager.createNativeQuery("UPDATE tenants SET onboarding_project_id = NULL WHERE id = :tid")
+                    .setParameter("tid", tid).executeUpdate();
+            entityManager.flush();
+
+            entityManager.createNativeQuery(
+                    "DELETE FROM mapping_candidates WHERE field_mapping_id IN " +
+                    "(SELECT id FROM field_mapping_entries WHERE project_id IN (SELECT id FROM projects WHERE tenant_id = :tid))")
+                    .setParameter("tid", tid).executeUpdate();
+            entityManager.createNativeQuery(
+                    "DELETE FROM mapping_versions WHERE project_id IN (SELECT id FROM projects WHERE tenant_id = :tid)")
+                    .setParameter("tid", tid).executeUpdate();
+            entityManager.createNativeQuery(
+                    "DELETE FROM field_mapping_entries WHERE project_id IN (SELECT id FROM projects WHERE tenant_id = :tid)")
+                    .setParameter("tid", tid).executeUpdate();
+            entityManager.createNativeQuery(
+                    "DELETE FROM source_schema_nodes WHERE project_id IN (SELECT id FROM projects WHERE tenant_id = :tid)")
+                    .setParameter("tid", tid).executeUpdate();
+            entityManager.createNativeQuery(
+                    "DELETE FROM project_data_uploads WHERE project_id IN (SELECT id FROM projects WHERE tenant_id = :tid)")
+                    .setParameter("tid", tid).executeUpdate();
+            entityManager.createNativeQuery(
+                    "DELETE FROM project_assets WHERE project_id IN (SELECT id FROM projects WHERE tenant_id = :tid)")
+                    .setParameter("tid", tid).executeUpdate();
+            entityManager.createNativeQuery(
+                    "DELETE FROM project_access WHERE project_id IN (SELECT id FROM projects WHERE tenant_id = :tid)")
+                    .setParameter("tid", tid).executeUpdate();
+            entityManager.createNativeQuery(
+                    "DELETE FROM phase_gates WHERE project_id IN (SELECT id FROM projects WHERE tenant_id = :tid)")
+                    .setParameter("tid", tid).executeUpdate();
+            entityManager.createNativeQuery(
+                    "DELETE FROM plan_runs WHERE plan_id IN " +
+                    "(SELECT id FROM plans WHERE project_id IN (SELECT id FROM projects WHERE tenant_id = :tid))")
+                    .setParameter("tid", tid).executeUpdate();
+            entityManager.createNativeQuery(
+                    "DELETE FROM plans WHERE project_id IN (SELECT id FROM projects WHERE tenant_id = :tid)")
+                    .setParameter("tid", tid).executeUpdate();
+            entityManager.createNativeQuery(
+                    "DELETE FROM approval_requests WHERE project_id IN (SELECT id FROM projects WHERE tenant_id = :tid)")
+                    .setParameter("tid", tid).executeUpdate();
+
+            entityManager.createNativeQuery("DELETE FROM reconciliation_reports WHERE tenant_id = :tid")
+                    .setParameter("tid", tid).executeUpdate();
+            entityManager.createNativeQuery("DELETE FROM semantic_decisions WHERE tenant_id = :tid")
+                    .setParameter("tid", tid).executeUpdate();
+            entityManager.createNativeQuery("DELETE FROM migration_blueprints WHERE tenant_id = :tid")
+                    .setParameter("tid", tid).executeUpdate();
+            entityManager.createNativeQuery("DELETE FROM onboardings WHERE tenant_id = :tid")
+                    .setParameter("tid", tid).executeUpdate();
+            entityManager.createNativeQuery("DELETE FROM invitations WHERE tenant_id = :tid")
+                    .setParameter("tid", tid).executeUpdate();
+            entityManager.createNativeQuery("DELETE FROM platform_assignments WHERE tenant_id = :tid")
+                    .setParameter("tid", tid).executeUpdate();
+            entityManager.createNativeQuery("DELETE FROM notifications WHERE tenant_id = :tid")
+                    .setParameter("tid", tid).executeUpdate();
+            entityManager.createNativeQuery("DELETE FROM audit_events WHERE tenant_id = :tid")
+                    .setParameter("tid", tid).executeUpdate();
+
+            entityManager.createNativeQuery(
+                    "DELETE FROM password_reset_tokens WHERE user_id IN (SELECT id FROM users WHERE tenant_id = :tid)")
+                    .setParameter("tid", tid).executeUpdate();
+            entityManager.createNativeQuery(
+                    "DELETE FROM workspace_access WHERE user_id IN (SELECT id FROM users WHERE tenant_id = :tid)")
+                    .setParameter("tid", tid).executeUpdate();
+            entityManager.createNativeQuery(
+                    "DELETE FROM workspace_access WHERE workspace_id IN " +
+                    "(SELECT id FROM workspaces WHERE tenant_id = :tid)")
+                    .setParameter("tid", tid).executeUpdate();
+            entityManager.createNativeQuery("DELETE FROM workspaces WHERE tenant_id = :tid")
+                    .setParameter("tid", tid).executeUpdate();
+
+            entityManager.createNativeQuery("DELETE FROM projects WHERE tenant_id = :tid")
+                    .setParameter("tid", tid).executeUpdate();
+            entityManager.createNativeQuery("DELETE FROM users WHERE tenant_id = :tid")
+                    .setParameter("tid", tid).executeUpdate();
+            entityManager.createNativeQuery("DELETE FROM tenants WHERE id = :tid")
+                    .setParameter("tid", tid).executeUpdate();
+
+            orgCount++;
+        }
+
+        log.info("Demo reset: deleted {} organization(s) and all related data", orgCount);
+        return ResponseEntity.ok(Map.of("deletedOrganizations", orgCount));
     }
 
     private boolean isDevLoginEnabled() {

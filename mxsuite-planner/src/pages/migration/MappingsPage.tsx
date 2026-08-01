@@ -1617,7 +1617,7 @@ export default function MappingsPage() {
       return (
         <Card
           size="small"
-          style={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', borderColor: '#e0d4f5', borderTop: '3px solid #6b4fa0' }}
+          style={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', borderTop: '3px solid #6b4fa0' }}
           styles={{ body: { textAlign: 'center' } }}
         >
           <Spin size="small" />
@@ -1630,15 +1630,13 @@ export default function MappingsPage() {
     return (
       <Card
         size="small"
-        style={{ borderColor: '#e0d4f5', borderTop: '3px solid #2d1854' }}
         styles={{
-          header: { background: '#f3eeff', borderBottom: '1px solid #e0d4f5', padding: '12px 16px' },
           body: { padding: 0, maxHeight: 'calc(100vh - 160px)', overflowY: 'auto' },
         }}
         title={
           <Space size={8}>
             <ApartmentOutlined style={{ color: '#6b4fa0' }} />
-            <Text strong style={{ color: '#2d1854', fontSize: 13 }}>Schema Coverage</Text>
+            <Text strong style={{ fontSize: 13 }}>Schema Coverage</Text>
             <Tag style={{ fontSize: 10, backgroundColor: '#f3eeff', color: '#2d1854', borderColor: '#e0d4f5', margin: 0 }}>
               {Object.keys(mappingByTarget).length} / {filteredSchemaFields.length} mapped
             </Tag>
@@ -1743,37 +1741,39 @@ export default function MappingsPage() {
     <div>
       {/* Page header with purple tint */}
       <div style={{
-        background: 'linear-gradient(135deg, #f3eeff 0%, #ece4fc 100%)',
-        margin: '-24px -24px 20px -24px',
-        padding: '28px 32px 16px 32px',
-        borderBottom: '2px solid #e0d4f5',
+        background: 'linear-gradient(135deg, #2d1854 0%, #1a0e3a 100%)',
+        margin: '-24px -24px 24px -24px',
+        padding: '28px 32px 20px 32px',
+        borderBottom: '3px solid #6b4fa0',
       }}>
-        <Breadcrumb
-          style={{ marginBottom: 10 }}
-          items={[
-            {
-              title: (
-                <Button
-                  type="link"
-                  size="small"
-                  icon={<ArrowLeftOutlined />}
-                  style={{ padding: 0, color: '#1a0e3a' }}
-                  onClick={() => navigate('/plans/onboarding-projects/projects')}
-                >
-                  Projects
-                </Button>
-              ),
-            },
-            { title: <span style={{ color: '#6b4fa0' }}>{projectName || '…'}</span> },
-            { title: <span style={{ color: '#2d1854', fontWeight: 500 }}>Field Mappings</span> },
-          ]}
-        />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+          <SwapOutlined style={{ fontSize: 24, color: 'rgba(255,255,255,0.7)' }} />
+          <Breadcrumb
+            items={[
+              {
+                title: (
+                  <Button
+                    type="link"
+                    size="small"
+                    icon={<ArrowLeftOutlined />}
+                    style={{ padding: 0, color: 'rgba(255,255,255,0.7)' }}
+                    onClick={() => navigate('/plans/onboarding-projects/projects')}
+                  >
+                    Projects
+                  </Button>
+                ),
+              },
+              { title: <span style={{ color: 'rgba(255,255,255,0.7)' }}>{projectName || '…'}</span> },
+              { title: <span style={{ color: '#fff', fontWeight: 500 }}>Field Mappings</span> },
+            ]}
+          />
+        </div>
         <ProjectSubNav projectId={projectId!} activeKey="mappings" />
         <Row align="middle" justify="space-between">
           <Col>
-            <Text strong style={{ fontSize: 20, color: '#2d1854' }}>{projectName}</Text>
+            <Text strong style={{ fontSize: 20, color: '#fff' }}>{projectName}</Text>
             {tenantName && (
-              <Text style={{ marginLeft: 12, fontSize: 13, color: '#6b4fa0' }}>
+              <Text style={{ marginLeft: 12, fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>
                 {tenantName}
               </Text>
             )}
@@ -1795,7 +1795,7 @@ export default function MappingsPage() {
                 </Radio.Button>
               </Radio.Group>
               {lastRefreshed && (
-                <Text style={{ fontSize: 12, color: '#6b4fa0' }}>
+                <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>
                   Updated {lastRefreshed.toLocaleTimeString()}
                 </Text>
               )}
@@ -1804,7 +1804,7 @@ export default function MappingsPage() {
                 size="small"
                 loading={exporting}
                 onClick={handleExportMappings}
-                style={{ borderColor: '#6b4fa0', color: '#6b4fa0' }}
+                style={{ borderColor: '#fff', color: '#fff', background: 'transparent' }}
               >
                 Export
               </Button>
@@ -1812,7 +1812,7 @@ export default function MappingsPage() {
                 icon={<ImportOutlined />}
                 size="small"
                 onClick={() => setImportModalOpen(true)}
-                style={{ borderColor: '#6b4fa0', color: '#6b4fa0' }}
+                style={{ borderColor: '#fff', color: '#fff', background: 'transparent' }}
               >
                 Import
               </Button>
@@ -1820,7 +1820,7 @@ export default function MappingsPage() {
                 icon={<HistoryOutlined />}
                 size="small"
                 onClick={() => setVersionHistoryOpen(true)}
-                style={{ borderColor: '#6b4fa0', color: '#6b4fa0' }}
+                style={{ borderColor: '#fff', color: '#fff', background: 'transparent' }}
               >
                 History
               </Button>
@@ -1855,7 +1855,7 @@ export default function MappingsPage() {
         const totalFields = filteredSchemaFields.length;
         const mappedPct = totalFields > 0 ? Math.round((totalMapped / totalFields) * 100) : 0;
         return (
-        <Card size="small" style={{ marginBottom: unmappedRequired.length > 0 ? 8 : 16, borderColor: '#e0d4f5', borderTop: '3px solid #2d1854' }}>
+        <Card size="small" style={{ marginBottom: unmappedRequired.length > 0 ? 8 : 16 }}>
           {/* Progress bar */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
             <Text style={{ fontSize: 12, color: '#2d1854', fontWeight: 600, whiteSpace: 'nowrap' }}>
@@ -2266,7 +2266,7 @@ export default function MappingsPage() {
               {viewMode === 'source-target' && (
                 <>
                   {!panelRecord ? (
-                    <Card size="small" style={{ borderColor: '#e0d4f5', borderTop: '3px solid #6b4fa0', textAlign: 'center', padding: 32 }}>
+                    <Card size="small" style={{ borderTop: '3px solid #6b4fa0', textAlign: 'center', padding: 32 }}>
                       <ApartmentOutlined style={{ fontSize: 28, color: '#d9d6fe', marginBottom: 8 }} />
                       <Text style={{ display: 'block', color: 'rgba(0,0,0,0.45)' }}>
                         Click a source field row to see its target mappings
@@ -2275,9 +2275,7 @@ export default function MappingsPage() {
                   ) : (
                     <Card
                       size="small"
-                      style={{ borderColor: '#e0d4f5', borderTop: '3px solid #2d1854' }}
                       styles={{
-                        header: { background: '#f3eeff', borderBottom: '1px solid #e0d4f5', padding: '14px 16px' },
                         body: { padding: '16px', maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' },
                       }}
                       title={
@@ -2466,7 +2464,7 @@ export default function MappingsPage() {
               {viewMode === 'target-source' && (
                 <>
                   {!panelField ? (
-                    <Card size="small" style={{ borderColor: '#e0d4f5', borderTop: '3px solid #6b4fa0', textAlign: 'center', padding: 32 }}>
+                    <Card size="small" style={{ borderTop: '3px solid #6b4fa0', textAlign: 'center', padding: 32 }}>
                       <ApartmentOutlined style={{ fontSize: 28, color: '#d9d6fe', marginBottom: 8 }} />
                       <Text style={{ display: 'block', color: 'rgba(0,0,0,0.45)' }}>
                         Click a GZ field row to see its mapping details
@@ -2475,9 +2473,7 @@ export default function MappingsPage() {
                   ) : (
                     <Card
                       size="small"
-                      style={{ borderColor: '#e0d4f5', borderTop: '3px solid #2d1854' }}
                       styles={{
-                        header: { background: '#f3eeff', borderBottom: '1px solid #e0d4f5', padding: '14px 16px' },
                         body: { padding: '16px', maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' },
                       }}
                       title={

@@ -9,7 +9,7 @@ import {
   ArrowLeftOutlined, TeamOutlined, FileTextOutlined,
   EditOutlined, CheckCircleOutlined, CloseCircleOutlined, ClockCircleOutlined, DeleteOutlined,
   MailOutlined, UserAddOutlined, SaveOutlined, UploadOutlined,
-  ImportOutlined, ControlOutlined, ApartmentOutlined, ThunderboltOutlined,
+  ImportOutlined, ControlOutlined, ApartmentOutlined, ThunderboltOutlined, BankOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
@@ -358,7 +358,7 @@ export default function TenantDetailPage() {
         </Popconfirm>
       ),
     },
-    ...(isDevLogin ? [{
+    {
       title: '',
       key: 'delete',
       width: 50,
@@ -375,7 +375,7 @@ export default function TenantDetailPage() {
           <Button type="text" size="small" danger icon={<DeleteOutlined />} />
         </Popconfirm>
       ),
-    }] : []),
+    },
   ];
 
   /* ---- activity table columns ---- */
@@ -469,25 +469,30 @@ export default function TenantDetailPage() {
     <div>
       {/* Header */}
       <div style={{
-        background: 'linear-gradient(135deg, #f3eeff 0%, #ece4fc 100%)',
-        margin: '-24px -24px 20px -24px',
-        padding: '28px 32px 16px 32px',
-        borderBottom: '2px solid #e0d4f5',
+        background: 'linear-gradient(135deg, #2d1854 0%, #1a0e3a 100%)',
+        margin: '-24px -24px 24px -24px',
+        padding: '28px 32px 20px 32px',
+        borderBottom: '3px solid #6b4fa0',
       }}>
-        <Button
-          icon={<ArrowLeftOutlined />}
-          onClick={() => navigate('/admin/tenants')}
-          type="text"
-          style={{ padding: 0, color: '#1a0e3a', marginBottom: 8 }}
-        >
-          Back to Organizations
-        </Button>
-        <Title level={4} style={{ margin: 0, color: '#2d1854' }}>{tenant.name}</Title>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <Button
+            icon={<ArrowLeftOutlined />}
+            onClick={() => navigate('/admin/tenants')}
+            type="text"
+            style={{ padding: 0, color: 'rgba(255,255,255,0.7)' }}
+          >
+            Back to Organizations
+          </Button>
+          <BankOutlined style={{ fontSize: 24, color: 'rgba(255,255,255,0.7)' }} />
+          <div>
+            <Title level={3} style={{ margin: 0, color: '#fff' }}>{tenant.name}</Title>
+          </div>
+        </div>
       </div>
     <div style={{ maxWidth: 1200, margin: '0 auto' }}>
       {/* Tenant info card */}
       <Card
-        style={{ marginBottom: 24, borderRadius: 12, borderTop: '3px solid #2d1854', border: '1px solid #e0d4f5' }}
+        style={{ marginBottom: 24 }}
         extra={
           <Space>
             <Button icon={<EditOutlined />} onClick={openEdit}>
@@ -509,7 +514,7 @@ export default function TenantDetailPage() {
                 </Button>
               </Popconfirm>
             )}
-            {isDevLogin && tenant.tenantType !== 'PLATFORM' && (
+            {tenant.tenantType !== 'PLATFORM' && (
               <Popconfirm
                 title="Delete this organization permanently?"
                 description="All users, projects, mappings, and related data will be permanently deleted."
@@ -560,7 +565,7 @@ export default function TenantDetailPage() {
       {/* Stats row */}
       <Row gutter={16} style={{ marginBottom: 24 }}>
         <Col xs={24} sm={8}>
-          <Card style={{ borderRadius: 12, borderTop: '3px solid #2d1854', border: '1px solid #e0d4f5' }}>
+          <Card style={{}}>
             <Statistic
               title={<span style={{ color: 'rgba(0,0,0,0.65)' }}>Total Users</span>}
               value={users.length}
@@ -576,7 +581,7 @@ export default function TenantDetailPage() {
       </Row>
 
       {/* Tabs: Users / Activity */}
-      <Card style={{ borderRadius: 12, borderTop: '3px solid #2d1854', border: '1px solid #e0d4f5' }}>
+      <Card style={{}}>
         <ConfigProvider theme={{ token: { colorPrimary: '#2d1854' } }}>
         <Tabs
           items={[

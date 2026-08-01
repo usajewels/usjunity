@@ -3,7 +3,7 @@ import {
   Card, Table, Tag, Tabs, Typography, Spin, Button, Radio, Space, Drawer,
   Divider, List, message, ConfigProvider,
 } from 'antd';
-import { CheckCircleOutlined, CloseCircleOutlined, RobotOutlined } from '@ant-design/icons';
+import { BulbOutlined, CheckCircleOutlined, CloseCircleOutlined, RobotOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import type { SemanticDecisionDto, DecisionStatus } from '@mxsuite/shared';
 import { usePageTitle } from '@mxsuite/shared';
@@ -57,7 +57,7 @@ export default function TenantDecisionsPage() {
   const load = async (status?: DecisionStatus) => {
     setLoading(true);
     try {
-      const params: Record<string, unknown> = { page: 0, size: 100 };
+      const params: Record<string, unknown> = { page: 0, size: 50 };
       if (status) params.status = status;
       const { data } = await tenantOnboardingApi.listDecisions(params);
       const list = (data as { content?: SemanticDecisionDto[] }).content || (data as SemanticDecisionDto[]);
@@ -177,20 +177,25 @@ export default function TenantDecisionsPage() {
   return (
     <div>
       <div style={{
-        background: 'linear-gradient(135deg, #f3eeff 0%, #ece4fc 100%)',
-        margin: '-24px -24px 20px -24px',
-        padding: '28px 32px 16px 32px',
-        borderBottom: '2px solid #e0d4f5',
+        background: 'linear-gradient(135deg, #2d1854 0%, #1a0e3a 100%)',
+        margin: '-24px -24px 24px -24px',
+        padding: '28px 32px 20px 32px',
+        borderBottom: '3px solid #6b4fa0',
       }}>
-        <Title level={4} style={{ marginBottom: 4, color: '#2d1854' }}>Decisions</Title>
-        <Text style={{ color: '#6b4fa0' }}>
-          Review decisions about your data migration. Select an option and approve or reject each decision.
-        </Text>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <BulbOutlined style={{ fontSize: 24, color: 'rgba(255,255,255,0.7)' }} />
+          <div>
+            <Title level={3} style={{ margin: 0, color: '#fff' }}>Decisions</Title>
+            <Text style={{ color: 'rgba(255,255,255,0.7)' }}>
+              Review decisions about your data migration. Select an option and approve or reject each decision.
+            </Text>
+          </div>
+        </div>
       </div>
 
       <ConfigProvider theme={{ token: { colorPrimary: '#2d1854' } }}>
         {/* Stats bar */}
-        <Card size="small" style={{ marginBottom: 16, borderTop: '3px solid #2d1854', border: '1px solid #e0d4f5' }}>
+        <Card size="small" style={{ marginBottom: 16 }}>
           <Space size="large">
             <div><Text type="secondary">Total: </Text><Text strong style={{ color: '#2d1854' }}>{stats.all}</Text></div>
             <div><Text type="secondary">Open: </Text><Text strong style={{ color: '#ad6800' }}>{stats.open}</Text></div>

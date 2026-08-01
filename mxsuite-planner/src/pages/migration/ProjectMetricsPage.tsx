@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Breadcrumb, Button, Card, Typography, Spin, Tag, Space, Tooltip } from 'antd';
-import { ArrowLeftOutlined, ClockCircleOutlined, ReloadOutlined, WarningOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, ClockCircleOutlined, LineChartOutlined, ReloadOutlined, WarningOutlined } from '@ant-design/icons';
 import { usePageTitle } from '@mxsuite/shared';
 import type { PhaseBenchmarkDto } from '@mxsuite/shared';
 import ProjectSubNav from '../../components/migration/ProjectSubNav';
@@ -78,19 +78,21 @@ export default function ProjectMetricsPage() {
 
   const headerBlock = (
     <div style={{
-      background: 'linear-gradient(135deg, #f3eeff 0%, #ece4fc 100%)',
-      margin: '-24px -24px 20px -24px',
-      padding: '28px 32px 16px 32px',
-      borderBottom: '2px solid #e0d4f5',
+      background: 'linear-gradient(135deg, #2d1854 0%, #1a0e3a 100%)',
+      margin: '-24px -24px 24px -24px',
+      padding: '28px 32px 20px 32px',
+      borderBottom: '3px solid #6b4fa0',
     }}>
-      <Breadcrumb
-        style={{ marginBottom: 10 }}
-        items={[
-          { title: <Button type="link" size="small" icon={<ArrowLeftOutlined />} style={{ padding: 0, color: '#1a0e3a' }} onClick={() => navigate('/plans/onboarding-projects/projects')}>Projects</Button> },
-          { title: <span style={{ color: '#6b4fa0' }}>{projectName || '…'}</span> },
-          { title: <span style={{ color: '#2d1854', fontWeight: 500 }}>Metrics</span> },
-        ]}
-      />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+        <LineChartOutlined style={{ fontSize: 24, color: 'rgba(255,255,255,0.7)' }} />
+        <Breadcrumb
+          items={[
+            { title: <Button type="link" size="small" icon={<ArrowLeftOutlined />} style={{ padding: 0, color: 'rgba(255,255,255,0.7)' }} onClick={() => navigate('/plans/onboarding-projects/projects')}>Projects</Button> },
+            { title: <span style={{ color: 'rgba(255,255,255,0.7)' }}>{projectName || '…'}</span> },
+            { title: <span style={{ color: '#fff', fontWeight: 500 }}>Metrics</span> },
+          ]}
+        />
+      </div>
       <ProjectSubNav projectId={projectId!} activeKey="metrics" />
     </div>
   );
@@ -128,7 +130,7 @@ export default function ProjectMetricsPage() {
       <div>
         {headerBlock}
         <div style={{ padding: '32px 24px', maxWidth: 500, margin: '0 auto' }}>
-          <Card style={{ textAlign: 'center', borderColor: '#e0d4f5', borderTop: '3px solid #6b4fa0' }}>
+          <Card style={{ textAlign: 'center', borderTop: '3px solid #6b4fa0' }}>
             <ClockCircleOutlined style={{ fontSize: 40, color: '#6b4fa0', marginBottom: 16 }} />
             <Title level={5} style={{ color: '#2d1854', marginBottom: 8 }}>No metrics recorded yet</Title>
             <Text type="secondary" style={{ display: 'block', lineHeight: 1.6 }}>

@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -24,9 +25,20 @@ public interface InvitationRepository extends JpaRepository<Invitation, UUID> {
 
     Page<Invitation> findByTenantId(UUID tenantId, Pageable pageable);
     Page<Invitation> findByTenantIdAndStatus(UUID tenantId, Invitation.InvitationStatus status, Pageable pageable);
+    Page<Invitation> findByTenantIdAndEmailStartingWithIgnoreCase(UUID tenantId, String letter, Pageable pageable);
+    Page<Invitation> findByTenantIdAndStatusAndEmailStartingWithIgnoreCase(UUID tenantId, Invitation.InvitationStatus status, String letter, Pageable pageable);
     boolean existsByEmailAndTenantIdAndStatus(String email, UUID tenantId, Invitation.InvitationStatus status);
 
     long countByStatus(Invitation.InvitationStatus status);
     long countByTenantId(UUID tenantId);
     long countByTenantIdAndStatus(UUID tenantId, Invitation.InvitationStatus status);
+
+    /* ---- Multi-tenant queries for coach-scoped access ---- */
+
+    Page<Invitation> findByTenantIdIn(List<UUID> tenantIds, Pageable pageable);
+    Page<Invitation> findByTenantIdInAndStatus(List<UUID> tenantIds, Invitation.InvitationStatus status, Pageable pageable);
+    Page<Invitation> findByTenantIdInAndEmailStartingWithIgnoreCase(List<UUID> tenantIds, String letter, Pageable pageable);
+    Page<Invitation> findByTenantIdInAndStatusAndEmailStartingWithIgnoreCase(List<UUID> tenantIds, Invitation.InvitationStatus status, String letter, Pageable pageable);
+    long countByTenantIdIn(List<UUID> tenantIds);
+    long countByTenantIdInAndStatus(List<UUID> tenantIds, Invitation.InvitationStatus status);
 }

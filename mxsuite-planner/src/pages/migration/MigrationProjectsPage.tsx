@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Table, Tag, Typography, Input, Card, Progress, message, ConfigProvider } from 'antd';
-import { SearchOutlined } from '@ant-design/icons';
+import { ProjectOutlined, SearchOutlined } from '@ant-design/icons';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import type { MigrationProject } from '@mxsuite/shared';
 import { usePageTitle } from '@mxsuite/shared';
@@ -43,23 +43,21 @@ export default function MigrationProjectsPage() {
 
   useEffect(() => {
     setLoading(true);
-    migrationApi.listProjects({ page, size: pageSize })
+    const params: Record<string, unknown> = { page, size: pageSize };
+    if (searchText.trim()) params.search = searchText.trim();
+    migrationApi.listProjects(params)
       .then(({ data }) => {
         setProjects(data.content);
         setTotal(data.totalElements ?? 0);
       })
       .catch(() => message.error('Failed to load projects'))
       .finally(() => setLoading(false));
-  }, [page, pageSize]);
+  }, [page, pageSize, searchText]);
 
   const handleTableChange = (pagination: TablePaginationConfig) => {
     setPage((pagination.current ?? 1) - 1);
     setPageSize(pagination.pageSize ?? 20);
   };
-
-  const filtered = searchText.trim()
-    ? projects.filter((p) => p.name.toLowerCase().includes(searchText.toLowerCase()))
-    : projects;
 
   const columns: ColumnsType<MigrationProject> = [
     {
@@ -149,29 +147,34 @@ export default function MigrationProjectsPage() {
   return (
     <div>
       <div style={{
-        background: 'linear-gradient(135deg, #f3eeff 0%, #ece4fc 100%)',
-        margin: '-24px -24px 20px -24px',
-        padding: '28px 32px 16px 32px',
-        borderBottom: '2px solid #e0d4f5',
+        background: 'linear-gradient(135deg, #2d1854 0%, #1a0e3a 100%)',
+        margin: '-24px -24px 24px -24px',
+        padding: '28px 32px 20px 32px',
+        borderBottom: '3px solid #6b4fa0',
       }}>
-        <Title level={4} style={{ marginBottom: 4, color: '#2d1854' }}>Onboarding Projects</Title>
-        <Text style={{ color: '#6b4fa0' }}>Click a project to view its mappings and reconciliation.</Text>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <ProjectOutlined style={{ fontSize: 24, color: 'rgba(255,255,255,0.7)' }} />
+          <div>
+            <Title level={3} style={{ margin: 0, color: '#fff' }}>Onboarding Projects</Title>
+            <Text style={{ color: 'rgba(255,255,255,0.7)' }}>Click a project to view its mappings and reconciliation.</Text>
+          </div>
+        </div>
       </div>
 
-      <Card style={{ borderRadius: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', borderTop: '3px solid #2d1854', border: '1px solid #e0d4f5' }}>
+      <Card>
         <ConfigProvider theme={{ token: { colorPrimary: '#2d1854' } }}>
           <Input.Search
             placeholder="Search projects..."
             allowClear
-            onSearch={setSearchText}
-            onChange={(e) => { if (!e.target.value) setSearchText(''); }}
+            onSearch={(v) => { setSearchText(v); setPage(0); }}
+            onChange={(e) => { if (!e.target.value) { setSearchText(''); setPage(0); } }}
             style={{ width: 320, marginBottom: 16 }}
             prefix={<SearchOutlined style={{ color: '#6b4fa0' }} />}
             size="large"
           />
           <Table<MigrationProject>
             columns={columns}
-            dataSource={filtered}
+            dataSource={projects}
             loading={loading}
             rowKey="id"
             onChange={handleTableChange}
@@ -182,7 +185,7 @@ export default function MigrationProjectsPage() {
             pagination={{
               current: page + 1,
               pageSize,
-              total: searchText.trim() ? filtered.length : total,
+              total,
               showSizeChanger: true,
               pageSizeOptions: ['10', '20', '50'],
               showTotal: (t, range) => `${range[0]}-${range[1]} of ${t} projects`,

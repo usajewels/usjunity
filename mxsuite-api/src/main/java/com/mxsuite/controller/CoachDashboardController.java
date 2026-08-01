@@ -215,7 +215,7 @@ public class CoachDashboardController {
     // --- Helpers ---
 
     private List<UUID> visibleTenantIds(UserPrincipal principal) {
-        if (principal.isPlatformAdmin() || principal.isCoachAdmin()) {
+        if (principal.isPlatformAdmin()) {
             return tenantRepository.findAll().stream()
                     .filter(t -> t.getTenantType() == TenantType.CUSTOMER)
                     .map(Tenant::getId)

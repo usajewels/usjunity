@@ -82,6 +82,28 @@ public class NotificationService {
         }
     }
 
+    /**
+     * Notifies a coach that they have been assigned to an organization.
+     */
+    @Async
+    @Transactional
+    public void notifyCoachAssigned(UUID coachId, UUID tenantId, String tenantName, String assignedByName) {
+        try {
+            Notification n = new Notification();
+            n.setRecipientId(coachId);
+            n.setTenantId(tenantId);
+            n.setType("COACH_ASSIGNED");
+            n.setTitle("Assigned to " + tenantName);
+            n.setMessage(assignedByName + " assigned you to the organization \"" + tenantName + "\".");
+            n.setEntityType("Tenant");
+            n.setEntityId(tenantId);
+            notificationRepository.save(n);
+            log.debug("Sent coach assignment notification to user={} tenant={}", coachId, tenantId);
+        } catch (Exception e) {
+            log.error("Failed to send coach assignment notification: {}", e.getMessage(), e);
+        }
+    }
+
     // -------------------------------------------------------------------------
 
     private void sendToTenantAdmins(UUID tenantId, UUID projectId,

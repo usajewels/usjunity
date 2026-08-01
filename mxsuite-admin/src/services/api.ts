@@ -30,7 +30,7 @@ export interface CoachDto {
 }
 
 export const tenantApi = {
-  list: (params?: { page?: number; size?: number; search?: string }) =>
+  list: (params?: { page?: number; size?: number; search?: string; letter?: string; tenantType?: string }) =>
     api.get<PaginatedResponse<Tenant>>('/admin/tenants', { params }),
 
   get: (id: string) =>
@@ -58,6 +58,9 @@ export const tenantApi = {
 
   delete: (id: string) =>
     api.delete(`/admin/tenants/${id}`),
+
+  resetDemo: () =>
+    api.delete<{ deletedOrganizations: number }>('/admin/tenants/reset-demo'),
 };
 
 /* ------------------------------------------------------------------ */
@@ -65,7 +68,7 @@ export const tenantApi = {
 /* ------------------------------------------------------------------ */
 
 export const userApi = {
-  list: (params?: { page?: number; size?: number; tenantId?: string }) =>
+  list: (params?: { page?: number; size?: number; tenantId?: string; search?: string; letter?: string; role?: string }) =>
     api.get<PaginatedResponse<User>>('/admin/users', { params }),
 
   get: (id: string) =>
@@ -92,7 +95,7 @@ export const userApi = {
 /* ------------------------------------------------------------------ */
 
 export const invitationApi = {
-  list: (params?: { page?: number; size?: number; status?: string }) =>
+  list: (params?: { page?: number; size?: number; status?: string; letter?: string }) =>
     api.get<PaginatedResponse<Invitation>>('/invitations', { params }),
 
   create: (data: { email: string; role: string }, tenantId?: string) =>
@@ -114,7 +117,7 @@ export const invitationApi = {
 /* ------------------------------------------------------------------ */
 
 export const auditApi = {
-  list: (params?: { page?: number; size?: number; platformOnly?: boolean; tenantId?: string }) =>
+  list: (params?: { page?: number; size?: number; platformOnly?: boolean; tenantId?: string; search?: string; action?: string; actorRole?: string; sort?: string }) =>
     api.get<PaginatedResponse<AuditEvent>>('/audit', { params }),
 
   getByEntity: (type: string, id: string, params?: { page?: number; size?: number }) =>

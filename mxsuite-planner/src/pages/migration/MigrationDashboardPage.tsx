@@ -5,7 +5,7 @@ import {
   Table, Tag, Typography, Spin, message, Row, Col, Card, Input, Select, Space, Button, Tooltip, Timeline, Modal,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { SearchOutlined, AppstoreOutlined, UnorderedListOutlined, WarningOutlined, ForwardOutlined } from '@ant-design/icons';
+import { DashboardOutlined, SearchOutlined, AppstoreOutlined, UnorderedListOutlined, WarningOutlined, ForwardOutlined } from '@ant-design/icons';
 import type { MigrationProject, MigrationStats, MigrationBlueprint, SlaAlertDto } from '@mxsuite/shared';
 import { migrationApi } from '../../services/migrationApi';
 import type { AuditEventDto } from '../../services/migrationApi';
@@ -127,7 +127,7 @@ export default function MigrationDashboardPage() {
       message.success(`Advanced to ${PHASE_LABELS[PHASE_ORDER[PHASE_ORDER.indexOf(advanceTarget.migrationPhase) + 1]] || 'next phase'}`);
       // Refresh dashboard data
       const [projRes, statsRes] = await Promise.all([
-        migrationApi.listProjects({ page: 0, size: 100 }),
+        migrationApi.listProjects({ page: 0, size: 20 }),
         migrationApi.getStats(),
       ]);
       setProjects(projRes.data.content);
@@ -145,7 +145,7 @@ export default function MigrationDashboardPage() {
     const load = async () => {
       try {
         const [projRes, statsRes, bpRes, activityRes] = await Promise.all([
-          migrationApi.listProjects({ page: 0, size: 100 }),
+          migrationApi.listProjects({ page: 0, size: 20 }),
           migrationApi.getStats(),
           migrationApi.listBlueprints(),
           migrationApi.getRecentActivity({ page: 0, size: 10 }),
@@ -325,15 +325,20 @@ export default function MigrationDashboardPage() {
     <div>
       {/* Header */}
       <div style={{
-        background: 'linear-gradient(135deg, #f3eeff 0%, #ece4fc 100%)',
-        margin: '-24px -24px 20px -24px',
-        padding: '28px 32px 16px 32px',
-        borderBottom: '2px solid #e0d4f5',
+        background: 'linear-gradient(135deg, #2d1854 0%, #1a0e3a 100%)',
+        margin: '-24px -24px 24px -24px',
+        padding: '28px 32px 20px 32px',
+        borderBottom: '3px solid #6b4fa0',
       }}>
-        <Title level={4} style={{ marginBottom: 4, color: '#2d1854' }}>Onboarding Projects</Title>
-        <Text style={{ color: '#6b4fa0' }}>
-          Every migration in flight, its current lifecycle phase, and reconciliation state.
-        </Text>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <DashboardOutlined style={{ fontSize: 24, color: 'rgba(255,255,255,0.7)' }} />
+          <div>
+            <Title level={3} style={{ margin: 0, color: '#fff' }}>Onboarding Projects</Title>
+            <Text style={{ color: 'rgba(255,255,255,0.7)' }}>
+              Every migration in flight, its current lifecycle phase, and reconciliation state.
+            </Text>
+          </div>
+        </div>
       </div>
 
       {/* Summary stats */}
@@ -548,7 +553,7 @@ export default function MigrationDashboardPage() {
           title={
             <Space>
               <WarningOutlined style={{ color: '#fa8c16' }} />
-              <span style={{ color: '#2d1854' }}>Projects Needing Attention</span>
+              <>Projects Needing Attention</>
               <Tag color="orange">{alerts.length}</Tag>
             </Space>
           }
@@ -592,9 +597,8 @@ export default function MigrationDashboardPage() {
       <Row gutter={24} style={{ marginTop: 40 }}>
         <Col xs={24} lg={14}>
           <Card
-            title={<span style={{ color: '#2d1854' }}>Recent Activity</span>}
+            title={<>Recent Activity</>}
             size="small"
-            style={{ borderTop: '3px solid #2d1854', borderColor: '#e0d4f5' }}
             styles={{ header: { fontWeight: 600 } }}
           >
             {recentActivity.length === 0 ? (

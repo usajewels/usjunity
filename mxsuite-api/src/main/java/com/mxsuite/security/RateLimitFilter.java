@@ -27,8 +27,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private static final int SENSITIVE_MAX_ATTEMPTS = 5;
     private static final long SENSITIVE_WINDOW_MS = 60_000;
 
-    // General API: max 100 requests per IP per minute
-    private static final int API_MAX_REQUESTS = 100;
+    // General API: max 300 requests per IP per minute (micro-frontend SPA fires many parallel requests on load)
+    private static final int API_MAX_REQUESTS = 300;
     private static final long API_WINDOW_MS = 60_000;
 
     private final Map<String, RateBucket> loginBuckets = new ConcurrentHashMap<>();

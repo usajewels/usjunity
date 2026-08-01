@@ -136,15 +136,18 @@ export default function CoachPerformancePage() {
     <div>
       {/* Header */}
       <div style={{
-        background: 'linear-gradient(135deg, #f3eeff 0%, #ece4fc 100%)',
-        margin: '-24px -24px 20px -24px',
-        padding: '28px 32px 16px 32px',
-        borderBottom: '2px solid #e0d4f5',
+        background: 'linear-gradient(135deg, #2d1854 0%, #1a0e3a 100%)',
+        margin: '-24px -24px 24px -24px',
+        padding: '28px 32px 20px 32px',
+        borderBottom: '3px solid #6b4fa0',
       }}>
-        <Title level={3} style={{ margin: 0, color: '#2d1854' }}>
-          <TrophyOutlined style={{ marginRight: 8 }} />Coach Performance
-        </Title>
-        <Text style={{ color: '#6b4fa0' }}>Leaderboard and per-coach onboarding metrics</Text>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <TrophyOutlined style={{ fontSize: 24, color: 'rgba(255,255,255,0.7)' }} />
+          <div>
+            <Title level={3} style={{ margin: 0, color: '#fff' }}>Coach Performance</Title>
+            <Text style={{ color: 'rgba(255,255,255,0.7)' }}>Leaderboard and per-coach onboarding metrics</Text>
+          </div>
+        </div>
       </div>
 
       <div style={{ maxWidth: 1200, margin: '0 auto' }}>
@@ -166,7 +169,7 @@ export default function CoachPerformancePage() {
         <Card
           title="Coach Leaderboard"
           size="small"
-          style={{ borderRadius: 12, border: '1px solid #e0d4f5' }}
+          style={{  }}
         >
           <Table
             dataSource={data.coaches}

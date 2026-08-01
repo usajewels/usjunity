@@ -6,7 +6,7 @@ import {
 import {
   ReloadOutlined, PauseOutlined, CaretRightOutlined,
   SearchOutlined, SettingOutlined,
-  ExclamationCircleOutlined,
+  ExclamationCircleOutlined, FileSearchOutlined,
 } from '@ant-design/icons';
 import { usePageTitle } from '@mxsuite/shared';
 import { logApi, type LogEntry, type LoggerInfo } from '../services/api';
@@ -138,23 +138,26 @@ export default function LogViewerPage() {
   return (
     <div>
       <div style={{
-        background: 'linear-gradient(135deg, #f3eeff 0%, #ece4fc 100%)',
-        margin: '-24px -24px 20px -24px',
-        padding: '28px 32px 16px 32px',
-        borderBottom: '2px solid #e0d4f5',
-        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+        background: 'linear-gradient(135deg, #2d1854 0%, #1a0e3a 100%)',
+        margin: '-24px -24px 24px -24px',
+        padding: '28px 32px 20px 32px',
+        borderBottom: '3px solid #6b4fa0',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
       }}>
-        <div>
-          <Title level={4} style={{ margin: 0, color: '#2d1854' }}>System Logs</Title>
-          <Text style={{ color: '#6b4fa0' }}>
-            {fileName} &middot; {formatFileSize(fileSize)} &middot; {entries.length} entries
-          </Text>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <FileSearchOutlined style={{ fontSize: 24, color: 'rgba(255,255,255,0.7)' }} />
+          <div>
+            <Title level={3} style={{ margin: 0, color: '#fff' }}>System Logs</Title>
+            <Text style={{ color: 'rgba(255,255,255,0.7)' }}>
+              {fileName} &middot; {formatFileSize(fileSize)} &middot; {entries.length} entries
+            </Text>
+          </div>
         </div>
         <Space>
           <Button
             icon={<SettingOutlined />}
             onClick={() => { setLoggersVisible(true); fetchLoggers(); }}
-            style={{ borderColor: '#2d1854', color: '#2d1854', background: '#f3eeff' }}
+            style={{ borderColor: '#fff', color: '#fff', background: 'transparent' }}
           >
             Log Levels
           </Button>
@@ -163,7 +166,7 @@ export default function LogViewerPage() {
 
       {/* Controls bar */}
       <ConfigProvider theme={{ token: { colorPrimary: '#2d1854' } }}>
-        <Card size="small" style={{ marginBottom: 16, borderTop: '3px solid #2d1854', border: '1px solid #e0d4f5' }}>
+        <Card size="small" style={{ marginBottom: 16 }}>
           <Row gutter={[12, 12]} align="middle">
             <Col flex="auto">
               <Space wrap>
@@ -269,7 +272,7 @@ export default function LogViewerPage() {
       {/* Log entries */}
       <Card
         size="small"
-        style={{ border: '1px solid #e0d4f5' }}
+        style={{  }}
         bodyStyle={{
           padding: 0,
           maxHeight: 'calc(100vh - 320px)',

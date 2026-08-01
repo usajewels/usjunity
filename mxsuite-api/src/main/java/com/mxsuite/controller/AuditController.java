@@ -7,7 +7,9 @@ import com.mxsuite.security.UserPrincipal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -33,22 +35,32 @@ public class AuditController {
     @GetMapping
     public ResponseEntity<Page<AuditEvent>> list(@AuthenticationPrincipal UserPrincipal principal,
                                                    Pageable pageable,
-                                                   @RequestParam(required = false) Boolean platformOnly) {
+                                                   @RequestParam(required = false) Boolean platformOnly,
+                                                   @RequestParam(required = false) String search,
+                                                   @RequestParam(required = false) String action,
+                                                   @RequestParam(required = false) String actorRole) {
         UUID tenantId = TenantContext.getCurrentTenantId();
         if (tenantId == null) {
             log.warn("Audit query attempted with no tenant context by user {}", principal.email());
             return ResponseEntity.badRequest().build();
         }
 
-        if (Boolean.TRUE.equals(platformOnly)) {
-            if (!principal.isPlatformUser()) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-            }
-            return ResponseEntity.ok(
-                    repository.findByTenantIdAndPlatformActionOrderByTimestampDesc(tenantId, true, pageable));
+        if (Boolean.TRUE.equals(platformOnly) && !principal.isPlatformUser()) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
+
+        // Default sort by timestamp desc if no sort specified
+        if (pageable.getSort().isUnsorted()) {
+            pageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by(Sort.Direction.DESC, "timestamp"));
+        }
+
+        Boolean platformFilter = Boolean.TRUE.equals(platformOnly) ? true : null;
+        String searchTrim = (search != null && !search.isBlank()) ? search.trim() : null;
+        String actionTrim = (action != null && !action.isBlank()) ? action.trim() : null;
+        String roleTrim = (actorRole != null && !actorRole.isBlank()) ? actorRole.trim() : null;
+
         return ResponseEntity.ok(
-                repository.findByTenantIdOrderByTimestampDesc(tenantId, pageable));
+                repository.findFiltered(tenantId, platformFilter, actionTrim, roleTrim, searchTrim, pageable));
     }
 
     @GetMapping("/entity/{entityType}/{entityId}")

@@ -36,8 +36,8 @@ const DEFAULT_THEME = {
 };
 
 function AdminGuard() {
-  const { isPlatformAdmin } = useAuth();
-  if (!isPlatformAdmin) return <Navigate to="/" replace />;
+  const { isPlatformUser } = useAuth();
+  if (!isPlatformUser) return <Navigate to="/" replace />;
   return <RemoteModuleLoader module={AdminApp} fallbackTitle="Admin module" />;
 }
 

@@ -5,13 +5,14 @@ import {
 } from 'antd';
 import {
   PlusOutlined, EyeOutlined, SearchOutlined,
-  CheckCircleOutlined, CloseCircleOutlined, EditOutlined,
-  UserOutlined, TeamOutlined,
+  CheckCircleOutlined, CloseCircleOutlined, EditOutlined, DeleteOutlined,
+  UserOutlined, TeamOutlined, BankOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { usePageTitle } from '@mxsuite/shared';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import { tenantApi, assignmentApi, type Tenant, type CoachDto } from '../services/api';
+import AlphaBar from '../components/AlphaBar';
 
 const { Title, Text } = Typography;
 
@@ -24,6 +25,9 @@ export default function TenantListPage() {
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(20);
   const [search, setSearch] = useState('');
+  const [letter, setLetter] = useState<string | null>(() => {
+    return localStorage.getItem('mxsuite:tenants:letter') || null;
+  });
 
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [createForm] = Form.useForm();
@@ -37,14 +41,17 @@ export default function TenantListPage() {
   const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
 
   const navigate = useNavigate();
-  const isDevLogin = localStorage.getItem('mxsuite_dev_login') === 'true';
 
   /* ---- fetch ---- */
   const fetchTenants = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     try {
-      const params: Record<string, unknown> = { page, size: pageSize };
-      if (search.trim()) params.search = search.trim();
+      const params: Record<string, unknown> = { page, size: pageSize, tenantType: 'CUSTOMER' };
+      if (search.trim()) {
+        params.search = search.trim();
+      } else if (letter) {
+        params.letter = letter;
+      }
       const { data } = await tenantApi.list(params as any);
       if (!signal?.aborted) {
         setTenants(data.content || []);
@@ -55,7 +62,7 @@ export default function TenantListPage() {
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
-  }, [page, pageSize, search]);
+  }, [page, pageSize, search, letter]);
 
   useEffect(() => {
     const ac = new AbortController();
@@ -80,23 +87,8 @@ export default function TenantListPage() {
   const handleCreate = async (values: any) => {
     setCreating(true);
     try {
-      const coachIds = values.coachIds ?? [];
-      if (values.ownerEmail) {
-        await tenantApi.createWithOwner({
-          name: values.name,
-          slug: values.slug,
-          ownerEmail: values.ownerEmail,
-          ownerFirstName: values.ownerFirstName,
-          ownerLastName: values.ownerLastName,
-          coachIds,
-        });
-        message.success(isDevLogin
-          ? `Organization created — owner ${values.ownerEmail} ready (password: Admin123!)`
-          : 'Organization created — invitation sent to ' + values.ownerEmail);
-      } else {
-        await tenantApi.create({ name: values.name, slug: values.slug, coachIds });
-        message.success('Organization created');
-      }
+      await tenantApi.create({ name: values.name, slug: values.slug, coachIds: values.coachIds ?? [] });
+      message.success('Organization created');
       setCreateModalOpen(false);
       createForm.resetFields();
       fetchTenants();
@@ -147,6 +139,27 @@ export default function TenantListPage() {
     }
   };
 
+  /* ---- delete ---- */
+  const [deleteTarget, setDeleteTarget] = useState<Tenant | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await tenantApi.delete(deleteTarget.id);
+      message.success(`${deleteTarget.name} deleted`);
+      setDeleteTarget(null);
+      setDeleteConfirmText('');
+      fetchTenants();
+    } catch (err: any) {
+      message.error(err?.response?.data?.message || 'Failed to delete organization');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   /* ---- toggle active ---- */
   const handleToggleActive = async (tenant: Tenant) => {
     try {
@@ -167,6 +180,16 @@ export default function TenantListPage() {
   const handleSearch = (value: string) => {
     setSearch(value);
     setPage(0);
+  };
+
+  const handleLetterChange = (l: string | null) => {
+    setLetter(l);
+    setPage(0);
+    if (l) {
+      localStorage.setItem('mxsuite:tenants:letter', l);
+    } else {
+      localStorage.removeItem('mxsuite:tenants:letter');
+    }
   };
 
   /* ---- columns ---- */
@@ -262,14 +285,23 @@ export default function TenantListPage() {
               onClick={() => navigate(`/admin/tenants/${record.id}`)}
             />
           </Tooltip>
-          <Tooltip title="Edit organization">
-            <Button
-              type="text"
-              size="small"
-              icon={<EditOutlined />}
-              onClick={() => openEdit(record)}
-            />
-          </Tooltip>
+          {record.tenantType !== 'PLATFORM' && (
+            <Tooltip title="Edit organization">
+              <Button
+                type="text"
+                size="small"
+                icon={<EditOutlined />}
+                onClick={() => openEdit(record)}
+              />
+            </Tooltip>
+          )}
+          {record.tenantType !== 'PLATFORM' && (
+            <Tooltip title="Delete organization">
+              <Button type="text" size="small" icon={<DeleteOutlined />} danger
+                onClick={() => { setDeleteTarget(record); setDeleteConfirmText(''); }}
+              />
+            </Tooltip>
+          )}
         </Space>
       ),
     },
@@ -280,33 +312,38 @@ export default function TenantListPage() {
     <div>
       {/* Header */}
       <div style={{
-        background: 'linear-gradient(135deg, #f3eeff 0%, #ece4fc 100%)',
-        margin: '-24px -24px 20px -24px',
-        padding: '28px 32px 16px 32px',
-        borderBottom: '2px solid #e0d4f5',
+        background: 'linear-gradient(135deg, #2d1854 0%, #1a0e3a 100%)',
+        margin: '-24px -24px 24px -24px',
+        padding: '28px 32px 20px 32px',
+        borderBottom: '3px solid #6b4fa0',
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
       }}>
-        <div>
-          <Title level={3} style={{ margin: 0, color: '#2d1854' }}>Organizations</Title>
-          <Text style={{ color: '#6b4fa0' }}>Manage customer organizations on the platform</Text>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <BankOutlined style={{ fontSize: 24, color: 'rgba(255,255,255,0.7)' }} />
+          <div>
+            <Title level={3} style={{ margin: 0, color: '#fff' }}>Organizations</Title>
+            <Text style={{ color: 'rgba(255,255,255,0.7)' }}>Manage customer organizations on the platform</Text>
+          </div>
         </div>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          size="large"
-          onClick={() => { setCreateModalOpen(true); loadCoaches(); }}
-          style={{ background: '#2d1854', borderColor: '#2d1854' }}
-        >
-          New Organization
-        </Button>
+        <Space>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            size="large"
+            onClick={() => { setCreateModalOpen(true); loadCoaches(); }}
+            style={{ borderColor: '#fff', color: '#fff', background: 'transparent' }}
+          >
+            New Organization
+          </Button>
+        </Space>
       </div>
     <div style={{ maxWidth: 1200, margin: '0 auto' }}>
       {/* Search + Table card */}
       <Card
-        style={{ borderRadius: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', borderTop: '3px solid #2d1854', border: '1px solid #e0d4f5', borderTopWidth: 3, borderTopColor: '#2d1854' }}
+        style={{}}
       >
         <ConfigProvider theme={{ token: { colorPrimary: '#2d1854' } }}>
-        <div style={{ marginBottom: 20 }}>
+        <div style={{ marginBottom: 12 }}>
             <Input.Search
               placeholder="Search organizations by name or slug..."
               allowClear
@@ -317,12 +354,24 @@ export default function TenantListPage() {
             />
         </div>
 
+        <AlphaBar activeLetter={search ? null : letter} onChange={handleLetterChange} disabled={!!search} />
+
+        <div style={{ margin: '8px 0', fontSize: 13, color: '#8c8c8c' }}>
+          {total} organization{total !== 1 ? 's' : ''}
+          {letter && !search ? ` starting with "${letter}"` : ''}
+          {search ? ` matching "${search}"` : ''}
+        </div>
+
         <Table<Tenant>
           columns={columns}
           dataSource={tenants}
           loading={loading}
           rowKey="id"
           onChange={handleTableChange}
+          onRow={(record) => ({
+            onDoubleClick: () => navigate(`/admin/tenants/${record.id}`),
+            style: { cursor: 'pointer' },
+          })}
           pagination={{
             current: page + 1,
             pageSize,
@@ -375,7 +424,7 @@ export default function TenantListPage() {
           <Form.Item
             name="coachIds"
             label={<Space><TeamOutlined /> Assign Coaches</Space>}
-            extra="Coaches can view and edit this org's onboarding project. You can also manage this later."
+            extra="Assign a primary coach for this organization. All coach admins have access by default."
           >
             <Select
               mode="multiple"
@@ -388,36 +437,6 @@ export default function TenantListPage() {
               }))}
             />
           </Form.Item>
-
-          <Divider style={{ borderColor: '#e0d4f5' }}><Space><UserOutlined /> Admin User (Owner)</Space></Divider>
-          {isDevLogin ? (
-            <Alert
-              type="info"
-              showIcon
-              style={{ marginBottom: 16, background: '#f3eeff', borderColor: '#e0d4f5' }}
-              message="Dev mode: Owner will be created directly with password Admin123! — no email sent."
-            />
-          ) : (
-            <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
-              Invite an admin user to manage this organization. They will receive an email to set up their account. Leave blank to add users later.
-            </Text>
-          )}
-
-          <Form.Item
-            name="ownerEmail"
-            label="Email"
-            rules={[{ type: 'email', message: 'Please enter a valid email' }]}
-          >
-            <Input placeholder="admin@denverchamber.org" />
-          </Form.Item>
-          <Space style={{ width: '100%' }} size="middle">
-            <Form.Item name="ownerFirstName" label="First Name" style={{ flex: 1 }}>
-              <Input placeholder="John" />
-            </Form.Item>
-            <Form.Item name="ownerLastName" label="Last Name" style={{ flex: 1 }}>
-              <Input placeholder="Smith" />
-            </Form.Item>
-          </Space>
         </Form>
       </Modal>
 
@@ -461,6 +480,32 @@ export default function TenantListPage() {
             </Form.Item>
           )}
         </Form>
+      </Modal>
+      {/* Delete confirmation modal */}
+      <Modal
+        open={!!deleteTarget}
+        title="Delete Organization"
+        okText="Delete permanently"
+        okButtonProps={{ danger: true, disabled: deleteConfirmText !== deleteTarget?.name }}
+        confirmLoading={deleting}
+        onOk={handleDelete}
+        onCancel={() => { setDeleteTarget(null); setDeleteConfirmText(''); }}
+      >
+        <Alert
+          type="error"
+          showIcon
+          message="This action cannot be undone"
+          description="All users, projects, mappings, uploaded data, and activity history for this organization will be permanently deleted."
+          style={{ marginBottom: 16 }}
+        />
+        <p>
+          To confirm, type <strong>{deleteTarget?.name}</strong> below:
+        </p>
+        <Input
+          value={deleteConfirmText}
+          onChange={(e) => setDeleteConfirmText(e.target.value)}
+          placeholder={deleteTarget?.name}
+        />
       </Modal>
     </div>
     </div>

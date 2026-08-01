@@ -45,8 +45,13 @@ public class TeamController {
 
     @GetMapping
     public Page<TeamMemberResponse> list(@AuthenticationPrincipal UserPrincipal principal,
-                                          Pageable pageable) {
+                                          Pageable pageable,
+                                          @RequestParam(required = false) String search) {
         UUID tenantId = TenantContext.getCurrentTenantId();
+        if (search != null && !search.isBlank()) {
+            return userRepository.findByTenantIdAndSearch(tenantId, search.trim(), pageable)
+                    .map(this::toResponse);
+        }
         return userRepository.findByTenantId(tenantId, pageable).map(this::toResponse);
     }
 

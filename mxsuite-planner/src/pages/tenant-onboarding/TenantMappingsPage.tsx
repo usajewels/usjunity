@@ -8,7 +8,7 @@ import {
 import type { TableRowSelection } from 'antd/es/table/interface';
 import {
   ApartmentOutlined, CheckCircleOutlined, ClockCircleOutlined, DownOutlined, ExclamationCircleOutlined,
-  RightOutlined, StopOutlined, ThunderboltOutlined, SearchOutlined,
+  RightOutlined, StopOutlined, SwapOutlined, ThunderboltOutlined, SearchOutlined,
   CheckOutlined, PlusOutlined, HistoryOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
@@ -863,15 +863,20 @@ export default function TenantMappingsPage() {
     <div>
       {/* Page header with purple tint */}
       <div style={{
-        background: 'linear-gradient(135deg, #f3eeff 0%, #ece4fc 100%)',
-        margin: '-24px -24px 20px -24px',
-        padding: '28px 32px 16px 32px',
-        borderBottom: '2px solid #e0d4f5',
+        background: 'linear-gradient(135deg, #2d1854 0%, #1a0e3a 100%)',
+        margin: '-24px -24px 24px -24px',
+        padding: '28px 32px 20px 32px',
+        borderBottom: '3px solid #6b4fa0',
       }}>
-        <Title level={4} style={{ marginBottom: 4, color: '#2d1854' }}>Field Mappings</Title>
-        <Text style={{ color: '#6b4fa0' }}>
-          Match your data columns to GrowthZone fields. Required fields must be mapped before we can import your data.
-        </Text>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <SwapOutlined style={{ fontSize: 24, color: 'rgba(255,255,255,0.7)' }} />
+          <div>
+            <Title level={3} style={{ margin: 0, color: '#fff' }}>Field Mappings</Title>
+            <Text style={{ color: 'rgba(255,255,255,0.7)' }}>
+              Match your data columns to GrowthZone fields. Required fields must be mapped before we can import your data.
+            </Text>
+          </div>
+        </div>
       </div>
 
       {/* Entity Scope Panel (read-only for tenants) */}
@@ -884,7 +889,7 @@ export default function TenantMappingsPage() {
 
       {/* Schema coverage summary bar */}
       {gzFields.length > 0 && (
-        <Card size="small" style={{ marginBottom: unmappedRequired.length > 0 ? 8 : 16, borderColor: '#e0d4f5', borderTop: '3px solid #2d1854' }}>
+        <Card size="small" style={{ marginBottom: unmappedRequired.length > 0 ? 8 : 16 }}>
           {(() => {
             const totalMapped = entityCoverage.reduce((s, e) => s + e.mapped, 0);
             const totalFields = entityCoverage.reduce((s, e) => s + e.total, 0);
@@ -1274,7 +1279,7 @@ export default function TenantMappingsPage() {
               size="small"
               style={{
                 height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                borderColor: '#e0d4f5', borderTop: '3px solid #6b4fa0',
+                borderTop: '3px solid #6b4fa0',
               }}
               styles={{ body: { textAlign: 'center' } }}
             >
@@ -1285,9 +1290,7 @@ export default function TenantMappingsPage() {
           ) : (
             <Card
               size="small"
-              style={{ borderColor: '#e0d4f5', borderTop: '3px solid #2d1854' }}
               styles={{
-                header: { background: '#f3eeff', borderBottom: '1px solid #e0d4f5', padding: '14px 16px' },
                 body: { padding: '16px', maxHeight: 'calc(100vh - 160px)', overflowY: 'auto' },
               }}
               title={

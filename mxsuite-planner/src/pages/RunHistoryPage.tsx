@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Table, Tag, Typography, Button, Space, Progress, Card, Descriptions, Modal, Spin } from 'antd';
-import { ArrowLeftOutlined, CheckCircleOutlined, CloseCircleOutlined, LoadingOutlined, ClockCircleOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, CheckCircleOutlined, CloseCircleOutlined, HistoryOutlined, LoadingOutlined, ClockCircleOutlined } from '@ant-design/icons';
 import { usePageTitle } from '@mxsuite/shared';
 import { planApi } from '../services/api';
 
@@ -55,10 +55,24 @@ export default function RunHistoryPage() {
 
   return (
     <div>
-      <Space style={{ marginBottom: 24 }}>
-        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/plans')}>Back</Button>
-        <Title level={4} style={{ margin: 0 }}>Run History</Title>
-      </Space>
+      <div style={{
+        background: 'linear-gradient(135deg, #2d1854 0%, #1a0e3a 100%)',
+        margin: '-24px -24px 24px -24px',
+        padding: '28px 32px 20px 32px',
+        borderBottom: '3px solid #6b4fa0',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <HistoryOutlined style={{ fontSize: 24, color: 'rgba(255,255,255,0.7)' }} />
+          <div>
+            <Title level={3} style={{ margin: 0, color: '#fff' }}>Run History</Title>
+            <Text style={{ color: 'rgba(255,255,255,0.7)' }}>View past plan executions and their results.</Text>
+          </div>
+        </div>
+        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/plans')} style={{ borderColor: '#fff', color: '#fff', background: 'transparent' }}>Back</Button>
+      </div>
 
       <Table columns={columns} dataSource={runs} loading={loading} rowKey="id"
         onRow={(record) => ({ onClick: () => setSelectedRun(record), style: { cursor: 'pointer' } })} />

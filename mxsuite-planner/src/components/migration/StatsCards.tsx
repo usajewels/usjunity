@@ -21,7 +21,7 @@ export default function StatsCards({ stats, loading, alertCount }: Props) {
   return (
     <Row gutter={16} style={{ marginBottom: 24 }}>
       <Col {...colSpan}>
-        <Card size="small" loading={loading} style={{ borderTop: '3px solid #2d1854', borderColor: '#e0d4f5' }}>
+        <Card size="small" loading={loading}>
           <Statistic
             title="Active Migrations"
             value={stats.activeMigrations}
@@ -31,7 +31,7 @@ export default function StatsCards({ stats, loading, alertCount }: Props) {
         </Card>
       </Col>
       <Col {...colSpan}>
-        <Card size="small" loading={loading} style={{ borderTop: '3px solid #2d1854', borderColor: '#e0d4f5' }}>
+        <Card size="small" loading={loading}>
           <Statistic
             title="Gates Awaiting Approval"
             value={stats.gatesAwaitingApproval}
@@ -41,7 +41,7 @@ export default function StatsCards({ stats, loading, alertCount }: Props) {
         </Card>
       </Col>
       <Col {...colSpan}>
-        <Card size="small" loading={loading} style={{ borderTop: '3px solid #2d1854', borderColor: '#e0d4f5' }}>
+        <Card size="small" loading={loading}>
           <Statistic
             title="Avg Cycle Time"
             value={stats.avgCycleTimeDays}
@@ -53,7 +53,7 @@ export default function StatsCards({ stats, loading, alertCount }: Props) {
         </Card>
       </Col>
       <Col {...colSpan}>
-        <Card size="small" loading={loading} style={{ borderTop: '3px solid #2d1854', borderColor: '#e0d4f5' }}>
+        <Card size="small" loading={loading}>
           <Statistic
             title="Reconciliation Pass Rate"
             value={stats.reconciliationPassRate}

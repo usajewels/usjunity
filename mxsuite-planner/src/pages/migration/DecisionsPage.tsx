@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Table, Tag, Tabs, Typography, Spin, Button, Divider, List, Modal, Input, Select, Checkbox, Space, message } from 'antd';
-import { CheckCircleOutlined, CloseCircleOutlined, RobotOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons';
+import { BulbOutlined, CheckCircleOutlined, CloseCircleOutlined, RobotOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import type { SemanticDecisionDto, DecisionStatsDto, DecisionStatus } from '@mxsuite/shared';
 import { usePageTitle } from '@mxsuite/shared';
@@ -123,7 +123,7 @@ export default function DecisionsPage() {
     setCreateOpen(true);
     if (projects.length === 0) {
       try {
-        const projectsRes = await migrationApi.listProjects({ page: 0, size: 200 });
+        const projectsRes = await migrationApi.listProjects({ page: 0, size: 50 });
         setProjects(projectsRes.data.content.map((p: any) => ({
           id: p.id, name: p.name, tenantId: p.tenantId, tenantName: p.tenantName,
         })));
@@ -219,41 +219,44 @@ export default function DecisionsPage() {
     },
   ];
 
-  if (loading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}>
-        <Spin tip="Loading decisions..." />
-      </div>
-    );
-  }
-
   return (
-    <div style={{ display: 'flex', height: 'calc(100vh - 200px)' }}>
-      {/* Main table */}
-      <div style={{ flex: 1, overflow: 'auto' }}>
-        <div style={{
-          background: 'linear-gradient(135deg, #f3eeff 0%, #ece4fc 100%)',
-          margin: '-24px -24px 16px -24px',
-          padding: '28px 32px 16px 32px',
-          borderBottom: '2px solid #e0d4f5',
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
-              <Title level={4} style={{ marginBottom: 4, color: '#2d1854' }}>Semantic decisions</Title>
-              <Text style={{ fontSize: 12, color: '#6b4fa0' }}>
-                Every open semantic decision across all projects. Each item carries a description, its options, an owner and a status.
-              </Text>
-            </div>
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={openCreateModal}
-              style={{ background: '#2d1854', borderColor: '#2d1854', color: '#fff' }}
-            >
-              New Decision
-            </Button>
+    <div>
+      <div style={{
+        background: 'linear-gradient(135deg, #2d1854 0%, #1a0e3a 100%)',
+        margin: '-24px -24px 24px -24px',
+        padding: '28px 32px 20px 32px',
+        borderBottom: '3px solid #6b4fa0',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <BulbOutlined style={{ fontSize: 24, color: 'rgba(255,255,255,0.7)' }} />
+          <div>
+            <Title level={3} style={{ margin: 0, color: '#fff' }}>Semantic decisions</Title>
+            <Text style={{ color: 'rgba(255,255,255,0.7)' }}>
+              Every open semantic decision across all projects. Each item carries a description, its options, an owner and a status.
+            </Text>
           </div>
         </div>
+        <Button
+          type="primary"
+          icon={<PlusOutlined />}
+          onClick={openCreateModal}
+          style={{ borderColor: '#fff', color: '#fff', background: 'transparent' }}
+        >
+          New Decision
+        </Button>
+      </div>
+
+      {loading ? (
+        <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}>
+          <Spin tip="Loading decisions..." />
+        </div>
+      ) : (
+      <div style={{ display: 'flex', height: 'calc(100vh - 200px)' }}>
+      {/* Main table */}
+      <div style={{ flex: 1, overflow: 'auto' }}>
 
         <Tabs
           activeKey={activeTab}
@@ -389,6 +392,9 @@ export default function DecisionsPage() {
             </Tag>
           )}
         </div>
+      )}
+
+      </div>
       )}
 
       {/* Create Decision Modal */}

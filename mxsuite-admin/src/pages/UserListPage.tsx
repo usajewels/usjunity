@@ -1,15 +1,18 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Table, Button, Tag, Typography, Modal, Form, Input, Select, ConfigProvider,
-  Card, Space, Switch, Tooltip, Popconfirm, message,
+  Card, Space, Switch, Tooltip, Popconfirm, message, Spin,
 } from 'antd';
 import {
-  PlusOutlined, SearchOutlined, EditOutlined,
+  PlusOutlined, SearchOutlined, EditOutlined, DeleteOutlined,
   CheckCircleOutlined, CloseCircleOutlined, UserOutlined,
+  SafetyCertificateOutlined, TeamOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import { usePageTitle } from '@mxsuite/shared';
+import { useSearchParams } from 'react-router-dom';
 import { userApi, tenantApi, type UserResponse, type Tenant } from '../services/api';
+import AlphaBar from '../components/AlphaBar';
 
 const { Title, Text } = Typography;
 
@@ -47,6 +50,7 @@ const ROLE_OPTIONS = [
 
 export default function UserListPage() {
   usePageTitle('Users');
+  const [searchParams, setSearchParams] = useSearchParams();
   /* ---- state ---- */
   const [users, setUsers] = useState<UserResponse[]>([] as UserResponse[]);
   const [tenants, setTenants] = useState<Tenant[]>([] as Tenant[]);
@@ -55,7 +59,11 @@ export default function UserListPage() {
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(20);
   const [tenantFilter, setTenantFilter] = useState<string | undefined>(undefined);
+  const [roleFilter, setRoleFilter] = useState<string | undefined>(() => searchParams.get('role') || undefined);
   const [searchText, setSearchText] = useState('');
+  const [letter, setLetter] = useState<string | null>(() => {
+    return localStorage.getItem('mxsuite:users:letter') || null;
+  });
 
   /* ---- create modal ---- */
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -79,6 +87,12 @@ export default function UserListPage() {
     try {
       const params: Record<string, unknown> = { page, size: pageSize };
       if (tenantFilter) params.tenantId = tenantFilter;
+      if (roleFilter) params.role = roleFilter;
+      if (searchText.trim()) {
+        params.search = searchText.trim();
+      } else if (letter) {
+        params.letter = letter;
+      }
       const { data } = await userApi.list(params as any);
       if (!signal?.aborted) {
         setUsers((data.content ?? []) as UserResponse[]);
@@ -89,20 +103,33 @@ export default function UserListPage() {
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
-  }, [page, pageSize, tenantFilter]);
+  }, [page, pageSize, tenantFilter, roleFilter, searchText, letter]);
 
-  const fetchTenants = useCallback(async (signal?: AbortSignal) => {
+  const [tenantSearching, setTenantSearching] = useState(false);
+  const tenantSearchTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  const fetchTenants = useCallback(async (search?: string, signal?: AbortSignal) => {
+    setTenantSearching(true);
     try {
-      const { data } = await tenantApi.list({ page: 0, size: 200 });
+      const params: Record<string, unknown> = { page: 0, size: 50 };
+      if (search?.trim()) params.search = search.trim();
+      const { data } = await tenantApi.list(params as any);
       if (!signal?.aborted) setTenants((data.content ?? []) as Tenant[]);
     } catch {
-      /* silently fail -- tenant filter just won't be populated */
+      /* silently fail */
+    } finally {
+      if (!signal?.aborted) setTenantSearching(false);
     }
   }, []);
 
+  const handleTenantSearch = (value: string) => {
+    clearTimeout(tenantSearchTimer.current);
+    tenantSearchTimer.current = setTimeout(() => fetchTenants(value), 300);
+  };
+
   useEffect(() => {
     const ac = new AbortController();
-    fetchTenants(ac.signal);
+    fetchTenants(undefined, ac.signal);
     return () => ac.abort();
   }, [fetchTenants]);
   useEffect(() => {
@@ -176,10 +203,31 @@ export default function UserListPage() {
     }
   };
 
+  /* ---- delete ---- */
+  const handleDelete = async (user: UserResponse) => {
+    try {
+      await userApi.delete(user.id);
+      message.success(`${user.firstName} ${user.lastName} deleted`);
+      fetchUsers();
+    } catch (err: any) {
+      message.error(err?.response?.data?.message || 'Failed to delete user');
+    }
+  };
+
   /* ---- pagination ---- */
   const handleTableChange = (pagination: TablePaginationConfig) => {
     setPage((pagination.current ?? 1) - 1);
     setPageSize(pagination.pageSize ?? 20);
+  };
+
+  const handleLetterChange = (l: string | null) => {
+    setLetter(l);
+    setPage(0);
+    if (l) {
+      localStorage.setItem('mxsuite:users:letter', l);
+    } else {
+      localStorage.removeItem('mxsuite:users:letter');
+    }
   };
 
   /* ---- filter by tenant ---- */
@@ -188,17 +236,19 @@ export default function UserListPage() {
     setPage(0);
   };
 
-  /* ---- client-side search filter ---- */
-  const filteredUsers = searchText.trim()
-    ? users.filter((u) => {
-        const term = searchText.toLowerCase();
-        return (
-          u.firstName.toLowerCase().includes(term) ||
-          u.lastName.toLowerCase().includes(term) ||
-          u.email.toLowerCase().includes(term)
-        );
-      })
-    : users;
+  /* ---- filter by role ---- */
+  const handleRoleFilterChange = (value: string | undefined) => {
+    setRoleFilter(value || undefined);
+    setPage(0);
+    if (value) {
+      searchParams.set('role', value);
+    } else {
+      searchParams.delete('role');
+    }
+    setSearchParams(searchParams, { replace: true });
+  };
+
+  const filteredUsers = users;
 
   /* ---- columns ---- */
   const columns: ColumnsType<UserResponse> = [
@@ -245,8 +295,6 @@ export default function UserListPage() {
       dataIndex: 'role',
       key: 'role',
       width: 160,
-      filters: ROLE_OPTIONS.map((r) => ({ text: r.label, value: r.value })),
-      onFilter: (value, record) => record.role === value,
       render: (role: string) => (
         <Tag style={ROLE_STYLES[role] || { backgroundColor: '#f5f5f5', color: '#8c8c8c', borderColor: '#d9d9d9' }}>
           {ROLE_LABELS[role] || role}
@@ -300,17 +348,31 @@ export default function UserListPage() {
     {
       title: 'Actions',
       key: 'actions',
-      width: 80,
+      width: 120,
       align: 'center',
       render: (_, record) => (
-        <Tooltip title="Edit user">
-          <Button
-            type="text"
-            size="small"
-            icon={<EditOutlined />}
-            onClick={() => openEdit(record)}
-          />
-        </Tooltip>
+        <Space size="small">
+          <Tooltip title="Edit user">
+            <Button
+              type="text"
+              size="small"
+              icon={<EditOutlined />}
+              onClick={() => openEdit(record)}
+            />
+          </Tooltip>
+          <Popconfirm
+            title="Delete this user?"
+            description="This user and all their data will be permanently deleted. This cannot be undone."
+            onConfirm={() => handleDelete(record)}
+            okText="Delete"
+            okButtonProps={{ danger: true }}
+            cancelText="Cancel"
+          >
+            <Tooltip title="Delete user">
+              <Button type="text" size="small" icon={<DeleteOutlined />} danger />
+            </Tooltip>
+          </Popconfirm>
+        </Space>
       ),
     },
   ];
@@ -320,22 +382,25 @@ export default function UserListPage() {
     <div>
       {/* Header */}
       <div style={{
-        background: 'linear-gradient(135deg, #f3eeff 0%, #ece4fc 100%)',
-        margin: '-24px -24px 20px -24px',
-        padding: '28px 32px 16px 32px',
-        borderBottom: '2px solid #e0d4f5',
+        background: 'linear-gradient(135deg, #2d1854 0%, #1a0e3a 100%)',
+        margin: '-24px -24px 24px -24px',
+        padding: '28px 32px 20px 32px',
+        borderBottom: '3px solid #6b4fa0',
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
       }}>
-        <div>
-          <Title level={3} style={{ margin: 0, color: '#2d1854' }}>Users</Title>
-          <Text style={{ color: '#6b4fa0' }}>Manage platform and tenant users</Text>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <TeamOutlined style={{ fontSize: 24, color: 'rgba(255,255,255,0.7)' }} />
+          <div>
+            <Title level={3} style={{ margin: 0, color: '#fff' }}>Users</Title>
+            <Text style={{ color: 'rgba(255,255,255,0.7)' }}>Manage platform and tenant users</Text>
+          </div>
         </div>
         <Button
           type="primary"
           icon={<PlusOutlined />}
           size="large"
           onClick={() => setCreateModalOpen(true)}
-          style={{ background: '#2d1854', borderColor: '#2d1854' }}
+          style={{ borderColor: '#fff', color: '#fff', background: 'transparent' }}
         >
           New User
         </Button>
@@ -343,15 +408,15 @@ export default function UserListPage() {
     <div style={{ maxWidth: 1200, margin: '0 auto' }}>
       {/* Filters + Table */}
       <Card
-        style={{ borderRadius: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', borderTop: '3px solid #2d1854', border: '1px solid #e0d4f5', borderTopWidth: 3, borderTopColor: '#2d1854' }}
+        style={{}}
       >
         <ConfigProvider theme={{ token: { colorPrimary: '#2d1854' } }}>
           <Space wrap size="middle" style={{ marginBottom: 20, width: '100%' }}>
             <Input.Search
               placeholder="Search by name or email..."
               allowClear
-              onSearch={setSearchText}
-              onChange={(e) => { if (!e.target.value) setSearchText(''); }}
+              onSearch={(v) => { setSearchText(v); setPage(0); }}
+              onChange={(e) => { if (!e.target.value) { setSearchText(''); setPage(0); } }}
               style={{ width: 320 }}
               prefix={<SearchOutlined style={{ color: '#6b4fa0' }} />}
               size="large"
@@ -364,11 +429,31 @@ export default function UserListPage() {
               value={tenantFilter}
               onChange={handleTenantFilterChange}
               showSearch
-              optionFilterProp="label"
+              filterOption={false}
+              onSearch={handleTenantSearch}
+              notFoundContent={tenantSearching ? <Spin size="small" /> : null}
               options={tenants.map((t) => ({ value: t.id, label: t.name }))}
               suffixIcon={<UserOutlined style={{ color: '#6b4fa0' }} />}
             />
+            <Select
+              placeholder="Filter by role"
+              allowClear
+              style={{ minWidth: 200 }}
+              size="large"
+              value={roleFilter}
+              onChange={handleRoleFilterChange}
+              options={ROLE_OPTIONS}
+              suffixIcon={<SafetyCertificateOutlined style={{ color: '#6b4fa0' }} />}
+            />
           </Space>
+
+        <AlphaBar activeLetter={searchText ? null : letter} onChange={handleLetterChange} disabled={!!searchText} />
+
+        <div style={{ margin: '8px 0', fontSize: 13, color: '#8c8c8c' }}>
+          {total} user{total !== 1 ? 's' : ''}
+          {letter && !searchText ? ` starting with "${letter}"` : ''}
+          {searchText ? ` matching "${searchText}"` : ''}
+        </div>
 
         <Table<UserResponse>
           columns={columns}
@@ -376,10 +461,14 @@ export default function UserListPage() {
           loading={loading}
           rowKey="id"
           onChange={handleTableChange}
+          onRow={(record) => ({
+            onDoubleClick: () => openEdit(record),
+            style: { cursor: 'pointer' },
+          })}
           pagination={{
             current: page + 1,
             pageSize,
-            total: searchText.trim() ? filteredUsers.length : total,
+            total,
             showSizeChanger: true,
             pageSizeOptions: ['10', '20', '50'],
             showTotal: (t, range) => `${range[0]}-${range[1]} of ${t} users`,
@@ -473,9 +562,11 @@ export default function UserListPage() {
               style={{ flex: 1 }}
             >
               <Select
-                placeholder="Select tenant"
+                placeholder="Select organization"
                 showSearch
-                optionFilterProp="label"
+                filterOption={false}
+                onSearch={handleTenantSearch}
+                notFoundContent={tenantSearching ? <Spin size="small" /> : null}
                 disabled={isPlatformRole}
                 options={tenants
                   .filter((t) => !isPlatformRole || t.tenantType === 'PLATFORM')

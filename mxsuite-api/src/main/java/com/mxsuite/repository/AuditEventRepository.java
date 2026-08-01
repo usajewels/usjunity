@@ -4,6 +4,8 @@ import com.mxsuite.model.AuditEvent;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
@@ -23,4 +25,18 @@ public interface AuditEventRepository extends JpaRepository<AuditEvent, UUID> {
 
     long countByTimestampAfter(Instant since);
     long countByTimestampBetween(Instant from, Instant to);
+
+    @Query("SELECT e FROM AuditEvent e WHERE e.tenantId = :tenantId " +
+           "AND (:platformOnly IS NULL OR e.platformAction = :platformOnly) " +
+           "AND (:action IS NULL OR e.action = :action) " +
+           "AND (:actorRole IS NULL OR e.actorRole = :actorRole) " +
+           "AND (:search IS NULL OR LOWER(e.actorName) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')) " +
+           "     OR LOWER(e.entityName) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')) " +
+           "     OR LOWER(e.action) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))")
+    Page<AuditEvent> findFiltered(@Param("tenantId") UUID tenantId,
+                                   @Param("platformOnly") Boolean platformOnly,
+                                   @Param("action") String action,
+                                   @Param("actorRole") String actorRole,
+                                   @Param("search") String search,
+                                   Pageable pageable);
 }

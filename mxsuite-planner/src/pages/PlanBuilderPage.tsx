@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, Row, Col, Typography, Button, Space, Tag, Spin, Divider, message, Modal,
   Input, Select, List, Empty, Popconfirm } from 'antd';
-import { ArrowLeftOutlined, SaveOutlined, ThunderboltOutlined, LinkOutlined,
+import { ArrowLeftOutlined, SaveOutlined, ToolOutlined, ThunderboltOutlined, LinkOutlined,
   DeleteOutlined, PlusOutlined, ArrowRightOutlined } from '@ant-design/icons';
 import { usePageTitle } from '@mxsuite/shared';
 import { planApi } from '../services/api';
@@ -81,16 +81,28 @@ export default function PlanBuilderPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+      <div style={{
+        background: 'linear-gradient(135deg, #2d1854 0%, #1a0e3a 100%)',
+        margin: '-24px -24px 24px -24px',
+        padding: '28px 32px 20px 32px',
+        borderBottom: '3px solid #6b4fa0',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <ToolOutlined style={{ fontSize: 24, color: 'rgba(255,255,255,0.7)' }} />
+          <div>
+            <Title level={3} style={{ margin: 0, color: '#fff' }}>{plan.name}</Title>
+            <Text style={{ color: 'rgba(255,255,255,0.7)' }}>
+              Plan Builder{plan.status && ` — ${plan.status}`} v{plan.version}
+            </Text>
+          </div>
+        </div>
         <Space>
-          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/plans')}>Back</Button>
-          <Title level={4} style={{ margin: 0 }}>{plan.name}</Title>
-          <Tag color={statusColor[plan.status]}>{plan.status}</Tag>
-          <Text type="secondary">v{plan.version}</Text>
-        </Space>
-        <Space>
-          <Button icon={<SaveOutlined />} onClick={savePlan}>Save</Button>
-          <Button onClick={() => executePlan('DRY_RUN')}>Dry Run</Button>
+          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/plans')} style={{ borderColor: '#fff', color: '#fff', background: 'transparent' }}>Back</Button>
+          <Button icon={<SaveOutlined />} onClick={savePlan} style={{ borderColor: '#fff', color: '#fff', background: 'transparent' }}>Save</Button>
+          <Button onClick={() => executePlan('DRY_RUN')} style={{ borderColor: '#fff', color: '#fff', background: 'transparent' }}>Dry Run</Button>
           <Popconfirm title="Execute full run?" onConfirm={() => executePlan('FULL_RUN')}>
             <Button type="primary" icon={<ThunderboltOutlined />}>Full Run</Button>
           </Popconfirm>

@@ -1,0 +1,34 @@
+/* ===== MXSuite Global Card Theming ===== */
+
+/* Card headers: light purple background with bottom accent */
+.ant-card-head {
+  background: #f3eeff !important;
+  border-bottom: 2px solid #e0d4f5 !important;
+}
+.ant-card-head .ant-card-head-title {
+  color: #2d1854;
+  font-weight: 600;
+}
+
+/* Card body: subtle shadow for depth */
+.ant-card {
+  box-shadow: 0 4px 12px rgba(45, 24, 84, 0.08);
+}
+
+/* Tabs on dark banners: white text */
+.dark-banner-tabs .ant-tabs-tab .ant-tabs-tab-btn {
+  color: rgba(255, 255, 255, 0.6) !important;
+}
+.dark-banner-tabs .ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: #fff !important;
+}
+.dark-banner-tabs .ant-tabs-ink-bar {
+  background: #fff !important;
+}
+
+/* Tables inside cards: themed header row */
+.ant-card .ant-table-thead > tr > th {
+  background: #f3eeff !important;
+  color: #2d1854 !important;
+  font-weight: 600;
+}

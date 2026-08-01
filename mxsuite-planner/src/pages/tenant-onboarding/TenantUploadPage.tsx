@@ -34,7 +34,7 @@ function BakTablePreview({ grouped, tblNames, rowCounts }: {
   const WINDOW = 7;
 
   return (
-    <Card style={{ marginBottom: 80, borderColor: '#e0d4f5', borderTop: '3px solid #2d1854' }}>
+    <Card style={{ marginBottom: 80 }}>
       <Title level={5} style={{ marginBottom: 12, color: '#2d1854' }}>
         <DatabaseOutlined style={{ marginRight: 8 }} />
         Data Preview
@@ -459,20 +459,25 @@ export default function TenantUploadPage() {
   return (
     <div>
       <div style={{
-        background: 'linear-gradient(135deg, #f3eeff 0%, #ece4fc 100%)',
-        margin: '-24px -24px 20px -24px',
-        padding: '28px 32px 16px 32px',
-        borderBottom: '2px solid #e0d4f5',
+        background: 'linear-gradient(135deg, #2d1854 0%, #1a0e3a 100%)',
+        margin: '-24px -24px 24px -24px',
+        padding: '28px 32px 20px 32px',
+        borderBottom: '3px solid #6b4fa0',
       }}>
-        <Title level={4} style={{ marginBottom: 4, color: '#2d1854' }}>Upload Data</Title>
-        <Text style={{ color: '#6b4fa0' }}>
-          Upload your data file (CSV, Excel, or SQL Server backup). We'll detect the columns and help you map them.
-        </Text>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <CloudUploadOutlined style={{ fontSize: 24, color: 'rgba(255,255,255,0.7)' }} />
+          <div>
+            <Title level={3} style={{ margin: 0, color: '#fff' }}>Upload Data</Title>
+            <Text style={{ color: 'rgba(255,255,255,0.7)' }}>
+              Upload your data file (CSV, Excel, or SQL Server backup). We'll detect the columns and help you map them.
+            </Text>
+          </div>
+        </div>
       </div>
     <div style={{ maxWidth: 1100, margin: '0 auto' }}>
 
       {/* Upload area */}
-      <Card style={{ marginTop: 16, marginBottom: 24, borderColor: '#e0d4f5', borderTop: '3px solid #2d1854' }}>
+      <Card style={{ marginTop: 16, marginBottom: 24 }}>
         <Dragger
           beforeUpload={(file) => handleUpload(file as unknown as File)}
           showUploadList={false}
@@ -512,7 +517,7 @@ export default function TenantUploadPage() {
       {/* Backup file path option — for large .bak files on network shares */}
       <Card
         size="small"
-        style={{ marginBottom: 24, borderColor: '#e0d4f5' }}
+        style={{ marginBottom: 24 }}
       >
         <Space align="center" style={{ marginBottom: backupPathMode ? 12 : 0 }}>
           <DatabaseOutlined style={{ color: '#6b4fa0' }} />
@@ -583,7 +588,7 @@ export default function TenantUploadPage() {
       {/* Import progress section — shown for preview-only uploads */}
       {showImportSection && (
         <Card
-          style={{ marginBottom: 24, borderColor: '#e0d4f5', borderTop: '3px solid #2d1854' }}
+          style={{ marginBottom: 24 }}
           title={<Text strong style={{ color: '#2d1854' }}>Full Data Import</Text>}
         >
           {/* Not yet started */}
@@ -676,7 +681,7 @@ export default function TenantUploadPage() {
 
       {/* Loading indicator while preview data is being fetched */}
       {loadingPreview && (
-        <Card style={{ textAlign: 'center', padding: '32px 0', marginBottom: 24, borderColor: '#e0d4f5' }}>
+        <Card style={{ textAlign: 'center', padding: '32px 0', marginBottom: 24 }}>
           <Spin size="large" />
           <div style={{ marginTop: 12 }}>
             <Text style={{ color: '#6b4fa0' }}>Loading your data...</Text>

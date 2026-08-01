@@ -4,7 +4,7 @@ import {
   Card, Typography, Spin, Button, Progress, Tag, Row, Col, Space, Steps, message, Tooltip,
 } from 'antd';
 import {
-  UploadOutlined, CheckCircleOutlined, ClockCircleOutlined,
+  EyeOutlined, UploadOutlined, CheckCircleOutlined, ClockCircleOutlined,
   FileTextOutlined, BulbOutlined, SafetyCertificateOutlined, HeartOutlined,
 } from '@ant-design/icons';
 import type { TenantOnboardingDto } from '@mxsuite/shared';
@@ -26,15 +26,35 @@ export default function TenantOverviewPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  const banner = (
+    <div style={{
+      background: 'linear-gradient(135deg, #2d1854 0%, #1a0e3a 100%)',
+      margin: '-24px -24px 24px -24px',
+      padding: '28px 32px 20px 32px',
+      borderBottom: '3px solid #6b4fa0',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <EyeOutlined style={{ fontSize: 24, color: 'rgba(255,255,255,0.7)' }} />
+        <div>
+          <Title level={3} style={{ margin: 0, color: '#fff' }}>My Onboarding</Title>
+          <Text style={{ color: 'rgba(255,255,255,0.7)' }}>{data?.projectName || 'Your onboarding overview'}</Text>
+        </div>
+      </div>
+    </div>
+  );
+
   if (loading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}>
-        <Spin tip="Loading your onboarding..." />
+      <div>
+        {banner}
+        <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}>
+          <Spin tip="Loading your onboarding..." />
+        </div>
       </div>
     );
   }
 
-  if (!data) return null;
+  if (!data) return <div>{banner}</div>;
 
   const mappingTotal = data.mappingStats?.total ?? 0;
   const mappingPct = mappingTotal > 0
@@ -109,19 +129,11 @@ export default function TenantOverviewPage() {
 
   return (
     <div style={{ margin: '0 auto' }}>
-      <div style={{
-        background: 'linear-gradient(135deg, #f3eeff 0%, #ece4fc 100%)',
-        margin: '-24px -24px 20px -24px',
-        padding: '28px 32px 16px 32px',
-        borderBottom: '2px solid #e0d4f5',
-      }}>
-        <Title level={4} style={{ marginBottom: 4, color: '#2d1854' }}>My Onboarding</Title>
-        <Text style={{ color: '#6b4fa0' }}>{data.projectName}</Text>
-      </div>
+      {banner}
 
       {/* Next step banner */}
       <Card
-        style={{ marginTop: 16, marginBottom: 24, background: '#f3eeff', borderColor: '#e0d4f5' }}
+        style={{ marginTop: 16, marginBottom: 24, background: '#f3eeff' }}
         size="small"
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -137,7 +149,7 @@ export default function TenantOverviewPage() {
       </Card>
 
       {/* Member onboarding progress */}
-      <Card size="small" style={{ marginBottom: 16, borderColor: '#e0d4f5', borderTop: '3px solid #2d1854' }}>
+      <Card size="small" style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <Text strong style={{ color: '#2d1854' }}>Your Progress</Text>
           <Space size={8}>
@@ -166,7 +178,7 @@ export default function TenantOverviewPage() {
       {/* Stats cards */}
       <Row gutter={16} style={{ marginBottom: 24 }}>
         <Col xs={24} sm={8}>
-          <Card size="small" style={{ borderColor: '#e0d4f5', borderTop: '3px solid #2d1854' }}>
+          <Card size="small">
             <Space>
               <UploadOutlined style={{ fontSize: 20, color: '#2d1854' }} />
               <div>
@@ -191,7 +203,7 @@ export default function TenantOverviewPage() {
           </Card>
         </Col>
         <Col xs={24} sm={8}>
-          <Card size="small" style={{ borderColor: '#e0d4f5', borderTop: '3px solid #2d1854' }}>
+          <Card size="small">
             <Space>
               <FileTextOutlined style={{ fontSize: 20, color: '#2d1854' }} />
               <div>
@@ -212,7 +224,7 @@ export default function TenantOverviewPage() {
           </Card>
         </Col>
         <Col xs={24} sm={8}>
-          <Card size="small" style={{ borderColor: '#e0d4f5', borderTop: '3px solid #2d1854' }}>
+          <Card size="small">
             <Space>
               <BulbOutlined style={{ fontSize: 20, color: '#2d1854' }} />
               <div>
@@ -255,7 +267,7 @@ export default function TenantOverviewPage() {
       )}
 
       {/* Quick actions */}
-      <Card size="small" title={<span style={{ color: '#2d1854' }}>Quick Actions</span>} style={{ borderColor: '#e0d4f5', borderTop: '3px solid #2d1854' }}>
+      <Card size="small" title={<>Quick Actions</>}>
         <Space wrap>
           <Button icon={<UploadOutlined />} onClick={() => navigate('/plans/my-onboarding/upload')}
             style={{ borderColor: '#2d1854', color: '#2d1854', background: '#f3eeff' }}>

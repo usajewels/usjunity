@@ -4,7 +4,7 @@ import {
 } from 'antd';
 import {
   CheckCircleOutlined, ExclamationCircleOutlined, CloseCircleOutlined,
-  ClockCircleOutlined,
+  ClockCircleOutlined, FlagOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import type { ReconciliationReportDto, ReconTierDto, ReconTableRowDto, ReconStatus } from '@mxsuite/shared';
@@ -65,10 +65,30 @@ export default function TenantStatusPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  const statusBanner = (
+    <div style={{
+      background: 'linear-gradient(135deg, #2d1854 0%, #1a0e3a 100%)',
+      margin: '-24px -24px 24px -24px',
+      padding: '28px 32px 20px 32px',
+      borderBottom: '3px solid #6b4fa0',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <FlagOutlined style={{ fontSize: 24, color: 'rgba(255,255,255,0.7)' }} />
+        <div>
+          <Title level={3} style={{ margin: 0, color: '#fff' }}>Status</Title>
+          <Text style={{ color: 'rgba(255,255,255,0.7)' }}>Track the progress of your data migration.</Text>
+        </div>
+      </div>
+    </div>
+  );
+
   if (loading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}>
-        <Spin tip="Loading status..." />
+      <div>
+        {statusBanner}
+        <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}>
+          <Spin tip="Loading status..." />
+        </div>
       </div>
     );
   }
@@ -76,15 +96,7 @@ export default function TenantStatusPage() {
   if (!report) {
     return (
       <div>
-        <div style={{
-          background: 'linear-gradient(135deg, #f3eeff 0%, #ece4fc 100%)',
-          margin: '-24px -24px 20px -24px',
-          padding: '28px 32px 16px 32px',
-          borderBottom: '2px solid #e0d4f5',
-        }}>
-          <Title level={4} style={{ marginBottom: 4, color: '#2d1854' }}>Status</Title>
-          <Text style={{ color: '#6b4fa0' }}>Track the progress of your data migration.</Text>
-        </div>
+        {statusBanner}
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
         <Card style={{ textAlign: 'center', padding: 48 }}>
           <ClockCircleOutlined style={{ fontSize: 48, color: '#6b4fa0', marginBottom: 16 }} />
@@ -136,15 +148,7 @@ export default function TenantStatusPage() {
 
   return (
     <div>
-      <div style={{
-        background: 'linear-gradient(135deg, #f3eeff 0%, #ece4fc 100%)',
-        margin: '-24px -24px 20px -24px',
-        padding: '28px 32px 16px 32px',
-        borderBottom: '2px solid #e0d4f5',
-      }}>
-        <Title level={4} style={{ marginBottom: 4, color: '#2d1854' }}>Status</Title>
-        <Text style={{ color: '#6b4fa0' }}>Track the progress of your data migration.</Text>
-      </div>
+      {statusBanner}
     <div style={{ maxWidth: 1100, margin: '0 auto' }}>
       {/* Signed-off banner */}
       {report.signedOff && (

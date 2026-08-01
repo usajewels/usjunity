@@ -5,7 +5,7 @@ import {
 } from 'antd';
 import {
   SendOutlined, SearchOutlined, DeleteOutlined,
-  CheckCircleOutlined, CloseCircleOutlined,
+  CheckCircleOutlined, CloseCircleOutlined, TeamOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import { api, usePageTitle } from '@mxsuite/shared';
@@ -84,8 +84,10 @@ export default function TeamPage() {
   const fetchMembers = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     try {
+      const params: Record<string, unknown> = { page, size: pageSize };
+      if (searchText.trim()) params.search = searchText.trim();
       const { data } = await api.get<PaginatedResponse<TeamMember>>('/team', {
-        params: { page, size: pageSize },
+        params,
         signal,
       });
       if (!signal?.aborted) {
@@ -97,7 +99,7 @@ export default function TeamPage() {
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
-  }, [page, pageSize]);
+  }, [page, pageSize, searchText]);
 
   const fetchInvitations = useCallback(async (signal?: AbortSignal) => {
     setInvLoading(true);
@@ -202,17 +204,7 @@ export default function TeamPage() {
     setPageSize(pagination.pageSize ?? 20);
   };
 
-  // Client-side search
-  const filteredMembers = searchText.trim()
-    ? members.filter((m) => {
-        const term = searchText.toLowerCase();
-        return (
-          m.firstName.toLowerCase().includes(term) ||
-          m.lastName.toLowerCase().includes(term) ||
-          m.email.toLowerCase().includes(term)
-        );
-      })
-    : members;
+  // Search is now server-side via the API
 
   // Columns
   const columns: ColumnsType<TeamMember> = [
@@ -366,15 +358,18 @@ export default function TeamPage() {
     <div>
       {/* Header */}
       <div style={{
-        background: 'linear-gradient(135deg, #f3eeff 0%, #ece4fc 100%)',
-        margin: '-24px -24px 20px -24px',
-        padding: '28px 32px 16px 32px',
-        borderBottom: '2px solid #e0d4f5',
+        background: 'linear-gradient(135deg, #2d1854 0%, #1a0e3a 100%)',
+        margin: '-24px -24px 24px -24px',
+        padding: '28px 32px 20px 32px',
+        borderBottom: '3px solid #6b4fa0',
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
       }}>
-        <div>
-          <Title level={3} style={{ margin: 0, color: '#2d1854' }}>Team Members</Title>
-          <Text style={{ color: '#6b4fa0' }}>Manage your organization's users</Text>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <TeamOutlined style={{ fontSize: 24, color: 'rgba(255,255,255,0.7)' }} />
+          <div>
+            <Title level={3} style={{ margin: 0, color: '#fff' }}>Team Members</Title>
+            <Text style={{ color: 'rgba(255,255,255,0.7)' }}>Manage your organization's users</Text>
+          </div>
         </div>
         <Button
           type="primary"
@@ -389,19 +384,14 @@ export default function TeamPage() {
 
       <div style={{ maxWidth: 1200, margin: '0 auto' }}>
         {/* Members Table */}
-        <Card
-          style={{
-            borderRadius: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
-            border: '1px solid #e0d4f5', borderTopWidth: 3, borderTopColor: '#2d1854',
-          }}
-        >
+        <Card>
           <ConfigProvider theme={{ token: { colorPrimary: '#2d1854' } }}>
             <Space wrap size="middle" style={{ marginBottom: 20, width: '100%' }}>
               <Input.Search
                 placeholder="Search by name or email..."
                 allowClear
-                onSearch={setSearchText}
-                onChange={(e) => { if (!e.target.value) setSearchText(''); }}
+                onSearch={(v) => { setSearchText(v); setPage(0); }}
+                onChange={(e) => { if (!e.target.value) { setSearchText(''); setPage(0); } }}
                 style={{ width: 320 }}
                 prefix={<SearchOutlined style={{ color: '#6b4fa0' }} />}
                 size="large"
@@ -410,14 +400,14 @@ export default function TeamPage() {
 
             <Table<TeamMember>
               columns={columns}
-              dataSource={filteredMembers}
+              dataSource={members}
               loading={loading}
               rowKey="id"
               onChange={handleTableChange}
               pagination={{
                 current: page + 1,
                 pageSize,
-                total: searchText.trim() ? filteredMembers.length : total,
+                total,
                 showSizeChanger: true,
                 pageSizeOptions: ['10', '20', '50'],
                 showTotal: (t, range) => `${range[0]}-${range[1]} of ${t} members`,
@@ -431,10 +421,7 @@ export default function TeamPage() {
         {invitations.length > 0 && (
           <Card
             title={<Text strong style={{ color: '#2d1854' }}>Pending Invitations ({invitations.length})</Text>}
-            style={{
-              marginTop: 20, borderRadius: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
-              border: '1px solid #e0d4f5',
-            }}
+            style={{ marginTop: 20 }}
           >
             <Table<Invitation>
               columns={invitationColumns}
