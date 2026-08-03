@@ -64,6 +64,11 @@ public class SecurityConfig {
                 // VULN-03: Restrict all other actuator endpoints to PLATFORM_ADMIN only
                 .requestMatchers("/actuator/**").hasRole("PLATFORM_ADMIN")
                 .requestMatchers("/ws/**").permitAll()
+                // Static user-uploaded files (avatars) — random UUID filenames, no auth needed
+                .requestMatchers("/uploads/**").permitAll()
+                // Allow /error so Tomcat can forward there during async error handling
+                // without triggering a second AccessDeniedException
+                .requestMatchers("/error").permitAll()
                 .requestMatchers("/api/admin/**").hasAnyRole("PLATFORM_ADMIN", "COACH_ADMIN", "PLATFORM_SUPPORT")
                 .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**")
                     .hasAnyRole("PLATFORM_ADMIN", "COACH_ADMIN", "PLATFORM_SUPPORT")

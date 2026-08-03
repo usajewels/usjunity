@@ -1,0 +1,1 @@
+ALTER TABLE tenants ADD COLUMN chat_files_enabled BOOLEAN NOT NULL DEFAULT TRUE;

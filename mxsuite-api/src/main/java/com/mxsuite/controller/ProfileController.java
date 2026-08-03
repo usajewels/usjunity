@@ -165,6 +165,35 @@ public class ProfileController {
         }
     }
 
+    /**
+     * Sets avatar from a pre-approved static path (e.g. /avatars/sarah-mitchell.svg).
+     * Only paths starting with /avatars/ are accepted.
+     */
+    @PutMapping("/avatar-url")
+    @Transactional
+    public ResponseEntity<?> setAvatarUrl(@AuthenticationPrincipal UserPrincipal principal,
+                                           @RequestBody Map<String, String> body) {
+        String url = body.get("url");
+        if (url == null || !url.startsWith("/avatars/")) {
+            return ResponseEntity.badRequest().body(Map.of("status", 400, "message", "Invalid avatar URL"));
+        }
+        User user = userRepository.findById(principal.id()).orElse(null);
+        if (user == null) return ResponseEntity.notFound().build();
+
+        if (user.getAvatarUrl() != null && user.getAvatarUrl().startsWith("/uploads/avatars/")) {
+            try {
+                String oldFilename = user.getAvatarUrl().replace("/uploads/avatars/", "");
+                Path oldPath = Paths.get(basePath, "avatars", oldFilename);
+                Files.deleteIfExists(oldPath);
+            } catch (IOException ignored) {}
+        }
+
+        user.setAvatarUrl(url);
+        userRepository.save(user);
+        log.info("Avatar URL set to {} for user={}", url, user.getEmail());
+        return ResponseEntity.ok(Map.of("avatarUrl", url));
+    }
+
     @GetMapping("/preferences")
     public ResponseEntity<?> getPreferences(@AuthenticationPrincipal UserPrincipal principal) {
         User user = userRepository.findById(principal.id()).orElse(null);

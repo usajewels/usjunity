@@ -1,6 +1,7 @@
 package com.mxsuite.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.mxsuite.model.enums.GateApprovalMode;
 import com.mxsuite.model.enums.GateStatus;
 import com.mxsuite.model.enums.MigrationPhase;
 import jakarta.persistence.*;
@@ -35,6 +36,10 @@ public class PhaseGate extends BaseEntity {
 
     @Column(name = "required_role", length = 30)
     private String requiredRole;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "approval_mode", nullable = false, length = 20)
+    private GateApprovalMode approvalMode = GateApprovalMode.AUTO;
 
     @Column(name = "cleared_by")
     private UUID clearedBy;

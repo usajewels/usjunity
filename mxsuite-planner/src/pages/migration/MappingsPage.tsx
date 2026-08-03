@@ -1960,8 +1960,19 @@ export default function MappingsPage() {
         />
       )}
 
+      {/* Empty state — source data not yet uploaded */}
+      {!loading && mappings.length === 0 && (
+        <Alert
+          type="info"
+          message="No field mappings yet"
+          description="Field mappings are generated automatically when the organization uploads their source data file on the onboarding page."
+          showIcon
+          style={{ marginTop: 16, marginBottom: 8 }}
+        />
+      )}
+
       {/* Status tabs + entity/search filter */}
-      <Row align="middle" style={{ marginBottom: 8, borderBottom: '2px solid #e0d4f5', paddingBottom: 0 }}>
+      <Row align="middle" style={{ marginBottom: 8, borderBottom: '2px solid #e0d4f5', paddingBottom: 0, display: loading || mappings.length > 0 ? undefined : 'none' }}>
         <Col flex="auto">
           <Tabs
             activeKey={statusFilter}
@@ -2046,7 +2057,7 @@ export default function MappingsPage() {
         />
       )}
 
-      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+      <div style={{ display: loading || mappings.length > 0 ? 'flex' : 'none', gap: 16, alignItems: 'flex-start' }}>
         {/* Left: mapping table */}
         <div style={{ flex: 1, minWidth: 0 }}>
           {viewMode === 'source-target' ? (

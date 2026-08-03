@@ -34,9 +34,12 @@ interface Invitation {
 
 interface PaginatedResponse<T> {
   content: T[];
-  totalElements: number;
-  page: number;
-  size: number;
+  page: {
+    size: number;
+    number: number;
+    totalElements: number;
+    totalPages: number;
+  };
 }
 
 const ROLE_STYLES: Record<string, React.CSSProperties> = {
@@ -92,7 +95,7 @@ export default function TeamPage() {
       });
       if (!signal?.aborted) {
         setMembers(data.content ?? []);
-        setTotal(data.totalElements ?? 0);
+        setTotal(data.page?.totalElements ?? 0);
       }
     } catch {
       if (!signal?.aborted) message.error('Failed to load team members');
@@ -275,7 +278,7 @@ export default function TeamPage() {
           onConfirm={() => handleToggleActive(record)}
           okText="Yes"
           cancelText="No"
-          okButtonProps={{ danger: record.active }}
+          okButtonProps={{}}
         >
           <Switch
             checked={record.active}

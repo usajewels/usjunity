@@ -19,6 +19,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -28,6 +29,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 @Service
@@ -42,6 +45,14 @@ public class ChatService {
     private final PlatformAssignmentRepository assignmentRepository;
     private final OnboardingRepository onboardingRepository;
     private final SimpMessagingTemplate messagingTemplate;
+
+    // Optional — avoids circular dependency and keeps ChatService tests clean
+    private NotificationService notificationService;
+
+    @Autowired(required = false)
+    public void setNotificationService(NotificationService notificationService) {
+        this.notificationService = notificationService;
+    }
 
     public ChatService(ConversationRepository conversationRepository,
                        ChatMessageRepository chatMessageRepository,
@@ -131,18 +142,105 @@ public class ChatService {
             });
         }
 
-        // Link to onboarding — safely resolve the ID
-        try {
-            if (tenant.getOnboardingProject() != null) {
-                conv.setOnboardingId(tenant.getOnboardingProject().getId());
+        // Link to onboarding — verify the record exists before setting the FK
+        if (tenant.getOnboardingProject() != null) {
+            UUID onboardingId = tenant.getOnboardingProject().getId();
+            if (onboardingRepository.existsById(onboardingId)) {
+                conv.setOnboardingId(onboardingId);
+            } else {
+                log.warn("Onboarding {} referenced by tenant {} does not exist in DB — skipping link",
+                        onboardingId, tenant.getId());
             }
-        } catch (Exception e) {
-            log.warn("Could not resolve onboarding project for tenant {}: {}", tenant.getId(), e.getMessage());
         }
 
         Conversation saved = conversationRepository.save(conv);
 
         // Notify coach dashboard (scoped to tenant)
+        broadcastDashboardUpdate("NEW_CONVERSATION", saved);
+
+        return saved;
+    }
+
+    @Transactional
+    public Conversation createConversationAsCoach(UUID memberId, UserPrincipal coachPrincipal, String subject) {
+        // 1. Load member and verify coach has visibility to member's tenant
+        User member = userRepository.findById(memberId)
+                .orElseThrow(() -> new IllegalArgumentException("Member not found"));
+        UUID tenantId = member.getTenant().getId();
+        List<UUID> visibleTenants = visibleTenantIds(coachPrincipal);
+        if (!visibleTenants.contains(tenantId)) {
+            throw new AccessDeniedException("No access to this member's organization");
+        }
+
+        // 2. Idempotent: if active conversation exists with this member, takeover and return it
+        List<Conversation> existing = conversationRepository
+                .findByMemberIdAndStatusOrderByLastMessageAtDesc(memberId, ConversationStatus.ACTIVE);
+        if (!existing.isEmpty()) {
+            Conversation conv = existing.get(0);
+            if (conv.getMode() != ChatMode.HUMAN || !coachPrincipal.id().equals(conv.getControllingCoachId())) {
+                return takeover(conv.getId(), coachPrincipal);
+            }
+            return conv;
+        }
+
+        // 3. Create new conversation — directly in HUMAN mode
+        Tenant tenant = tenantRepository.findById(tenantId).orElseThrow();
+        User coach = userRepository.findById(coachPrincipal.id()).orElseThrow();
+
+        Conversation conv = new Conversation();
+        conv.setTenant(tenant);
+        conv.setMember(member);
+        conv.setMemberName(member.getFirstName() + " " + member.getLastName());
+        conv.setMemberAvatarUrl(member.getAvatarUrl());
+        conv.setSubject(subject);
+        conv.setMode(ChatMode.HUMAN);
+        conv.setStatus(ConversationStatus.ACTIVE);
+        conv.setCoachInitiated(true);
+
+        // Set coach as both assigned and controlling
+        conv.setAssignedCoach(coach);
+        conv.setAssignedCoachName(coach.getFirstName() + " " + coach.getLastName());
+        conv.setControllingCoach(coach);
+        conv.setControllingCoachId(coach.getId());
+        conv.setControllingCoachName(coach.getFirstName() + " " + coach.getLastName());
+
+        // Link to onboarding if exists
+        if (tenant.getOnboardingProject() != null) {
+            UUID onboardingId = tenant.getOnboardingProject().getId();
+            if (onboardingRepository.existsById(onboardingId)) {
+                conv.setOnboardingId(onboardingId);
+            }
+        }
+
+        Conversation saved = conversationRepository.save(conv);
+
+        // 4. Send welcome message
+        String memberFirst = member.getFirstName() != null ? member.getFirstName() : "there";
+        String welcomeText = "Hi " + memberFirst + "! I'm " + coachPrincipal.getFullName()
+                + ". How can I help you today?";
+        ChatMessage welcomeMsg = createMessage(saved, MessageSender.COACH,
+                coachPrincipal.id(), coachPrincipal.getFullName(),
+                coach.getAvatarUrl(), welcomeText);
+        saved.setLastMessageAt(welcomeMsg.getCreatedAt());
+        saved.setLastMessagePreview(truncate(welcomeText, 300));
+        conversationRepository.save(saved);
+
+        // 5. Notify member via WebSocket (personal queue)
+        var eventPayload = new java.util.HashMap<String, Object>();
+        eventPayload.put("type", "COACH_INITIATED");
+        eventPayload.put("conversationId", saved.getId().toString());
+        eventPayload.put("coachName", coachPrincipal.getFullName());
+        eventPayload.put("coachAvatarUrl", coach.getAvatarUrl() != null ? coach.getAvatarUrl() : "");
+        sendToUser(memberId, "chat.events", eventPayload);
+        sendToUser(memberId, "chat.messages", toMsgMap(welcomeMsg));
+
+        // 6. Bell notification for member
+        if (notificationService != null) {
+            notificationService.notifyCoachInitiatedConversation(
+                    memberId, tenantId, saved.getId(), coachPrincipal.getFullName());
+        }
+
+        // 7. Broadcast to coach dashboard
         broadcastDashboardUpdate("NEW_CONVERSATION", saved);
 
         return saved;
@@ -200,6 +298,14 @@ public class ChatService {
         // Notify coach dashboard of activity (scoped to tenant)
         broadcastDashboardUpdate("MESSAGE", conv);
 
+        // @mention check — notify the coach if mentioned
+        UUID coachId = conv.getControllingCoachId() != null
+                ? conv.getControllingCoachId() : conv.getAssignedCoachId();
+        String coachName = conv.getControllingCoachName() != null
+                ? conv.getControllingCoachName() : conv.getAssignedCoachName();
+        notifyIfMentioned(content, coachId, coachName,
+                conv.getTenantId(), conversationId, memberPrincipal.getFullName());
+
         return msg;
     }
 
@@ -232,6 +338,12 @@ public class ChatService {
         // Broadcast to spectators (topic)
         broadcastToConversation(conversationId, toMsgMap(msg));
 
+        broadcastDashboardUpdate("MESSAGE", conv);
+
+        // @mention check — notify the member if mentioned
+        notifyIfMentioned(content, conv.getMemberId(), conv.getMemberName(),
+                conv.getTenantId(), conversationId, coachPrincipal.getFullName());
+
         return msg;
     }
 
@@ -263,6 +375,22 @@ public class ChatService {
         }
         broadcastDashboardUpdate("MESSAGE", conv);
 
+        // @mention check — notify the coach if mentioned in file caption
+        UUID coachId = conv.getControllingCoachId() != null
+                ? conv.getControllingCoachId() : conv.getAssignedCoachId();
+        String coachName = conv.getControllingCoachName() != null
+                ? conv.getControllingCoachName() : conv.getAssignedCoachName();
+        notifyIfMentioned(content, coachId, coachName,
+                conv.getTenantId(), conversationId, memberPrincipal.getFullName());
+
+        if (notificationService != null) {
+            if (coachId != null) {
+                UUID tid = conv.getTenantId() != null ? conv.getTenantId() : conv.getTenant().getId();
+                notificationService.notifyFileShared(coachId, tid,
+                        conversationId, memberPrincipal.getFullName(), extractFilename(metadata));
+            }
+        }
+
         return msg;
     }
 
@@ -292,6 +420,17 @@ public class ChatService {
 
         sendToUser(conv.getMemberId(), "chat.messages", toMsgMap(msg));
         broadcastToConversation(conversationId, toMsgMap(msg));
+        broadcastDashboardUpdate("MESSAGE", conv);
+
+        // @mention check — notify the member if mentioned in file caption
+        notifyIfMentioned(content, conv.getMemberId(), conv.getMemberName(),
+                conv.getTenantId(), conversationId, coachPrincipal.getFullName());
+
+        if (notificationService != null) {
+            UUID tid = conv.getTenantId() != null ? conv.getTenantId() : conv.getTenant().getId();
+            notificationService.notifyFileShared(conv.getMemberId(), tid,
+                    conversationId, coachPrincipal.getFullName(), extractFilename(metadata));
+        }
 
         return msg;
     }
@@ -318,23 +457,47 @@ public class ChatService {
 
         conv.setMode(ChatMode.HUMAN);
         conv.setControllingCoach(coach);
+        conv.setControllingCoachId(coach.getId());
         conv.setControllingCoachName(coach.getFirstName() + " " + coach.getLastName());
         conv.setHelpRequested(false);
         // @Version handles optimistic locking — concurrent takeover throws OptimisticLockException
         conv = conversationRepository.save(conv);
 
-        // System message
+        // System message — push to member so it appears immediately
         ChatMessage sysMsg = createMessage(conv, MessageSender.SYSTEM, null,
                 coachPrincipal.getFullName(), null,
                 coachPrincipal.getFullName() + " has joined the conversation.");
+        sendToUser(conv.getMemberId(), "chat.messages", toMsgMap(sysMsg));
 
-        // Notify member
-        sendToUser(conv.getMemberId(), "chat.events", Map.of(
-                "type", "MODE_CHANGE",
-                "conversationId", conversationId.toString(),
-                "mode", "HUMAN",
-                "coachName", coachPrincipal.getFullName()
-        ));
+        // Coach welcome message — only once per day per conversation to avoid repetition
+        String coachAvatarUrl = coach.getAvatarUrl();
+        Instant startOfDay = java.time.LocalDate.now().atStartOfDay(java.time.ZoneOffset.UTC).toInstant();
+        boolean alreadyMessaged = chatMessageRepository
+                .existsByConversationIdAndSenderIdAndSenderTypeAndCreatedAtAfter(
+                        conversationId, coachPrincipal.id(), MessageSender.COACH, startOfDay);
+        if (!alreadyMessaged) {
+            String memberFirst = conv.getMemberName() != null
+                    ? conv.getMemberName().split(" ")[0] : "there";
+            String welcomeText = "Hi " + memberFirst + "! I'm " + coachPrincipal.getFullName()
+                    + ". How can I help you today?";
+            ChatMessage welcomeMsg = createMessage(conv, MessageSender.COACH,
+                    coachPrincipal.id(), coachPrincipal.getFullName(), coachAvatarUrl, welcomeText);
+            conv.setLastMessageAt(welcomeMsg.getCreatedAt());
+            conv.setLastMessagePreview(truncate(welcomeText, 300));
+            conversationRepository.save(conv);
+            sendToUser(conv.getMemberId(), "chat.messages", toMsgMap(welcomeMsg));
+            broadcastToConversation(conversationId, toMsgMap(welcomeMsg));
+        }
+
+        // Notify member (include avatar URL so chat header can show coach's picture)
+        var modePayload = new java.util.HashMap<String, Object>();
+        modePayload.put("type", "MODE_CHANGE");
+        modePayload.put("conversationId", conversationId.toString());
+        modePayload.put("mode", "HUMAN");
+        modePayload.put("coachId", coachPrincipal.id().toString());
+        modePayload.put("coachName", coachPrincipal.getFullName());
+        if (coachAvatarUrl != null) modePayload.put("coachAvatarUrl", coachAvatarUrl);
+        sendToUser(conv.getMemberId(), "chat.events", modePayload);
 
         // Notify spectators
         broadcastToConversation(conversationId, Map.of(
@@ -353,19 +516,21 @@ public class ChatService {
         Conversation conv = conversationRepository.findById(conversationId)
                 .orElseThrow(() -> new IllegalArgumentException("Conversation not found"));
 
-        if (!coachPrincipal.id().equals(conv.getControllingCoachId())) {
+        if (conv.getControllingCoachId() == null || !coachPrincipal.id().equals(conv.getControllingCoachId())) {
             throw new IllegalStateException("Only the controlling coach can release");
         }
 
         conv.setMode(ChatMode.AI);
         conv.setControllingCoach(null);
+        conv.setControllingCoachId(null);
         conv.setControllingCoachName(null);
         conv = conversationRepository.save(conv);
 
-        // System message
-        createMessage(conv, MessageSender.SYSTEM, null,
+        // System message — push to member so it appears immediately
+        ChatMessage sysMsg = createMessage(conv, MessageSender.SYSTEM, null,
                 coachPrincipal.getFullName(), null,
                 coachPrincipal.getFullName() + " has left the conversation. You are now chatting with your AI assistant.");
+        sendToUser(conv.getMemberId(), "chat.messages", toMsgMap(sysMsg));
 
         // Notify member
         sendToUser(conv.getMemberId(), "chat.events", Map.of(
@@ -405,7 +570,45 @@ public class ChatService {
 
         broadcastDashboardUpdate("HELP_REQUEST", conv);
 
+        // Bell notification so coaches see it even when not on the chat dashboard
+        if (notificationService != null) {
+            String memberName = conv.getMemberName() != null ? conv.getMemberName() : "A member";
+            UUID tenantId = conv.getTenantId() != null ? conv.getTenantId() : conv.getTenant().getId();
+            notificationService.notifyHelpRequested(
+                    conv.getAssignedCoachId(), tenantId,
+                    conversationId, memberName);
+        }
+
         return conv;
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  System Messages (used by PhaseGateService for gate transitions)     */
+    /* ------------------------------------------------------------------ */
+
+    @Transactional
+    public void sendSystemMessage(UUID conversationId, String content) {
+        Conversation conv = conversationRepository.findById(conversationId)
+                .orElse(null);
+        if (conv == null) return;
+
+        ChatMessage sysMsg = createMessage(conv, MessageSender.SYSTEM, null, "System", null, content);
+
+        conv.setLastMessageAt(sysMsg.getCreatedAt());
+        conv.setLastMessagePreview(truncate(content, 300));
+        conversationRepository.save(conv);
+
+        sendToUser(conv.getMemberId(), "chat.messages", toMsgMap(sysMsg));
+        broadcastToConversation(conversationId, toMsgMap(sysMsg));
+        broadcastDashboardUpdate("MESSAGE", conv);
+    }
+
+    @Transactional(readOnly = true)
+    public UUID findConversationIdForOnboarding(UUID onboardingId) {
+        return conversationRepository
+                .findFirstByOnboardingIdAndStatus(onboardingId, ConversationStatus.ACTIVE)
+                .map(Conversation::getId)
+                .orElse(null);
     }
 
     /* ------------------------------------------------------------------ */
@@ -500,8 +703,11 @@ public class ChatService {
     }
 
     private void sendToUser(UUID userId, String destination, Object payload) {
-        messagingTemplate.convertAndSendToUser(
-                userId.toString(), "/queue/" + destination, payload);
+        // Principal name is the user's email (UserPrincipal.getUsername()),
+        // so we must resolve UUID → email for convertAndSendToUser to match.
+        userRepository.findById(userId).ifPresent(user ->
+                messagingTemplate.convertAndSendToUser(
+                        user.getEmail(), "/queue/" + destination, payload));
     }
 
     private void broadcastToConversation(UUID conversationId, Object payload) {
@@ -527,10 +733,39 @@ public class ChatService {
         ));
     }
 
+    private static final Pattern MENTION_PATTERN = Pattern.compile("@(\\w+)");
+
+    /**
+     * Checks if the message content contains a @mention matching the given participant's first name.
+     * If so, fires an async mention notification.
+     */
+    private void notifyIfMentioned(String content, UUID recipientId, String recipientFullName,
+                                    UUID tenantId, UUID conversationId, String senderName) {
+        if (notificationService == null || content == null || recipientFullName == null) return;
+        String firstName = recipientFullName.split("\\s+")[0];
+        Matcher m = MENTION_PATTERN.matcher(content);
+        while (m.find()) {
+            if (m.group(1).equalsIgnoreCase(firstName)) {
+                notificationService.notifyMention(recipientId, tenantId, conversationId, senderName, content);
+                return; // one notification per message even if mentioned twice
+            }
+        }
+    }
+
+    /** Safely extracts the filename from a file-message metadata map. */
+    private String extractFilename(Map<String, Object> metadata) {
+        try {
+            Object fa = metadata.get("fileAttachment");
+            if (fa instanceof Map<?, ?> map) return String.valueOf(map.get("filename"));
+        } catch (Exception ignored) {}
+        return "a file";
+    }
+
     private Map<String, Object> toMsgMap(ChatMessage m) {
         var map = new java.util.HashMap<String, Object>();
         map.put("id", m.getId().toString());
-        map.put("conversationId", m.getConversationId().toString());
+        UUID cid = m.getConversationId() != null ? m.getConversationId() : m.getConversation().getId();
+        map.put("conversationId", cid.toString());
         map.put("senderType", m.getSenderType().name());
         map.put("senderId", m.getSenderId() != null ? m.getSenderId().toString() : "");
         map.put("senderName", m.getSenderName() != null ? m.getSenderName() : "");

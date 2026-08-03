@@ -1,15 +1,31 @@
 import { useEffect, useState } from 'react';
 import {
   Card, Form, Input, Button, Avatar, Upload, Typography, Descriptions,
-  Row, Col, Space, Spin, Grid, Divider, message,
+  Row, Col, Space, Spin, Grid, Divider, message, Tooltip, Switch,
 } from 'antd';
 import {
-  UserOutlined, SaveOutlined, CameraOutlined, LockOutlined,
+  UserOutlined, SaveOutlined, CameraOutlined, LockOutlined, SmileOutlined,
+  SoundOutlined,
 } from '@ant-design/icons';
 import { api, usePageTitle } from '@mxsuite/shared';
+import { useAuth } from '../store/AuthContext';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
+
+const DEMO_AVATARS = [
+  { name: 'Sarah Mitchell',  file: 'sarah-mitchell' },
+  { name: 'James Patterson', file: 'james-patterson' },
+  { name: 'Rachel Kim',      file: 'rachel-kim' },
+  { name: 'David Torres',    file: 'david-torres' },
+  { name: 'Linda Chen',      file: 'linda-chen' },
+  { name: 'Michael Ross',    file: 'michael-ross' },
+  { name: 'Amanda Foster',   file: 'amanda-foster' },
+  { name: 'Kevin Walsh',     file: 'kevin-walsh' },
+  { name: 'Nicole Baptiste', file: 'nicole-baptiste' },
+  { name: 'Thomas Sterling', file: 'thomas-sterling' },
+  { name: 'Sample Headshot', file: 'headshot-sample' },
+];
 
 interface Profile {
   id: string;
@@ -35,6 +51,7 @@ const ROLE_LABELS: Record<string, string> = {
 
 export default function ProfilePage() {
   usePageTitle('Profile');
+  const { updateUser } = useAuth();
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.md;
 
@@ -42,6 +59,7 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
+  const [soundMuted, setSoundMuted] = useState(() => localStorage.getItem('mxsuite_sound_muted') === 'true');
 
   const [profileForm] = Form.useForm();
   const [passwordForm] = Form.useForm();
@@ -66,6 +84,7 @@ export default function ProfilePage() {
     try {
       const { data } = await api.put<Profile>('/profile', values);
       setProfile(data);
+      updateUser({ firstName: data.firstName, lastName: data.lastName, title: data.title, bio: data.bio });
       message.success('Profile updated');
     } catch {
       message.error('Failed to update profile');
@@ -88,6 +107,17 @@ export default function ProfilePage() {
     }
   };
 
+  const handleDemoAvatar = async (file: string) => {
+    const url = `/avatars/${file}.svg`;
+    try {
+      const { data } = await api.put<{ avatarUrl: string }>('/profile/avatar-url', { url });
+      setProfile((prev) => prev ? { ...prev, avatarUrl: data.avatarUrl } : prev);
+      updateUser({ avatarUrl: data.avatarUrl });
+    } catch {
+      message.error('Failed to set avatar');
+    }
+  };
+
   const handleAvatarUpload = async (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -96,7 +126,7 @@ export default function ProfilePage() {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       setProfile((prev) => prev ? { ...prev, avatarUrl: data.avatarUrl } : prev);
-      message.success('Avatar updated');
+      updateUser({ avatarUrl: data.avatarUrl });
     } catch {
       message.error('Failed to upload avatar');
     }
@@ -146,8 +176,8 @@ export default function ProfilePage() {
             <div style={{ position: 'relative', display: 'inline-block' }}>
               <Avatar
                 size={96}
-                src={profile.avatarUrl}
-                icon={<UserOutlined />}
+                src={profile.avatarUrl || undefined}
+                icon={!profile.avatarUrl ? <UserOutlined /> : undefined}
                 style={{ backgroundColor: '#2d1854' }}
               />
               <Upload
@@ -167,6 +197,25 @@ export default function ProfilePage() {
                   }}
                 />
               </Upload>
+            </div>
+
+            <Divider style={{ margin: '12px 0 8px' }}>
+              <Space size={4}>
+                <SmileOutlined style={{ color: '#6b4fa0' }} />
+                <Text type="secondary" style={{ fontSize: 11 }}>Demo Avatars</Text>
+              </Space>
+            </Divider>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
+              {DEMO_AVATARS.map((a) => (
+                <Tooltip key={a.file} title={a.name}>
+                  <Avatar
+                    size={32}
+                    src={`/avatars/${a.file}.svg`}
+                    style={{ cursor: 'pointer', border: profile.avatarUrl === `/avatars/${a.file}.svg` ? '2px solid #6b4fa0' : '2px solid transparent', transition: 'border 0.15s' }}
+                    onClick={() => handleDemoAvatar(a.file)}
+                  />
+                </Tooltip>
+              ))}
             </div>
             <Title level={4} style={{ margin: '12px 0 4px' }}>
               {profile.firstName} {profile.lastName}
@@ -230,6 +279,28 @@ export default function ProfilePage() {
                 Save Changes
               </Button>
             </Form>
+          </Card>
+
+          <Card title="Preferences" style={{ marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Space>
+                <SoundOutlined style={{ fontSize: 16, color: '#6b4fa0' }} />
+                <div>
+                  <Text strong>Notification Sounds</Text>
+                  <br />
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    Play sounds for chat messages, help requests, and mentions
+                  </Text>
+                </div>
+              </Space>
+              <Switch
+                checked={!soundMuted}
+                onChange={(checked) => {
+                  setSoundMuted(!checked);
+                  localStorage.setItem('mxsuite_sound_muted', String(!checked));
+                }}
+              />
+            </div>
           </Card>
 
           <Card title="Change Password">

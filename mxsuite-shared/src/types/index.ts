@@ -15,6 +15,7 @@ export type FeatureKey = 'onboarding' | 'projects' | 'migration' | 'my-onboardin
 export type MigrationPhase = 'DISCOVER' | 'MAP' | 'GENERATE' | 'DRY_RUN' | 'MIGRATE' | 'CUT_OVER';
 export type MigrationStatus = 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'CANCELLED';
 export type GateStatus = 'PENDING' | 'CLEARED' | 'BLOCKED' | 'SKIPPED';
+export type GateApprovalMode = 'AUTO' | 'MEMBER_ONLY' | 'COACH_ONLY' | 'BOTH';
 
 /** Maps each UserRole to the list of features enabled for that role */
 export type FeatureConfig = Record<string, FeatureKey[]>;
@@ -40,6 +41,7 @@ export interface Tenant {
   themeConfig?: ThemeConfig;
   featureConfig?: FeatureConfig;
   openToAllCoaches?: boolean;
+  chatFilesEnabled?: boolean;
   createdBy?: string;
   createdAt: string;
   lastModifiedAt: string;
@@ -241,10 +243,12 @@ export interface Onboarding {
 // API Response types
 export interface PaginatedResponse<T> {
   content: T[];
-  totalElements: number;
-  totalPages: number;
-  page: number;
-  size: number;
+  page: {
+    size: number;
+    number: number;
+    totalElements: number;
+    totalPages: number;
+  };
 }
 
 export interface ApiError {
@@ -275,6 +279,9 @@ export interface PhaseGateDto {
   clearedByName?: string;
   clearedAt?: string;
   blockedReason?: string;
+  approvalMode: GateApprovalMode;
+  memberApproved?: boolean;
+  pendingMemberApprovalId?: string;
 }
 
 export interface PhaseTimeDto {
@@ -469,6 +476,7 @@ export interface ApprovalRequestDto {
   gateType: string;
   approvalStatus: ApprovalStatus;
   requiredRole?: string;
+  gateApprovalMode?: GateApprovalMode;
   assignedTo?: string;
   approvedBy?: string;
   approvedAt?: string;

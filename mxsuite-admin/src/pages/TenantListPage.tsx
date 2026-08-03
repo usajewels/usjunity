@@ -9,7 +9,7 @@ import {
   UserOutlined, TeamOutlined, BankOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import { usePageTitle } from '@mxsuite/shared';
+import { usePageTitle, getApiError } from '@mxsuite/shared';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import { tenantApi, assignmentApi, type Tenant, type CoachDto } from '../services/api';
 import AlphaBar from '../components/AlphaBar';
@@ -52,10 +52,10 @@ export default function TenantListPage() {
       } else if (letter) {
         params.letter = letter;
       }
-      const { data } = await tenantApi.list(params as any);
+      const { data } = await tenantApi.list(params as any, signal);
       if (!signal?.aborted) {
         setTenants(data.content || []);
-        setTotal(data.totalElements ?? 0);
+        setTotal(data.page?.totalElements ?? 0);
       }
     } catch {
       if (!signal?.aborted) message.error('Failed to load organizations');
@@ -92,9 +92,8 @@ export default function TenantListPage() {
       setCreateModalOpen(false);
       createForm.resetFields();
       fetchTenants();
-    } catch (err: any) {
-      const msg = err?.response?.data?.message || 'Failed to create organization';
-      message.error(msg);
+    } catch (err) {
+      message.error(getApiError(err, 'Failed to create organization'));
     } finally {
       setCreating(false);
     }
@@ -132,8 +131,8 @@ export default function TenantListPage() {
 
       setEditingTenant(null);
       fetchTenants();
-    } catch {
-      message.error('Failed to update organization');
+    } catch (err) {
+      message.error(getApiError(err, 'Failed to update organization'));
     } finally {
       setEditing(false);
     }
@@ -153,8 +152,8 @@ export default function TenantListPage() {
       setDeleteTarget(null);
       setDeleteConfirmText('');
       fetchTenants();
-    } catch (err: any) {
-      message.error(err?.response?.data?.message || 'Failed to delete organization');
+    } catch (err) {
+      message.error(getApiError(err, 'Failed to delete organization'));
     } finally {
       setDeleting(false);
     }
@@ -166,8 +165,8 @@ export default function TenantListPage() {
       await tenantApi.update(tenant.id, { active: !tenant.active });
       message.success(`${tenant.name} ${tenant.active ? 'deactivated' : 'activated'}`);
       fetchTenants();
-    } catch {
-      message.error('Failed to update status');
+    } catch (err) {
+      message.error(getApiError(err, 'Failed to update status'));
     }
   };
 
@@ -260,7 +259,7 @@ export default function TenantListPage() {
             onConfirm={() => handleToggleActive(record)}
             okText="Yes"
             cancelText="No"
-            okButtonProps={{ danger: record.active }}
+            okButtonProps={{}}
           >
             <Switch
               checked={record.active}

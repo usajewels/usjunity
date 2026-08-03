@@ -131,6 +131,10 @@ export const tenantOnboardingApi = {
     api.get<{ content: FieldChangeHistoryDto[]; totalElements: number; totalPages: number }>(
       `/my-onboarding/mappings/${mappingId}/change-history`, { params }),
 
+  // Gate approvals — member self-approval
+  memberApproveGate: (approvalRequestId: string) =>
+    api.post<import('@mxsuite/shared').ApprovalRequestDto>(`/migration/approvals/${approvalRequestId}/member-approve`),
+
   // Status / Reconciliation
   getStatus: () =>
     api.get('/my-onboarding/status'),

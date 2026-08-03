@@ -5,7 +5,7 @@ import {
 } from 'antd';
 import {
   EyeOutlined, UploadOutlined, CheckCircleOutlined, ClockCircleOutlined,
-  FileTextOutlined, BulbOutlined, SafetyCertificateOutlined, HeartOutlined,
+  FileTextOutlined, BulbOutlined, SafetyCertificateOutlined, HeartOutlined, TrophyOutlined, SendOutlined,
 } from '@ant-design/icons';
 import type { TenantOnboardingDto } from '@mxsuite/shared';
 import { usePageTitle } from '@mxsuite/shared';
@@ -18,6 +18,13 @@ export default function TenantOverviewPage() {
   const navigate = useNavigate();
   const [data, setData] = useState<TenantOnboardingDto | null>(null);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+
+  const reload = () => {
+    tenantOnboardingApi.getMyOnboarding()
+      .then(({ data }) => setData(data))
+      .catch(() => message.error('Failed to load onboarding'));
+  };
 
   useEffect(() => {
     tenantOnboardingApi.getMyOnboarding()
@@ -25,6 +32,17 @@ export default function TenantOverviewPage() {
       .catch(() => message.error('Failed to load onboarding'))
       .finally(() => setLoading(false));
   }, []);
+
+  const handleMemberSubmit = (approvalRequestId: string) => {
+    setSubmitting(true);
+    tenantOnboardingApi.memberApproveGate(approvalRequestId)
+      .then(() => {
+        message.success('Submitted for coach review');
+        reload();
+      })
+      .catch(() => message.error('Failed to submit — please try again'))
+      .finally(() => setSubmitting(false));
+  };
 
   const banner = (
     <div style={{
@@ -60,10 +78,26 @@ export default function TenantOverviewPage() {
   const mappingPct = mappingTotal > 0
     ? Math.round((data.mappingStats!.mapped / mappingTotal) * 100) : 0;
 
+  const isCompleted = data.migrationStatus === 'COMPLETED';
   const isGenerateOrLater = ['GENERATE', 'DRY_RUN', 'MIGRATE', 'CUT_OVER'].includes(data.migrationPhase);
   const allMappingsDone = data.mappingStats && data.mappingStats.needsReview === 0 && data.mappingStats.mapped > 0;
   const allDecisionsDone = !data.decisionStats || data.decisionStats.open === 0;
   const memberWorkComplete = allMappingsDone && allDecisionsDone && !isGenerateOrLater;
+
+  // Gate-specific state for member submit buttons
+  const mapGate = data.phaseGates?.find(g => g.phase === 'MAP');
+  const dryRunGate = data.phaseGates?.find(g => g.phase === 'DRY_RUN');
+
+  const showMapSubmit = data.migrationPhase === 'MAP'
+    && allMappingsDone && allDecisionsDone
+    && (mapGate?.approvalMode === 'BOTH' || mapGate?.approvalMode === 'MEMBER_ONLY')
+    && !mapGate?.memberApproved
+    && !!mapGate?.pendingMemberApprovalId;
+
+  const showDryRunSubmit = data.migrationPhase === 'DRY_RUN'
+    && (dryRunGate?.approvalMode === 'BOTH' || dryRunGate?.approvalMode === 'MEMBER_ONLY')
+    && !dryRunGate?.memberApproved
+    && !!dryRunGate?.pendingMemberApprovalId;
 
   const nextStep = data.uploadStatus === 'NONE'
     ? { label: 'Upload your data to get started', action: 'Upload Data', path: '/plans/my-onboarding/upload' }
@@ -247,8 +281,96 @@ export default function TenantOverviewPage() {
         </Col>
       </Row>
 
+      {/* Migration complete banner */}
+      {isCompleted && (
+        <Card size="small" style={{ marginBottom: 16, background: '#f6ffed', borderColor: '#52c41a' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <TrophyOutlined style={{ fontSize: 28, color: '#52c41a' }} />
+            <div>
+              <Text strong style={{ color: '#237804', fontSize: 16 }}>Migration Complete!</Text>
+              <div>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  {data.projectName} has been successfully migrated to GrowthZone.
+                  Your data is now live. Congratulations!
+                </Text>
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Submit for coach review — MAP phase */}
+      {showMapSubmit && (
+        <Card size="small" style={{ marginBottom: 16, background: '#fffbe6', borderColor: '#ffe58f' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <Text strong style={{ color: '#874d00' }}>Ready for coach review</Text>
+              <div>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  All mappings and decisions are complete. Submit to notify your coach for final review.
+                </Text>
+              </div>
+            </div>
+            <Button
+              type="primary"
+              icon={<SendOutlined />}
+              loading={submitting}
+              onClick={() => handleMemberSubmit(mapGate!.pendingMemberApprovalId!)}
+              style={{ background: '#2d1854', borderColor: '#2d1854' }}
+            >
+              Submit for Coach Review
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {/* Awaiting coach — MAP phase after member submitted */}
+      {data.migrationPhase === 'MAP' && mapGate?.memberApproved && mapGate?.gateStatus !== 'CLEARED' && (
+        <Card size="small" style={{ marginBottom: 16, background: '#f3eeff', borderColor: '#b37feb' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <ClockCircleOutlined style={{ fontSize: 20, color: '#722ed1' }} />
+            <Text style={{ color: '#531dab' }}>Submitted — awaiting coach review</Text>
+          </div>
+        </Card>
+      )}
+
+      {/* Submit for coach review — DRY_RUN phase */}
+      {showDryRunSubmit && (
+        <Card size="small" style={{ marginBottom: 16, background: '#fffbe6', borderColor: '#ffe58f' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <Text strong style={{ color: '#874d00' }}>Ready to authorize migration</Text>
+              <div>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  The dry-run reconciliation report is ready. Submit your approval so your coach can authorize the final migration.
+                </Text>
+              </div>
+            </div>
+            <Button
+              type="primary"
+              icon={<SendOutlined />}
+              loading={submitting}
+              onClick={() => handleMemberSubmit(dryRunGate!.pendingMemberApprovalId!)}
+              style={{ background: '#2d1854', borderColor: '#2d1854' }}
+            >
+              Approve Dry Run
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {/* Awaiting coach — DRY_RUN phase after member submitted */}
+      {data.migrationPhase === 'DRY_RUN' && dryRunGate?.memberApproved && dryRunGate?.gateStatus !== 'CLEARED' && (
+        <Card size="small" style={{ marginBottom: 16, background: '#f3eeff', borderColor: '#b37feb' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <ClockCircleOutlined style={{ fontSize: 20, color: '#722ed1' }} />
+            <Text style={{ color: '#531dab' }}>Submitted — awaiting coach authorization</Text>
+          </div>
+        </Card>
+      )}
+
       {/* All-done banner */}
-      {memberWorkComplete && (
+      {memberWorkComplete && !showMapSubmit && (
         <Card size="small" style={{ marginBottom: 16, background: '#f6ffed', borderColor: '#b7eb8f' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <CheckCircleOutlined style={{ fontSize: 24, color: '#52c41a' }} />

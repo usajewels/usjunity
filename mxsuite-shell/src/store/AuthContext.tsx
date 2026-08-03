@@ -20,6 +20,7 @@ interface AuthContextType {
   isTenantAdmin: boolean;
   isDevLogin: boolean;
   hasFeature: (feature: string) => boolean;
+  updateUser: (partial: Partial<UserData>) => void;
   login: (email: string, password: string) => Promise<void>;
   devLogin: (email: string) => Promise<void>;
   logout: () => void;
@@ -65,6 +66,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (response.platformBranding) setPlatformBranding(response.platformBranding);
     if (response.featureConfig) setFeatureConfig(response.featureConfig);
     setIsDevLoginFlag(true);
+  }, []);
+
+  const updateUser = useCallback((partial: Partial<UserData>) => {
+    setUser(prev => {
+      if (!prev) return prev;
+      const updated = { ...prev, ...partial };
+      authService.updateStoredUser(updated);
+      return updated;
+    });
   }, []);
 
   const logout = useCallback(() => {
@@ -124,7 +134,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <AuthContext.Provider value={{
       user, tenant, platformBranding, isAuthenticated, isPlatformUser, isPlatformAdmin, isTenantAdmin,
       isDevLogin: isDevLoginFlag,
-      hasFeature, login, devLogin, logout,
+      hasFeature, updateUser, login, devLogin, logout,
     }}>
       {children}
     </AuthContext.Provider>

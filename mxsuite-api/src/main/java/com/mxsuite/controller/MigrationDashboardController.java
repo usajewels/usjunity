@@ -6,6 +6,7 @@ import com.mxsuite.model.PhaseGate;
 import com.mxsuite.model.PhaseTimeEntry;
 import com.mxsuite.model.Project;
 import com.mxsuite.model.ProjectDataUpload;
+import com.mxsuite.model.enums.GateApprovalMode;
 import com.mxsuite.model.enums.GateStatus;
 import com.mxsuite.model.enums.MigrationPhase;
 import com.mxsuite.model.enums.MigrationStatus;
@@ -15,6 +16,7 @@ import com.mxsuite.repository.PhaseTimeEntryRepository;
 import com.mxsuite.repository.PlatformAssignmentRepository;
 import com.mxsuite.repository.ProjectDataUploadRepository;
 import com.mxsuite.repository.ProjectRepository;
+import com.mxsuite.repository.ReconciliationReportRepository;
 import com.mxsuite.repository.TenantRepository;
 import com.mxsuite.security.TenantContext;
 import com.mxsuite.security.UserPrincipal;
@@ -52,6 +54,7 @@ public class MigrationDashboardController {
     private final PlatformAssignmentRepository assignmentRepository;
     private final ProjectDataUploadRepository uploadRepository;
     private final TenantRepository tenantRepository;
+    private final ReconciliationReportRepository reconRepository;
     private final AuditService auditService;
     private final DataValidationService dataValidationService;
     private final PhaseGateService phaseGateService;
@@ -63,6 +66,7 @@ public class MigrationDashboardController {
                                          PlatformAssignmentRepository assignmentRepository,
                                          ProjectDataUploadRepository uploadRepository,
                                          TenantRepository tenantRepository,
+                                         ReconciliationReportRepository reconRepository,
                                          AuditService auditService,
                                          DataValidationService dataValidationService,
                                          PhaseGateService phaseGateService) {
@@ -73,6 +77,7 @@ public class MigrationDashboardController {
         this.assignmentRepository = assignmentRepository;
         this.uploadRepository = uploadRepository;
         this.tenantRepository = tenantRepository;
+        this.reconRepository = reconRepository;
         this.auditService = auditService;
         this.dataValidationService = dataValidationService;
         this.phaseGateService = phaseGateService;
@@ -90,7 +95,10 @@ public class MigrationDashboardController {
 
     public record PhaseGateDto(
             UUID id, MigrationPhase phase, GateStatus gateStatus,
-            String clearedByName, Instant clearedAt, String blockedReason) {}
+            String clearedByName, Instant clearedAt, String blockedReason,
+            GateApprovalMode approvalMode) {}
+
+    public record UpdateApprovalModeRequest(GateApprovalMode approvalMode) {}
 
     public record MigrationStatsDto(
             long activeMigrations, long gatesAwaitingApproval,
@@ -114,29 +122,29 @@ public class MigrationDashboardController {
     @GetMapping("/projects")
     public Page<MigrationProjectDto> listProjects(@AuthenticationPrincipal UserPrincipal principal,
                                                    Pageable pageable,
-                                                   @RequestParam(required = false) String search) {
+                                                   @RequestParam(required = false) String search,
+                                                   @RequestParam(required = false) String letter) {
         boolean hasSearch = search != null && !search.isBlank();
+        boolean hasLetter = letter != null && !letter.isBlank();
         String s = hasSearch ? search.trim() : null;
+        String l = hasLetter ? letter.trim().toLowerCase() : null;
 
-        if (principal != null && (principal.isPlatformAdmin() || principal.isCoachAdmin())) {
-            return (hasSearch
-                    ? projectRepository.findAllMigrationProjectsBySearch(s, pageable)
-                    : projectRepository.findAllMigrationProjects(pageable))
-                    .map(this::toMigrationProjectDto);
+        if (principal != null && principal.isPlatformAdmin()) {
+            if (hasSearch) return projectRepository.findAllMigrationProjectsBySearch(s, pageable).map(this::toMigrationProjectDto);
+            if (hasLetter) return projectRepository.findAllMigrationProjectsByLetter(l, pageable).map(this::toMigrationProjectDto);
+            return projectRepository.findAllMigrationProjects(pageable).map(this::toMigrationProjectDto);
         }
-        if (principal != null && principal.isPlatformSupport()) {
+        if (principal != null && (principal.isCoachAdmin() || principal.isPlatformSupport())) {
             List<UUID> tenantIds = visibleTenantIds(principal);
             if (tenantIds.isEmpty()) return org.springframework.data.domain.Page.empty(pageable);
-            return (hasSearch
-                    ? projectRepository.findMigrationProjectsByTenantIdsAndSearch(tenantIds, s, pageable)
-                    : projectRepository.findMigrationProjectsByTenantIds(tenantIds, pageable))
-                    .map(this::toMigrationProjectDto);
+            if (hasSearch) return projectRepository.findMigrationProjectsByTenantIdsAndSearch(tenantIds, s, pageable).map(this::toMigrationProjectDto);
+            if (hasLetter) return projectRepository.findMigrationProjectsByTenantIdsAndLetter(tenantIds, l, pageable).map(this::toMigrationProjectDto);
+            return projectRepository.findMigrationProjectsByTenantIds(tenantIds, pageable).map(this::toMigrationProjectDto);
         }
         UUID tenantId = TenantContext.getCurrentTenantId();
-        return (hasSearch
-                ? projectRepository.findMigrationProjectsByTenantIdAndSearch(tenantId, s, pageable)
-                : projectRepository.findMigrationProjectsByTenantId(tenantId, pageable))
-                .map(this::toMigrationProjectDto);
+        if (hasSearch) return projectRepository.findMigrationProjectsByTenantIdAndSearch(tenantId, s, pageable).map(this::toMigrationProjectDto);
+        if (hasLetter) return projectRepository.findMigrationProjectsByTenantIdAndLetter(tenantId, l, pageable).map(this::toMigrationProjectDto);
+        return projectRepository.findMigrationProjectsByTenantId(tenantId, pageable).map(this::toMigrationProjectDto);
     }
 
     @GetMapping("/stats")
@@ -160,8 +168,16 @@ public class MigrationDashboardController {
 
         Double avgDays = phaseTimeEntryRepository.computeAvgCycleTimeDays();
         double avgCycleTime = avgDays != null ? avgDays : 0.0;
-        // TODO: compute real reconciliation pass rate
-        double reconPassRate = 0.0;
+
+        double reconPassRate;
+        if (principal != null && (principal.isPlatformAdmin() || principal.isCoachAdmin())) {
+            reconPassRate = reconRepository.computeGlobalPassRate();
+        } else if (principal != null && principal.isPlatformSupport()) {
+            List<UUID> tenantIds = visibleTenantIds(principal);
+            reconPassRate = tenantIds.isEmpty() ? 0.0 : reconRepository.computePassRateByTenants(tenantIds);
+        } else {
+            reconPassRate = reconRepository.computePassRateByTenant(TenantContext.getCurrentTenantId());
+        }
 
         return new MigrationStatsDto(active, gatesPending, avgCycleTime, reconPassRate);
     }
@@ -239,6 +255,16 @@ public class MigrationDashboardController {
                         phaseGateService.evaluateDryRunGate(project.getId());
                     }
 
+                    // Auto-evaluate MIGRATE gate when entering MIGRATE phase
+                    if (phases[idx + 1] == MigrationPhase.MIGRATE) {
+                        phaseGateService.evaluateMigrateGate(project.getId());
+                    }
+
+                    // Auto-open CUT_OVER gate when entering CUT_OVER phase
+                    if (phases[idx + 1] == MigrationPhase.CUT_OVER) {
+                        phaseGateService.evaluateCutOverGate(project.getId());
+                    }
+
                     return ResponseEntity.ok(toMigrationProjectDto(project));
                 })
                 .orElse(ResponseEntity.notFound().build());
@@ -286,6 +312,23 @@ public class MigrationDashboardController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @PutMapping("/projects/{projectId}/gates/{phase}/approval-mode")
+    @Transactional
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','COACH_ADMIN')")
+    public ResponseEntity<?> updateGateApprovalMode(@PathVariable UUID projectId,
+                                                     @PathVariable MigrationPhase phase,
+                                                     @RequestBody UpdateApprovalModeRequest req) {
+        return phaseGateRepository.findByProjectIdAndPhase(projectId, phase)
+                .map(gate -> {
+                    gate.setApprovalMode(req.approvalMode());
+                    phaseGateRepository.save(gate);
+                    auditService.log("UPDATE_GATE_APPROVAL_MODE", "PhaseGate", gate.getId(),
+                            phase + " → " + req.approvalMode());
+                    return ResponseEntity.ok(toPhaseGateDto(gate));
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
     // --- Helpers ---
 
     private MigrationProjectDto toMigrationProjectDto(Project project) {
@@ -318,7 +361,8 @@ public class MigrationDashboardController {
     private PhaseGateDto toPhaseGateDto(PhaseGate gate) {
         return new PhaseGateDto(
                 gate.getId(), gate.getPhase(), gate.getGateStatus(),
-                null, gate.getClearedAt(), gate.getBlockedReason());
+                null, gate.getClearedAt(), gate.getBlockedReason(),
+                gate.getApprovalMode());
     }
 
     private BlueprintDto toBlueprintDto(MigrationBlueprint bp) {

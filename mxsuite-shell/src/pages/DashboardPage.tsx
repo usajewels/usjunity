@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import {
   Row, Col, Card, Statistic, Typography, Timeline, Button, Progress, Grid,
   Table, Tag, Alert, Spin, message, Input, Dropdown,
@@ -13,7 +13,7 @@ import {
   SearchOutlined, UserOutlined, DownloadOutlined, DownOutlined,
   ApiOutlined, HddOutlined, AuditOutlined, MailOutlined,
   GlobalOutlined, WifiOutlined, PieChartOutlined,
-  HistoryOutlined, RocketOutlined,
+  HistoryOutlined, RocketOutlined, SyncOutlined,
 } from '@ant-design/icons';
 import { Pie } from '@ant-design/charts';
 import { useNavigate } from 'react-router-dom';
@@ -155,15 +155,44 @@ export default function DashboardPage() {
   // Admin state
   const [adminDash, setAdminDash] = useState<AdminDashboardDto | null>(null);
   const [adminLoading, setAdminLoading] = useState(false);
+  const [adminLastUpdated, setAdminLastUpdated] = useState<Date | null>(null);
+  const [adminRefreshing, setAdminRefreshing] = useState(false);
+  const adminIntervalRef = useRef<ReturnType<typeof setInterval>>();
 
+  const fetchAdminDashboard = useCallback(async (silent = false) => {
+    if (silent) setAdminRefreshing(true);
+    else setAdminLoading(true);
+    try {
+      const { data } = await api.get<AdminDashboardDto>('/admin/platform-dashboard');
+      setAdminDash(data);
+      setAdminLastUpdated(new Date());
+    } catch {
+      if (!silent) message.error('Failed to load platform dashboard');
+    } finally {
+      if (silent) setAdminRefreshing(false);
+      else setAdminLoading(false);
+    }
+  }, []);
+
+  // Admin dashboard: initial load + 30s polling, paused when tab is hidden
   useEffect(() => {
-    if (isPlatformAdmin) {
-      setAdminLoading(true);
-      api.get<AdminDashboardDto>('/admin/platform-dashboard')
-        .then(({ data }) => setAdminDash(data))
-        .catch(() => message.error('Failed to load platform dashboard'))
-        .finally(() => setAdminLoading(false));
-    } else if (isPlatformUser) {
+    if (!isPlatformAdmin) return;
+    fetchAdminDashboard(false);
+    adminIntervalRef.current = setInterval(() => {
+      if (!document.hidden) fetchAdminDashboard(true);
+    }, 30_000);
+    const onVisibility = () => { if (!document.hidden) fetchAdminDashboard(true); };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      clearInterval(adminIntervalRef.current);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [isPlatformAdmin, fetchAdminDashboard]);
+
+  // Coach / tenant dashboard: one-time load
+  useEffect(() => {
+    if (isPlatformAdmin) return;
+    if (isPlatformUser) {
       setDashboardLoading(true);
       api.get<CoachDashboardDto>('/admin/coach-dashboard')
         .then(({ data }) => setDashboard(data))
@@ -237,6 +266,23 @@ export default function DashboardPage() {
 
     return (
       <>
+        {/* Refresh bar */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+          {adminLastUpdated && (
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              Last updated: {adminLastUpdated.toLocaleTimeString()}
+            </Text>
+          )}
+          <Button
+            size="small"
+            icon={<SyncOutlined spin={adminRefreshing} />}
+            onClick={() => fetchAdminDashboard(true)}
+            disabled={adminRefreshing}
+          >
+            Refresh
+          </Button>
+        </div>
+
         {/* KPI Cards */}
         <Row gutter={isMobile ? [12, 12] : [16, 16]} style={{ marginBottom: 24 }}>
           {[

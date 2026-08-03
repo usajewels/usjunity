@@ -197,7 +197,7 @@ export default function MigrationDashboardPage() {
           <Button
             type="link"
             style={{ padding: 0, height: 'auto', fontWeight: 600, color: '#6b4fa0' }}
-            onClick={(e) => { e.stopPropagation(); navigate(`projects/${record.id}/mappings`); }}
+            onClick={(e) => { e.stopPropagation(); navigate(`projects/${record.id}`); }}
           >
             {name}
           </Button>
@@ -426,7 +426,7 @@ export default function MigrationDashboardPage() {
                         height: '100%',
                       }}
                       styles={{ body: { padding: '12px 16px' } }}
-                      onClick={() => navigate(`projects/${project.id}/mappings`)}
+                      onClick={() => navigate(`projects/${project.id}`)}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                         <Tag style={{ ...cfg.tagStyle, margin: 0 }}>{cfg.label}</Tag>

@@ -54,6 +54,9 @@ public class Tenant extends BaseEntity {
     @Column(name = "open_to_all_coaches", nullable = false)
     private boolean openToAllCoaches = false;
 
+    @Column(name = "chat_files_enabled", nullable = false)
+    private boolean chatFilesEnabled = true;
+
     @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "onboarding_project_id")

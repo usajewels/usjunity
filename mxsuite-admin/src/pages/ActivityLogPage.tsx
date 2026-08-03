@@ -119,7 +119,7 @@ export default function ActivityLogPage() {
       const { data } = await auditApi.list(params as any);
       if (!signal?.aborted) {
         setEvents(data.content || []);
-        setTotal(data.totalElements ?? 0);
+        setTotal(data.page?.totalElements ?? 0);
       }
     } finally {
       if (!signal?.aborted) setLoading(false);

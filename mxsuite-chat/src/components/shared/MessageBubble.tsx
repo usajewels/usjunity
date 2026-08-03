@@ -26,6 +26,24 @@ const AVATAR_BG: Record<MessageSender, string> = {
   SYSTEM: '#f5f5f5',
 };
 
+/** Renders message text with @mention tokens highlighted as chips. */
+function renderContent(text: string, isOwn: boolean): React.ReactNode {
+  const parts = text.split(/(@\w+)/g);
+  return parts.map((part, i) =>
+    /^@\w+$/.test(part) ? (
+      <span key={i} style={{
+        display: 'inline-block',
+        background: isOwn ? 'rgba(255,255,255,0.25)' : '#e0d4f5',
+        color: isOwn ? '#fff' : '#2d1854',
+        borderRadius: 4,
+        padding: '0 4px',
+        fontWeight: 600,
+        fontSize: 13,
+      }}>{part}</span>
+    ) : part
+  );
+}
+
 function getInitials(name: string | null): string {
   if (!name) return '?';
   const parts = name.trim().split(/\s+/);
@@ -74,6 +92,7 @@ function FileAttachmentCard({ attachment, isOwn }: { attachment: FileAttachment;
           <img
             src={downloadUrl}
             alt={attachment.filename}
+            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
             style={{
               maxWidth: 220,
               maxHeight: 180,
@@ -174,7 +193,7 @@ export default function MessageBubble({ content, senderType, senderName, senderA
           wordBreak: 'break-word',
         }}>
           {fileAttachment && <FileAttachmentCard attachment={fileAttachment} isOwn={isOwn} />}
-          {content && !(fileAttachment && content === fileAttachment.filename) && content}
+          {content && !(fileAttachment && content === fileAttachment.filename) && renderContent(content, isOwn)}
         </div>
         <Text style={{
           fontSize: 10, color: '#bbb',

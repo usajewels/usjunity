@@ -9,6 +9,7 @@ import MigrationDashboardPage from './pages/migration/MigrationDashboardPage';
 import MappingsPage from './pages/migration/MappingsPage';
 import DecisionsPage from './pages/migration/DecisionsPage';
 import ApprovalsPage from './pages/migration/ApprovalsPage';
+import ProjectDetailPage from './pages/migration/ProjectDetailPage';
 import MigrationProjectsPage from './pages/migration/MigrationProjectsPage';
 import GlobalMappingsPage from './pages/migration/GlobalMappingsPage';
 import ReconciliationPage from './pages/migration/ReconciliationPage';
@@ -34,6 +35,7 @@ export default function PlannerApp() {
         <Route index element={<MigrationDashboardPage />} />
         <Route path="mappings" element={<GlobalMappingsPage />} />
         <Route path="projects" element={<MigrationProjectsPage />} />
+        <Route path="projects/:projectId" element={<ProjectDetailPage />} />
         <Route path="projects/:projectId/mappings" element={<MappingsPage />} />
         <Route path="projects/:projectId/reconciliation" element={<ReconciliationPage />} />
         <Route path="projects/:projectId/data-review" element={<DataHealthPage />} />

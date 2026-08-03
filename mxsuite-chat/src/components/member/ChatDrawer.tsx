@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { message } from 'antd';
 import { useAuth, useWebSocket } from '@mxsuite/shared';
 import ChatHeader from './ChatHeader';
 import ChatMessageList from './ChatMessageList';
 import ChatInput from './ChatInput';
 import { chatApi } from '../../services/chatApi';
-import type { ConversationDto, ChatMessageDto, ChatMode, ChatEvent } from '../../types/chat';
+import type { ConversationDto, ChatMessageDto, ChatMode, ChatEvent, PresenceDetail, TypingEvent } from '../../types/chat';
 
 /** Read user from localStorage (fallback when AuthProvider context is empty due to MFE isolation) */
 function readStoredUser(): { id: string; email: string; role: string } | null {
@@ -34,12 +34,20 @@ export default function ChatDrawer({ open, onClose }: ChatDrawerProps) {
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<ChatMode>('AI');
   const [coachName, setCoachName] = useState<string | null>(null);
+  const [coachAvatarUrl, setCoachAvatarUrl] = useState<string | null>(null);
   const [helpRequested, setHelpRequested] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [coachPresence, setCoachPresence] = useState<PresenceDetail | null>(null);
 
-  const { connected, subscribe } = useWebSocket({
+  const { connected, subscribe, sendMessage: wsSend } = useWebSocket({
     url: '/ws',
     token,
   });
+
+  // Typing indicator state
+  const [typingName, setTypingName] = useState<string | null>(null);
+  const typingTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const lastTypingRef = useRef(0);
 
   // De-dup helper: only add message if id not already present
   const addMessage = useCallback((msg: ChatMessageDto) => {
@@ -83,13 +91,22 @@ export default function ChatDrawer({ open, onClose }: ChatDrawerProps) {
         }
       })
       .then((page) => {
-        if (page) setMessages(page.content);
+        if (page) {
+          // Merge with any WebSocket messages that arrived during load
+          setMessages(prev => {
+            const loaded = page.content as ChatMessageDto[];
+            const loadedIds = new Set(loaded.map(m => m.id));
+            const wsOnly = prev.filter(m => !loadedIds.has(m.id));
+            return [...loaded, ...wsOnly];
+          });
+        }
       })
       .catch((err) => {
         console.error('[ChatDrawer] Failed to load chat:', err);
         message.error('Failed to load chat');
       })
       .finally(() => setLoading(false));
+
   }, [open, user]);
 
   // Subscribe to incoming messages and events via personal queues only.
@@ -108,14 +125,88 @@ export default function ChatDrawer({ open, onClose }: ChatDrawerProps) {
 
     const unsub2 = subscribe(`/user/queue/chat.events`, (evt: unknown) => {
       const event = evt as ChatEvent;
+      // Coach initiated a new conversation — reload to pick it up
+      if (event.type === 'COACH_INITIATED' && event.conversationId) {
+        chatApi.listConversations().then((convos) => {
+          const active = convos.find(c => c.id === event.conversationId) || convos.find(c => c.status === 'ACTIVE') || convos[0];
+          if (active) {
+            setConversation(active);
+            setMode(active.mode);
+            setCoachName(active.controllingCoachName || active.assignedCoachName);
+            setCoachAvatarUrl(null);
+            setHelpRequested(active.helpRequested);
+            chatApi.getMessages(active.id).then((page) => {
+              setMessages(page.content as ChatMessageDto[]);
+            }).catch(() => {});
+            if (active.controllingCoachId) {
+              chatApi.getPresenceDetail([active.controllingCoachId])
+                .then(details => setCoachPresence(details[active.controllingCoachId!] ?? null))
+                .catch(() => {});
+            }
+          }
+        }).catch(() => {});
+        return;
+      }
       if (event.conversationId === conversation.id && event.type === 'MODE_CHANGE') {
         setMode(event.mode || 'AI');
         setCoachName(event.coachName || null);
-        if (event.mode === 'HUMAN') setHelpRequested(false);
+        if (event.mode === 'HUMAN') {
+          setHelpRequested(false);
+          setCoachAvatarUrl((event.coachAvatarUrl as string) || null);
+          // Update conversation so controllingCoachId is current (needed for presence filtering)
+          setConversation(prev => prev ? {
+            ...prev,
+            mode: 'HUMAN',
+            controllingCoachId: event.coachId || null,
+            controllingCoachName: event.coachName || null,
+          } : prev);
+          // Fetch coach's presence immediately
+          if (event.coachId) {
+            chatApi.getPresenceDetail([event.coachId])
+              .then(details => setCoachPresence(details[event.coachId!] ?? null))
+              .catch(() => {});
+          }
+        } else {
+          // Back to AI — clear coach state
+          setConversation(prev => prev ? {
+            ...prev,
+            mode: 'AI',
+            controllingCoachId: null,
+            controllingCoachName: null,
+          } : prev);
+          setCoachAvatarUrl(null);
+          setCoachPresence(null);
+        }
       }
     });
 
-    return () => { unsub1(); unsub2(); };
+    // Subscribe to real-time coach presence/availability updates
+    const unsub3 = subscribe(`/user/queue/presence`, (evt: unknown) => {
+      const data = evt as {
+        userId: string; status: string;
+        availabilityStatus?: string; statusMessage?: string;
+      };
+      const coachId = conversation.controllingCoachId || conversation.assignedCoachId;
+      if (coachId && data.userId === coachId) {
+        setCoachPresence({
+          online: data.status === 'ONLINE',
+          availabilityStatus: (data.availabilityStatus ?? 'ONLINE') as PresenceDetail['availabilityStatus'],
+          statusMessage: data.statusMessage ?? null,
+        });
+      }
+    });
+
+    // Subscribe to typing indicator — member only cares about coach (isPlatformUser) typing
+    const unsub4 = subscribe(`/topic/chat.${conversation.id}.typing`, (data: unknown) => {
+      const evt = data as TypingEvent;
+      if (evt.isPlatformUser) {
+        setTypingName(evt.name);
+        clearTimeout(typingTimerRef.current);
+        typingTimerRef.current = setTimeout(() => setTypingName(null), 4000);
+      }
+    });
+
+    return () => { unsub1(); unsub2(); unsub3(); unsub4(); clearTimeout(typingTimerRef.current); setTypingName(null); };
   }, [connected, conversation, subscribe, addMessage]);
 
   // Mark as read when opening
@@ -124,6 +215,22 @@ export default function ChatDrawer({ open, onClose }: ChatDrawerProps) {
       chatApi.markRead(conversation.id).catch(() => {});
     }
   }, [open, conversation]);
+
+  // Fetch coach presence detail (includes availability status)
+  useEffect(() => {
+    const coachId = conversation?.controllingCoachId || conversation?.assignedCoachId;
+    if (!coachId) { setCoachPresence(null); return; }
+    chatApi.getPresenceDetail([coachId])
+      .then(details => setCoachPresence(details[coachId] ?? null))
+      .catch(() => {});
+  }, [conversation?.controllingCoachId, conversation?.assignedCoachId]);
+
+  const handleTyping = useCallback(() => {
+    const now = Date.now();
+    if (now - lastTypingRef.current < 3000 || !conversation) return;
+    lastTypingRef.current = now;
+    wsSend('/app/chat.typing', { conversationId: conversation.id });
+  }, [wsSend, conversation]);
 
   const handleSend = useCallback(async (content: string, file?: File) => {
     if (!conversation) return;
@@ -140,28 +247,20 @@ export default function ChatDrawer({ open, onClose }: ChatDrawerProps) {
   }, [conversation, addMessage]);
 
   const handleRequestHelp = useCallback(async () => {
-    if (!conversation) {
-      message.warning('Chat is still loading. Please try again in a moment.');
-      return;
-    }
+    if (!conversation || actionLoading) return;
+    setActionLoading(true);
     try {
       const updated = await chatApi.requestHelp(conversation.id);
       setHelpRequested(true);
       setConversation(updated);
     } catch {
-      message.error('Failed to request help');
+      message.error('Failed to request help. Please try again.');
+    } finally {
+      setActionLoading(false);
     }
-  }, [conversation]);
+  }, [conversation, actionLoading]);
 
-  // Check feature flag for file sharing
-  const filesEnabled = (() => {
-    try {
-      const raw = localStorage.getItem('mxsuite_feature_config');
-      if (!raw || !user?.role) return false;
-      const config = JSON.parse(raw) as Record<string, string[]>;
-      return config[user.role]?.includes('chat-files') ?? false;
-    } catch { return false; }
-  })();
+  const filesEnabled = conversation?.chatFilesEnabled !== false;
 
   if (!open) return null;
 
@@ -184,16 +283,30 @@ export default function ChatDrawer({ open, onClose }: ChatDrawerProps) {
       <ChatHeader
         mode={mode}
         coachName={coachName}
+        coachAvatarUrl={coachAvatarUrl}
+        presenceDetail={coachPresence}
         onClose={onClose}
         onRequestHelp={handleRequestHelp}
+        onExport={conversation ? () => chatApi.exportPdf(conversation.id) : undefined}
         helpRequested={helpRequested}
+        loading={loading || actionLoading}
       />
       <ChatMessageList
         messages={messages}
         currentUserId={user?.id || ''}
         loading={loading}
       />
-      <ChatInput onSend={handleSend} filesEnabled={filesEnabled} />
+      {typingName && (
+        <div style={{ padding: '4px 16px', fontSize: 12, color: '#888', fontStyle: 'italic' }}>
+          {typingName} is typing...
+        </div>
+      )}
+      <ChatInput
+        onSend={handleSend}
+        onTyping={handleTyping}
+        filesEnabled={filesEnabled}
+        mentions={coachName ? [{ value: coachName.split(' ')[0], label: coachName + ' (Coach)' }] : undefined}
+      />
     </div>
   );
 }

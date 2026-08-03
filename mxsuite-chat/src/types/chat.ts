@@ -1,6 +1,13 @@
 export type ChatMode = 'AI' | 'HUMAN';
 export type MessageSender = 'MEMBER' | 'COACH' | 'AI' | 'SYSTEM';
 export type ConversationStatus = 'ACTIVE' | 'ARCHIVED' | 'CLOSED';
+export type AvailabilityStatus = 'ONLINE' | 'BUSY' | 'DO_NOT_DISTURB' | 'BE_RIGHT_BACK' | 'AWAY' | 'APPEAR_OFFLINE';
+
+export interface PresenceDetail {
+  online: boolean;
+  availabilityStatus: AvailabilityStatus | null;
+  statusMessage: string | null;
+}
 
 export interface ConversationDto {
   id: string;
@@ -18,6 +25,8 @@ export interface ConversationDto {
   sentimentScore: number | null;
   sentimentLabel: string | null;
   helpRequested: boolean;
+  coachInitiated: boolean;
+  chatFilesEnabled: boolean;
   lastMessageAt: string | null;
   lastMessagePreview: string | null;
   unreadCoachCount: number;
@@ -57,6 +66,21 @@ export interface ChatEvent {
   type: string;
   conversationId?: string;
   mode?: ChatMode;
+  coachId?: string;
   coachName?: string;
   [key: string]: unknown;
+}
+
+export interface CannedResponseDto {
+  id: string;
+  category: string | null;
+  title: string;
+  content: string;
+  sortOrder: number;
+}
+
+export interface TypingEvent {
+  userId: string;
+  name: string;
+  isPlatformUser: boolean;
 }

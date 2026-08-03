@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import { Layout, Menu, Avatar, Dropdown, Typography, Badge, Space, theme, Grid, Drawer, Popover, List, Button as AntButton, Empty } from 'antd';
 import {
   DashboardOutlined, ProjectOutlined,
@@ -7,6 +7,7 @@ import {
   SwapOutlined, ImportOutlined, TeamOutlined,
   CodeOutlined, HistoryOutlined, BarChartOutlined,
   VerticalAlignTopOutlined, SyncOutlined,
+  PaperClipOutlined, FileOutlined, BugOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../store/AuthContext';
@@ -16,6 +17,28 @@ const ChatBubble = lazy(() => import('mxsuiteChat/ChatBubble'));
 
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
+
+/** Reusable module-level AudioContext for notification sounds */
+let _notifAudioCtx: AudioContext | null = null;
+function playNotifSound() {
+  try {
+    if (localStorage.getItem('mxsuite_sound_muted') === 'true') return;
+    if (!_notifAudioCtx) _notifAudioCtx = new AudioContext();
+    const ac = _notifAudioCtx;
+    if (ac.state === 'suspended') ac.resume();
+    const osc = ac.createOscillator();
+    const gain = ac.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = 600;
+    gain.gain.setValueAtTime(0, ac.currentTime);
+    gain.gain.linearRampToValueAtTime(0.12, ac.currentTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.15);
+    osc.connect(gain);
+    gain.connect(ac.destination);
+    osc.start();
+    osc.stop(ac.currentTime + 0.15);
+  } catch { /* audio not available */ }
+}
 
 const ROLE_AVATAR_COLORS: Record<string, string> = {
   PLATFORM_ADMIN: '#2d1854',
@@ -33,6 +56,76 @@ const ROLE_SHORT_LABELS: Record<string, string> = {
   TENANT_USER: 'Member',
 };
 
+const AVAILABILITY_COLORS: Record<string, string> = {
+  ONLINE: '#52c41a',
+  BUSY: '#c4314b',
+  DO_NOT_DISTURB: '#c4314b',
+  BE_RIGHT_BACK: '#faad14',
+  AWAY: '#faad14',
+  APPEAR_OFFLINE: '#8c8c8c',
+};
+
+const AVAILABILITY_LABELS: Record<string, string> = {
+  ONLINE: 'Available',
+  BUSY: 'Busy',
+  DO_NOT_DISTURB: 'Do not disturb',
+  BE_RIGHT_BACK: 'Be right back',
+  AWAY: 'Appear away',
+  APPEAR_OFFLINE: 'Appear offline',
+};
+
+const iconBox: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+  width: 16, height: 16, verticalAlign: 'middle',
+};
+
+const AVAILABILITY_ICONS: Record<string, React.ReactNode> = {
+  /* Green circle with white checkmark */
+  ONLINE: (
+    <span style={{ ...iconBox, width: 14, height: 14, borderRadius: '50%', background: '#52c41a' }}>
+      <span style={{ color: '#fff', fontSize: 10, fontWeight: 700, lineHeight: 1 }}>&#x2713;</span>
+    </span>
+  ),
+  /* Red filled circle */
+  BUSY: (
+    <span style={{ ...iconBox, width: 14, height: 14, borderRadius: '50%', background: '#c4314b' }} />
+  ),
+  /* Red circle with white horizontal bar */
+  DO_NOT_DISTURB: (
+    <span style={{ ...iconBox, width: 14, height: 14, borderRadius: '50%', background: '#c4314b' }}>
+      <span style={{ width: 8, height: 2, background: '#fff', borderRadius: 1 }} />
+    </span>
+  ),
+  /* Yellow circle with white clock hands */
+  BE_RIGHT_BACK: (
+    <span style={{ ...iconBox, width: 14, height: 14, borderRadius: '50%', background: '#faad14', position: 'relative' }}>
+      <span style={{ position: 'absolute', width: 2, height: 4, background: '#fff', borderRadius: 1, top: 3, left: 6 }} />
+      <span style={{ position: 'absolute', width: 4, height: 2, background: '#fff', borderRadius: 1, top: 6, left: 6 }} />
+    </span>
+  ),
+  /* Yellow circle with clock hands (same as BRB) */
+  AWAY: (
+    <span style={{ ...iconBox, width: 14, height: 14, borderRadius: '50%', background: '#faad14', position: 'relative' }}>
+      <span style={{ position: 'absolute', width: 2, height: 4, background: '#fff', borderRadius: 1, top: 3, left: 6 }} />
+      <span style={{ position: 'absolute', width: 4, height: 2, background: '#fff', borderRadius: 1, top: 6, left: 6 }} />
+    </span>
+  ),
+  /* Gray outlined circle with X on white background */
+  APPEAR_OFFLINE: (
+    <span style={{ ...iconBox, width: 14, height: 14, borderRadius: '50%', border: '2px solid #8c8c8c', background: '#fff', boxSizing: 'border-box' }}>
+      <span style={{ color: '#8c8c8c', fontSize: 8, fontWeight: 700, lineHeight: 1 }}>&#x2715;</span>
+    </span>
+  ),
+};
+
+const NOTIF_ICON: Record<string, React.ReactNode> = {
+  CHAT_MENTION:     <span style={{ fontWeight: 700, fontSize: 16 }}>@</span>,
+  CHAT_FILE_SHARED: <PaperClipOutlined />,
+  COACH_ASSIGNED:   <TeamOutlined />,
+  MAPPING_UPDATED:  <SyncOutlined />,
+  HELP_REQUESTED:   <MessageOutlined />,
+};
+
 export default function AppLayout({ children }: { children?: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -46,12 +139,16 @@ export default function AppLayout({ children }: { children?: React.ReactNode }) 
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [myAvailability, setMyAvailability] = useState<string>('ONLINE');
 
   // Sidebar badge counts (coach/admin only)
   const [activeProjectCount, setActiveProjectCount] = useState(0);
   const [openDecisionsCount, setOpenDecisionsCount] = useState(0);
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
   const [pendingInvitationsCount, setPendingInvitationsCount] = useState(0);
+  const [totalOrgCount, setTotalOrgCount] = useState(0);
+  const [totalUserCount, setTotalUserCount] = useState(0);
+  const [totalInvitationCount, setTotalInvitationCount] = useState(0);
 
   // Member sidebar badge counts
   const [memberMappingStats, setMemberMappingStats] = useState<{ mapped: number; total: number; needsReview: number } | null>(null);
@@ -59,6 +156,7 @@ export default function AppLayout({ children }: { children?: React.ReactNode }) 
   const [memberUploadRowCount, setMemberUploadRowCount] = useState<number | null>(null);
   const [memberUploadFilename, setMemberUploadFilename] = useState<string | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const prevUnreadRef = useRef(0);
 
   const fetchOnboardingCounts = useCallback(async () => {
     try {
@@ -74,13 +172,19 @@ export default function AppLayout({ children }: { children?: React.ReactNode }) 
       // Silently fail
     }
 
-    // Fetch pending invitations count (platform users)
+    // Fetch sidebar counts for Administration section (platform users)
     if (isPlatformUser) {
       try {
-        const { data } = await api.get<{ content: unknown[]; totalElements: number }>(
-          '/invitations', { params: { page: 0, size: 1, status: 'PENDING' } }
-        );
-        setPendingInvitationsCount(data.totalElements ?? 0);
+        const [invPending, invTotal, orgs, users] = await Promise.all([
+          api.get<{ content: unknown[]; page: { totalElements: number } }>('/invitations', { params: { page: 0, size: 1, status: 'PENDING' } }),
+          api.get<{ content: unknown[]; page: { totalElements: number } }>('/invitations', { params: { page: 0, size: 1 } }),
+          api.get<{ content: unknown[]; page: { totalElements: number } }>('/admin/tenants', { params: { page: 0, size: 1 } }),
+          api.get<{ content: unknown[]; page: { totalElements: number } }>('/admin/users', { params: { page: 0, size: 1 } }),
+        ]);
+        setPendingInvitationsCount(invPending.data.page?.totalElements ?? 0);
+        setTotalInvitationCount(invTotal.data.page?.totalElements ?? 0);
+        setTotalOrgCount(orgs.data.page?.totalElements ?? 0);
+        setTotalUserCount(users.data.page?.totalElements ?? 0);
       } catch {
         // Silently fail
       }
@@ -90,7 +194,12 @@ export default function AppLayout({ children }: { children?: React.ReactNode }) 
   const fetchUnreadCount = useCallback(async () => {
     try {
       const { data } = await api.get<{ count: number }>('/notifications/unread-count');
-      setUnreadCount(data.count ?? 0);
+      const newCount = data.count ?? 0;
+      if (newCount > prevUnreadRef.current && document.visibilityState === 'visible') {
+        playNotifSound();
+      }
+      prevUnreadRef.current = newCount;
+      setUnreadCount(newCount);
     } catch {
       // Silently fail — notification polling should never break the app
     }
@@ -130,6 +239,14 @@ export default function AppLayout({ children }: { children?: React.ReactNode }) 
     const timer = setInterval(fetchUnreadCount, 30_000);
     return () => clearInterval(timer);
   }, [fetchUnreadCount]);
+
+  // Fetch own availability status on mount (all users)
+  useEffect(() => {
+    if (!user) return;
+    api.get<{ online: boolean; availabilityStatus: string }>('/chat/presence/my-status')
+      .then(({ data }) => setMyAvailability(data.availabilityStatus ?? 'ONLINE'))
+      .catch(() => {});
+  }, [user]);
 
   useEffect(() => {
     if (!isPlatformUser) return;
@@ -256,7 +373,7 @@ export default function AppLayout({ children }: { children?: React.ReactNode }) 
           label: (
             <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: 8 }}>
               Projects
-              {activeProjectCount > 0 && <Badge count={activeProjectCount} size="small" style={{ backgroundColor: '#1677ff' }} />}
+              {activeProjectCount > 0 && <Badge count={activeProjectCount} size="small" style={{ backgroundColor: '#6b4fa0' }} />}
             </span>
           ),
         },
@@ -267,7 +384,7 @@ export default function AppLayout({ children }: { children?: React.ReactNode }) 
           label: (
             <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: 8 }}>
               Decisions
-              {openDecisionsCount > 0 && <Badge count={openDecisionsCount} size="small" />}
+              {openDecisionsCount > 0 && <Badge count={openDecisionsCount} size="small" style={{ backgroundColor: '#6b4fa0' }} />}
             </span>
           ),
         },
@@ -277,7 +394,7 @@ export default function AppLayout({ children }: { children?: React.ReactNode }) 
           label: (
             <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: 8 }}>
               Approvals
-              {pendingApprovalsCount > 0 && <Badge count={pendingApprovalsCount} size="small" />}
+              {pendingApprovalsCount > 0 && <Badge count={pendingApprovalsCount} size="small" style={{ backgroundColor: '#6b4fa0' }} />}
             </span>
           ),
         },
@@ -289,21 +406,43 @@ export default function AppLayout({ children }: { children?: React.ReactNode }) 
       children: [
         { key: '/admin/analytics', label: 'Overview' },
         ...(isPlatformAdmin ? [{ key: '/admin/analytics/coaches', label: 'Coach Performance' }] : []),
+        { key: '/admin/analytics/chat', label: 'Chat & Sentiment' },
       ],
     }] : []),
     ...(isPlatformUser ? [
       { type: 'divider' as const },
       { key: '/admin', icon: <SettingOutlined />, label: 'Administration',
         children: [
-          { key: '/admin/tenants', label: 'Organizations' },
-          { key: '/admin/users', label: 'Users' },
+          {
+            key: '/admin/tenants',
+            title: 'Organizations',
+            label: (
+              <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: 8 }}>
+                Organizations
+                {totalOrgCount > 0 && <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>{totalOrgCount}</span>}
+              </span>
+            ),
+          },
+          {
+            key: '/admin/users',
+            title: 'Users',
+            label: (
+              <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: 8 }}>
+                Users
+                {totalUserCount > 0 && <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>{totalUserCount}</span>}
+              </span>
+            ),
+          },
           {
             key: '/admin/invitations',
             title: 'Invitations',
             label: (
               <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: 8 }}>
                 Invitations
-                {pendingInvitationsCount > 0 && <Badge count={pendingInvitationsCount} size="small" />}
+                {pendingInvitationsCount > 0
+                  ? <Badge count={pendingInvitationsCount} size="small" style={{ backgroundColor: '#6b4fa0' }} />
+                  : totalInvitationCount > 0 && <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>{totalInvitationCount}</span>
+                }
               </span>
             ),
           },
@@ -317,9 +456,20 @@ export default function AppLayout({ children }: { children?: React.ReactNode }) 
   const userMenuItems = [
     { key: 'profile', icon: <UserOutlined />, label: 'Profile' },
     { key: 'settings', icon: <SettingOutlined />, label: 'Settings' },
+    ...(user ? [
+      { type: 'divider' as const },
+      { key: 'status-header', label: <Text style={{ fontSize: 11, color: '#888', padding: '0 4px' }}>My Status</Text>, disabled: true },
+      { key: 'status-ONLINE',          icon: AVAILABILITY_ICONS.ONLINE,          label: 'Available' },
+      { key: 'status-BUSY',            icon: AVAILABILITY_ICONS.BUSY,            label: 'Busy' },
+      { key: 'status-DO_NOT_DISTURB',  icon: AVAILABILITY_ICONS.DO_NOT_DISTURB,  label: 'Do not disturb' },
+      { key: 'status-BE_RIGHT_BACK',   icon: AVAILABILITY_ICONS.BE_RIGHT_BACK,   label: 'Be right back' },
+      { key: 'status-AWAY',            icon: AVAILABILITY_ICONS.AWAY,            label: 'Appear away' },
+      { key: 'status-APPEAR_OFFLINE',  icon: AVAILABILITY_ICONS.APPEAR_OFFLINE,  label: 'Appear offline' },
+    ] : []),
     ...(isDevLogin ? [
       { type: 'divider' as const },
       { key: 'bounce', icon: <SyncOutlined />, label: 'Bounce UI' },
+      { key: 'scenario', icon: <BugOutlined />, label: 'Chat Scenario Test' },
     ] : []),
     { type: 'divider' as const },
     { key: 'logout', icon: <LogoutOutlined />, label: 'Sign Out', danger: true },
@@ -521,6 +671,13 @@ export default function AppLayout({ children }: { children?: React.ReactNode }) 
                           onClick={() => { if (!n.read) markOneRead(n.id); }}
                         >
                           <List.Item.Meta
+                            avatar={
+                              <Avatar
+                                size={32}
+                                style={{ background: '#f3eeff', color: '#6b4fa0', flexShrink: 0 }}
+                                icon={NOTIF_ICON[n.type] ?? <BellOutlined />}
+                              />
+                            }
                             title={
                               <span style={{ fontWeight: n.read ? 400 : 600, fontSize: 13 }}>
                                 {!n.read && <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#1890ff', display: 'inline-block', marginRight: 6 }} />}
@@ -529,7 +686,7 @@ export default function AppLayout({ children }: { children?: React.ReactNode }) 
                             }
                             description={
                               <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }}>
-                                {n.message && <span style={{ display: 'block' }}>{n.message}</span>}
+                                {n.message && <span style={{ display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 240 }}>{n.message}</span>}
                                 {new Date(n.createdAt).toLocaleString()}
                               </span>
                             }
@@ -541,7 +698,7 @@ export default function AppLayout({ children }: { children?: React.ReactNode }) 
                 </div>
               }
             >
-              <Badge count={unreadCount} size="small" offset={[-2, 2]}>
+              <Badge count={unreadCount} size="small" offset={[-2, 2]} color="#6b4fa0">
                 <BellOutlined style={{ fontSize: 18, cursor: 'pointer' }} />
               </Badge>
             </Popover>
@@ -551,17 +708,35 @@ export default function AppLayout({ children }: { children?: React.ReactNode }) 
                 if (key === 'logout') logout();
                 else if (key === 'profile') navigate('/profile');
                 else if (key === 'settings') navigate('/settings');
-                else if (key === 'bounce' && user?.email) {
+                else if (key.startsWith('status-')) {
+                  const status = key.replace('status-', '');
+                  setMyAvailability(status);
+                  api.put('/chat/presence/availability', { status }).catch(() => {});
+                } else if (key === 'bounce' && user?.email) {
                   devLogin(user.email).then(() => window.location.reload());
+                } else if (key === 'scenario') {
+                  navigate('/dev/scenario');
                 }
               },
             }} trigger={['click']}>
               <Space style={{ cursor: 'pointer' }}>
-                {user?.avatarUrl ? (
-                  <Avatar src={user.avatarUrl} />
-                ) : (
-                  <Avatar style={{ backgroundColor: ROLE_AVATAR_COLORS[user?.role ?? ''] || '#2d1854' }} icon={<UserOutlined />} />
-                )}
+                <div style={{ position: 'relative', display: 'inline-block', lineHeight: 0 }}>
+                  {user?.avatarUrl ? (
+                    <Avatar src={user.avatarUrl} />
+                  ) : (
+                    <Avatar style={{ backgroundColor: ROLE_AVATAR_COLORS[user?.role ?? ''] || '#2d1854' }} icon={<UserOutlined />} />
+                  )}
+                  {user && (
+                    <span style={{
+                      position: 'absolute', bottom: -2, right: -2,
+                      borderRadius: '50%',
+                      border: '2px solid #fff',
+                      lineHeight: 0, display: 'flex',
+                    }}>
+                      {AVAILABILITY_ICONS[myAvailability] || AVAILABILITY_ICONS.ONLINE}
+                    </span>
+                  )}
+                </div>
                 {!isMobile && (
                   <div style={{ lineHeight: 1.3 }}>
                     <Text>{user?.firstName} {user?.lastName}</Text>

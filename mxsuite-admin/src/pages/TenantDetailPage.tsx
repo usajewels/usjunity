@@ -23,7 +23,7 @@ import FeatureConfigTab from '../components/FeatureConfigTab';
 import AiConfigTab from '../components/AiConfigTab';
 import CoachMappingsTab from '../components/CoachMappingsTab';
 import PipelineTab from '../components/PipelineTab';
-import { usePageTitle } from '@mxsuite/shared';
+import { usePageTitle, useAuth, getApiError } from '@mxsuite/shared';
 
 const { Title, Text } = Typography;
 
@@ -45,6 +45,7 @@ const ROLE_LABELS: Record<string, string> = {
 
 export default function TenantDetailPage() {
   usePageTitle('Organization Details');
+  const { user, isPlatformAdmin, isCoachAdmin } = useAuth();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
@@ -124,8 +125,8 @@ export default function TenantDetailPage() {
       const { data } = await tenantApi.uploadLogo(tenant.id, file);
       setTenant({ ...tenant, logoUrl: data.logoUrl });
       message.success('Logo uploaded');
-    } catch {
-      message.error('Failed to upload logo');
+    } catch (err) {
+      message.error(getApiError(err, 'Failed to upload logo'));
     }
     return false;
   };
@@ -138,8 +139,8 @@ export default function TenantDetailPage() {
       setTenant(data);
       message.success('Organization updated');
       setEditModalOpen(false);
-    } catch {
-      message.error('Failed to update organization');
+    } catch (err) {
+      message.error(getApiError(err, 'Failed to update organization'));
     } finally {
       setSaving(false);
     }
@@ -152,8 +153,8 @@ export default function TenantDetailPage() {
       const { data } = await tenantApi.update(tenant.id, { active: !tenant.active });
       setTenant(data);
       message.success(`Organization ${data.active ? 'activated' : 'deactivated'}`);
-    } catch {
-      message.error('Failed to update organization status');
+    } catch (err) {
+      message.error(getApiError(err, 'Failed to update organization status'));
     }
   };
 
@@ -172,22 +173,10 @@ export default function TenantDetailPage() {
       setInviteModalOpen(false);
       inviteForm.resetFields();
       fetchAll(); // refresh user list
-    } catch {
-      message.error('Failed to send invitation');
+    } catch (err) {
+      message.error(getApiError(err, 'Failed to send invitation'));
     } finally {
       setInviting(false);
-    }
-  };
-
-  /* ---- open-to-all-coaches toggle ---- */
-  const handleToggleOpenToAll = async (checked: boolean) => {
-    if (!tenant) return;
-    try {
-      const { data } = await tenantApi.update(tenant.id, { openToAllCoaches: checked });
-      setTenant(data);
-      message.success(checked ? 'All coaches now have access' : 'Reverted to assigned coaches only');
-    } catch {
-      message.error('Failed to update coach access setting');
     }
   };
 
@@ -210,8 +199,8 @@ export default function TenantDetailPage() {
       setAddCoachOpen(false);
       setSelectedCoachId(undefined);
       fetchCoaches();
-    } catch {
-      message.error('Failed to assign coach');
+    } catch (err) {
+      message.error(getApiError(err, 'Failed to assign coach'));
     } finally {
       setAddingCoach(false);
     }
@@ -224,8 +213,8 @@ export default function TenantDetailPage() {
       await assignmentApi.unassignCoach(id, userId);
       message.success('Coach removed');
       setCoaches((prev) => prev.filter((c) => c.id !== userId));
-    } catch {
-      message.error('Failed to remove coach');
+    } catch (err) {
+      message.error(getApiError(err, 'Failed to remove coach'));
     } finally {
       setRemovingCoachId(null);
     }
@@ -240,8 +229,8 @@ export default function TenantDetailPage() {
         prev.map((u) => (u.id === user.id ? { ...u, active: !u.active } : u)),
       );
       message.success(`${user.firstName} ${user.lastName} ${user.active ? 'deactivated' : 'activated'}`);
-    } catch {
-      message.error('Failed to update user status');
+    } catch (err) {
+      message.error(getApiError(err, 'Failed to update user status'));
     } finally {
       setTogglingUserId(null);
     }
@@ -253,8 +242,8 @@ export default function TenantDetailPage() {
       await userApi.delete(user.id);
       message.success(`Deleted user ${user.email}`);
       fetchAll();
-    } catch {
-      message.error('Failed to delete user');
+    } catch (err) {
+      message.error(getApiError(err, 'Failed to delete user'));
     }
   };
 
@@ -265,8 +254,8 @@ export default function TenantDetailPage() {
       await tenantApi.delete(tenant.id);
       message.success(`Deleted organization ${tenant.name}`);
       navigate('/admin/tenants');
-    } catch {
-      message.error('Failed to delete organization');
+    } catch (err) {
+      message.error(getApiError(err, 'Failed to delete organization'));
     }
   };
 
@@ -347,7 +336,7 @@ export default function TenantDetailPage() {
           onConfirm={() => handleToggleUserActive(record)}
           okText="Yes"
           cancelText="No"
-          okButtonProps={{ danger: record.active }}
+          okButtonProps={{}}
         >
           <Switch
             checked={record.active}
@@ -440,25 +429,33 @@ export default function TenantDetailPage() {
       key: 'actions',
       width: 100,
       align: 'right' as const,
-      render: (_: unknown, record: CoachDto) => (
-        <Popconfirm
-          title="Remove this coach?"
-          description="They will no longer have access to this organization's onboarding project."
-          onConfirm={() => handleRemoveCoach(record.id)}
-          okText="Remove"
-          cancelText="Cancel"
-          okButtonProps={{ danger: true }}
-        >
-          <Button
-            type="text"
-            danger
-            size="small"
-            loading={removingCoachId === record.id}
+      render: (_: unknown, record: CoachDto) => {
+        const isSelf = user?.id === record.id;
+        const canAct = isPlatformAdmin || isCoachAdmin || isSelf;
+        if (!canAct) return null;
+        const isLeave = isSelf && !isPlatformAdmin;
+        return (
+          <Popconfirm
+            title={isLeave ? 'Leave this organization?' : 'Remove this coach?'}
+            description={isLeave
+              ? 'You will no longer have access to this organization\'s onboarding project.'
+              : 'They will no longer have access to this organization\'s onboarding project.'}
+            onConfirm={() => handleRemoveCoach(record.id)}
+            okText={isLeave ? 'Leave' : 'Remove'}
+            cancelText="Cancel"
+            okButtonProps={{ danger: true }}
           >
-            Remove
-          </Button>
-        </Popconfirm>
-      ),
+            <Button
+              type="text"
+              danger
+              size="small"
+              loading={removingCoachId === record.id}
+            >
+              {isLeave ? 'Leave' : 'Remove'}
+            </Button>
+          </Popconfirm>
+        );
+      },
     },
   ];
 
@@ -507,9 +504,9 @@ export default function TenantDetailPage() {
                 onConfirm={handleToggleTenantActive}
                 okText="Yes"
                 cancelText="No"
-                okButtonProps={{ danger: tenant.active }}
+                okButtonProps={{}}
               >
-                <Button danger={tenant.active} type={tenant.active ? 'default' : 'primary'}>
+                <Button type={tenant.active ? 'default' : 'primary'}>
                   {tenant.active ? 'Deactivate' : 'Activate'}
                 </Button>
               </Popconfirm>
@@ -559,6 +556,24 @@ export default function TenantDetailPage() {
           <Descriptions.Item label="Last Updated">
             {dayjs(tenant.lastModifiedAt).format('MMMM D, YYYY')}
           </Descriptions.Item>
+          {tenant.tenantType !== 'PLATFORM' && (
+            <Descriptions.Item label="Chat File Sharing">
+              <Switch
+                checked={tenant.chatFilesEnabled !== false}
+                onChange={async (checked) => {
+                  try {
+                    const { data } = await tenantApi.update(tenant.id, { chatFilesEnabled: checked });
+                    setTenant(data);
+                    message.success(`Chat file sharing ${checked ? 'enabled' : 'disabled'}`);
+                  } catch (err) {
+                    message.error(getApiError(err, 'Failed to update setting'));
+                  }
+                }}
+                style={tenant.chatFilesEnabled !== false ? { backgroundColor: '#2d1854' } : {}}
+                size="small"
+              />
+            </Descriptions.Item>
+          )}
         </Descriptions>
       </Card>
 
@@ -599,7 +614,6 @@ export default function TenantDetailPage() {
                       type="primary"
                       icon={<UserAddOutlined />}
                       onClick={() => setInviteModalOpen(true)}
-                      style={{ background: '#2d1854', borderColor: '#2d1854' }}
                     >
                       Invite User
                     </Button>
@@ -627,23 +641,6 @@ export default function TenantDetailPage() {
               ),
               children: (
                 <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, padding: '12px 16px', background: '#f3eeff', borderRadius: 8, border: '1px solid #e0d4f5' }}>
-                    <div>
-                      <Text strong>Open to all coaches</Text>
-                      <div>
-                        <Text type="secondary" style={{ fontSize: 13 }}>
-                          When enabled, every current and future onboarding coach can view this organization's project — no explicit assignment needed.
-                        </Text>
-                      </div>
-                    </div>
-                    <Switch
-                      checked={!!tenant.openToAllCoaches}
-                      onChange={handleToggleOpenToAll}
-                      checkedChildren="On"
-                      unCheckedChildren="Off"
-                      style={tenant.openToAllCoaches ? { backgroundColor: '#2d1854' } : {}}
-                    />
-                  </div>
                   <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16, gap: 8 }}>
                     {addCoachOpen ? (
                       <>
@@ -666,7 +663,6 @@ export default function TenantDetailPage() {
                           onClick={handleAddCoach}
                           loading={addingCoach}
                           disabled={!selectedCoachId}
-                          style={{ background: '#2d1854', borderColor: '#2d1854' }}
                         >
                           Add
                         </Button>
@@ -679,7 +675,6 @@ export default function TenantDetailPage() {
                         type="primary"
                         icon={<UserAddOutlined />}
                         onClick={() => { setAddCoachOpen(true); loadAvailableCoaches(); }}
-                        style={{ background: '#2d1854', borderColor: '#2d1854' }}
                       >
                         Add Coach
                       </Button>
@@ -773,6 +768,7 @@ export default function TenantDetailPage() {
         </ConfigProvider>
       </Card>
 
+      <ConfigProvider theme={{ token: { colorPrimary: '#2d1854' } }}>
       {/* Edit Tenant Modal */}
       <Modal
         title="Edit Organization"
@@ -781,7 +777,7 @@ export default function TenantDetailPage() {
         onOk={() => editForm.submit()}
         okText="Save Changes"
         confirmLoading={saving}
-        okButtonProps={{ icon: <SaveOutlined />, style: { background: '#2d1854', borderColor: '#2d1854' } }}
+        okButtonProps={{ icon: <SaveOutlined /> }}
       >
         <Form form={editForm} layout="vertical" onFinish={handleEditSubmit} style={{ marginTop: 16 }}>
           <Form.Item
@@ -835,7 +831,7 @@ export default function TenantDetailPage() {
         onOk={() => inviteForm.submit()}
         okText="Send Invitation"
         confirmLoading={inviting}
-        okButtonProps={{ icon: <MailOutlined />, style: { background: '#2d1854', borderColor: '#2d1854' } }}
+        okButtonProps={{ icon: <MailOutlined /> }}
       >
         <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
           The user will receive an email invitation to join <Text strong>{tenant.name}</Text>.
@@ -867,6 +863,7 @@ export default function TenantDetailPage() {
           </Form.Item>
         </Form>
       </Modal>
+      </ConfigProvider>
     </div>
     </div>
   );

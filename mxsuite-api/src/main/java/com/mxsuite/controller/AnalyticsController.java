@@ -155,6 +155,12 @@ public class AnalyticsController {
         return analyticsService.computeCoachPerformance();
     }
 
+    // Feature 6: Chat Analytics
+    @GetMapping("/chat")
+    public AnalyticsService.ChatAnalyticsDto getChatAnalytics() {
+        return analyticsService.computeChatAnalytics();
+    }
+
     // --- Helpers ---
 
     private List<Project> getFilteredProjects(String status) {

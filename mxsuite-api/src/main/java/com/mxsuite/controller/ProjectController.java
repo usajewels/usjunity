@@ -2,6 +2,8 @@ package com.mxsuite.controller;
 
 import com.mxsuite.audit.AuditService;
 import com.mxsuite.model.Project;
+import com.mxsuite.model.enums.MigrationPhase;
+import com.mxsuite.model.enums.MigrationStatus;
 import com.mxsuite.repository.ProjectRepository;
 import com.mxsuite.repository.TenantRepository;
 import com.mxsuite.repository.UserRepository;
@@ -93,6 +95,8 @@ public class ProjectController {
         project.setDescription(request.description() != null ? request.description().trim() : null);
         project.setTenant(tenant);
         project.setOwner(owner);
+        project.setMigrationPhase(MigrationPhase.DISCOVER);
+        project.setMigrationStatus(MigrationStatus.ACTIVE);
         project = projectRepository.save(project);
 
         auditService.log("CREATE", "Project", project.getId(), project.getName());

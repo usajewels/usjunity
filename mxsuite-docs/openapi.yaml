@@ -56,6 +56,8 @@ tags:
     description: User invitation workflow
   - name: Onboarding
     description: Data onboarding wizard (file upload, column mapping, submission)
+  - name: Migration
+    description: Migration project dashboard, phase gate management, and approval workflows
 
 paths:
   # ──────────────────────────────────────────────
@@ -1715,6 +1717,353 @@ paths:
         '204':
           description: Onboarding reset
 
+  # ──────────────────────────────────────────────
+  # Migration Dashboard
+  # ──────────────────────────────────────────────
+  /api/migration/projects:
+    get:
+      tags: [Migration]
+      summary: List migration projects
+      description: >
+        Returns a paginated list of migration projects. PLATFORM_ADMIN sees all projects.
+        COACH_ADMIN / PLATFORM_SUPPORT see their assigned tenants.
+        TENANT_ADMIN sees only their own tenant's projects.
+      parameters:
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Free-text search on project name
+        - name: letter
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 1
+          description: Filter by first letter of project name
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/size'
+        - $ref: '#/components/parameters/sort'
+      responses:
+        '200':
+          description: Paginated project list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageMigrationProject'
+
+  /api/migration/stats:
+    get:
+      tags: [Migration]
+      summary: Migration dashboard statistics
+      description: Returns counts and averages for the authenticated user's scope.
+      responses:
+        '200':
+          description: Stats summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MigrationStatsDto'
+              example:
+                activeMigrations: 4
+                gatesAwaitingApproval: 2
+                avgCycleTimeDays: 12.5
+                reconciliationPassRate: 0.0
+
+  /api/migration/blueprints:
+    get:
+      tags: [Migration]
+      summary: List migration blueprints
+      description: Returns blueprints available to the authenticated tenant (global + tenant-owned).
+      responses:
+        '200':
+          description: Blueprint list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BlueprintDto'
+
+  /api/migration/projects/{id}/advance-phase:
+    post:
+      tags: [Migration]
+      summary: Advance project to next migration phase
+      description: >
+        Moves the project to the next `MigrationPhase`. Fails if the current phase gate
+        is not CLEARED or SKIPPED. Automatically triggers validation when entering GENERATE
+        and evaluates the DRY_RUN gate when entering DRY_RUN.
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          description: Updated migration project
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MigrationProjectDto'
+        '400':
+          description: Gate not cleared, or already at final phase
+        '403':
+          description: Insufficient access to the project
+        '404':
+          description: Project not found
+
+  /api/migration/projects/{id}:
+    put:
+      tags: [Migration]
+      summary: Update migration project metadata
+      description: >
+        Updates `sourceSystem`, `targetSystem`, `migrationPhase`, or `migrationStatus`.
+        Requires PLATFORM_ADMIN, COACH_ADMIN, or PLATFORM_SUPPORT role.
+      parameters:
+        - $ref: '#/components/parameters/id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMigrationRequest'
+            example:
+              sourceSystem: GrowthZone
+              targetSystem: MemberSuite
+              migrationPhase: MAP
+              migrationStatus: IN_PROGRESS
+      responses:
+        '200':
+          description: Updated migration project
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MigrationProjectDto'
+        '404':
+          description: Project not found
+
+  /api/migration/projects/{id}/phase-times:
+    get:
+      tags: [Migration]
+      summary: Get phase timing history for a project
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          description: List of phase time entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PhaseTimeDto'
+        '403':
+          description: Insufficient access to the project
+        '404':
+          description: Project not found
+
+  /api/migration/projects/{projectId}/gates/{phase}/approval-mode:
+    put:
+      tags: [Migration]
+      summary: Update gate approval mode
+      description: >
+        Changes the `GateApprovalMode` for a specific phase gate on a project.
+        Determines whether the gate auto-clears or requires member and/or coach approval.
+        Requires `PLATFORM_ADMIN` or `COACH_ADMIN` role.
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project UUID
+        - name: phase
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/MigrationPhase'
+          description: Phase gate to update
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateApprovalModeRequest'
+            example:
+              approvalMode: BOTH
+      responses:
+        '200':
+          description: Updated phase gate
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhaseGateDto'
+        '403':
+          description: Caller does not have PLATFORM_ADMIN or COACH_ADMIN role
+        '404':
+          description: Gate not found for this project/phase combination
+
+  # ──────────────────────────────────────────────
+  # Approvals
+  # ──────────────────────────────────────────────
+  /api/migration/approvals:
+    get:
+      tags: [Migration]
+      summary: List approval requests
+      description: >
+        Paginated list of approval requests. Scope is automatically filtered by role:
+        PLATFORM_ADMIN sees all; COACH_ADMIN / PLATFORM_SUPPORT see assigned tenants;
+        TENANT_ADMIN sees their own tenant only.
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/ApprovalStatus'
+          description: Filter by approval status
+        - name: gateType
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by gate type (e.g. MAP, GENERATE)
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Free-text search on project/organization name
+        - name: letter
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 1
+          description: Filter by first letter of project name
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/size'
+        - $ref: '#/components/parameters/sort'
+      responses:
+        '200':
+          description: Paginated approval request list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageApproval'
+
+  /api/migration/approvals/stats:
+    get:
+      tags: [Migration]
+      summary: Approval request statistics
+      description: Returns pending/approved/rejected counts for the authenticated user's scope.
+      responses:
+        '200':
+          description: Approval stats
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApprovalStatsDto'
+              example:
+                total: 14
+                pending: 3
+                approved: 10
+                rejected: 1
+
+  /api/migration/approvals/project/{projectId}:
+    get:
+      tags: [Migration]
+      summary: List approvals for a specific project
+      description: Returns all approval requests for the project ordered by `createdAt` descending.
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project UUID
+      responses:
+        '200':
+          description: Approval request list (newest first)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ApprovalDto'
+
+  /api/migration/approvals/{id}/authorize:
+    post:
+      tags: [Migration]
+      summary: Coach/admin authorizes an approval request
+      description: >
+        Marks the approval APPROVED and calls `checkAndClearGate`.
+        If all required approvals for the gate are now received, the gate is set CLEARED.
+        When a CUT_OVER gate clears, the project is automatically marked COMPLETED.
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          description: Updated approval request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApprovalDto'
+        '400':
+          description: Approval is already APPROVED or REJECTED
+        '404':
+          description: Approval request not found
+
+  /api/migration/approvals/{id}/member-approve:
+    post:
+      tags: [Migration]
+      summary: Member self-approves their side of a gate
+      description: >
+        Allows a `TENANT_ADMIN` to approve the member-side of a gate (e.g. MAP or DRY_RUN).
+        Only works on approval requests with `requiredRole = TENANT_ADMIN`.
+        After approval, `checkAndClearGate` is called — if this was the only required approval
+        the gate clears immediately.
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          description: Updated approval request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApprovalDto'
+        '400':
+          description: Approval is not PENDING, or this approval requires a coach role
+        '403':
+          description: Caller is not the tenant's own member
+        '404':
+          description: Approval request not found
+
+  /api/migration/approvals/{id}/reject:
+    post:
+      tags: [Migration]
+      summary: Reject an approval request
+      description: >
+        Marks the approval REJECTED and sets the phase gate to BLOCKED with an optional reason.
+      parameters:
+        - $ref: '#/components/parameters/id'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RejectRequest'
+            example:
+              reason: Column mappings are incomplete — please review and resubmit.
+      responses:
+        '200':
+          description: Updated approval request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApprovalDto'
+        '404':
+          description: Approval request not found
+
 # ══════════════════════════════════════════════
 # Components
 # ══════════════════════════════════════════════
@@ -2739,3 +3088,323 @@ components:
         createdAt:
           type: string
           format: date-time
+
+    # ── Migration enums ──
+    GateApprovalMode:
+      type: string
+      enum: [AUTO, MEMBER_ONLY, COACH_ONLY, BOTH]
+      description: >
+        Controls which parties must approve a phase gate before it clears.
+        - `AUTO` — gate clears automatically when phase conditions are met (no human approval needed)
+        - `MEMBER_ONLY` — the tenant's own admin must submit approval
+        - `COACH_ONLY` — a coach/platform admin must authorize in the approvals queue
+        - `BOTH` — member submits first; coach then authorizes; gate clears only when both are done
+
+    MigrationPhase:
+      type: string
+      enum: [DISCOVER, MAP, GENERATE, DRY_RUN, MIGRATE, CUT_OVER]
+      description: Ordered phases of a data migration project
+
+    MigrationStatus:
+      type: string
+      enum: [NOT_STARTED, IN_PROGRESS, COMPLETED, ON_HOLD, CANCELLED]
+
+    GateStatus:
+      type: string
+      enum: [PENDING, CLEARED, BLOCKED, SKIPPED]
+      description: >
+        - `PENDING` — gate is waiting for conditions or approvals
+        - `CLEARED` — gate has been passed; phase can advance
+        - `BLOCKED` — a condition or approval was rejected
+        - `SKIPPED` — gate bypassed by platform admin
+
+    ApprovalStatus:
+      type: string
+      enum: [PENDING, APPROVED, REJECTED]
+
+    # ── Migration DTOs ──
+    PhaseGateDto:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        phase:
+          $ref: '#/components/schemas/MigrationPhase'
+        gateStatus:
+          $ref: '#/components/schemas/GateStatus'
+        approvalMode:
+          $ref: '#/components/schemas/GateApprovalMode'
+        clearedByName:
+          type: string
+          nullable: true
+        clearedAt:
+          type: string
+          format: date-time
+          nullable: true
+        blockedReason:
+          type: string
+          nullable: true
+      example:
+        id: bbbbbbbb-0000-0000-0000-000000000001
+        phase: MAP
+        gateStatus: PENDING
+        approvalMode: BOTH
+        clearedByName: null
+        clearedAt: null
+        blockedReason: null
+
+    PhaseTimeDto:
+      type: object
+      properties:
+        phase:
+          $ref: '#/components/schemas/MigrationPhase'
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        durationMinutes:
+          type: integer
+          format: int64
+        active:
+          type: boolean
+          description: True if this phase is the currently active phase
+
+    MigrationProjectDto:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        sourceSystem:
+          type: string
+          nullable: true
+        targetSystem:
+          type: string
+          nullable: true
+        migrationPhase:
+          $ref: '#/components/schemas/MigrationPhase'
+        migrationStatus:
+          $ref: '#/components/schemas/MigrationStatus'
+        reconciliationPct:
+          type: number
+          format: decimal
+          nullable: true
+        ownerName:
+          type: string
+          nullable: true
+        tenantId:
+          type: string
+          format: uuid
+          nullable: true
+        tenantName:
+          type: string
+          nullable: true
+        phaseGates:
+          type: array
+          items:
+            $ref: '#/components/schemas/PhaseGateDto'
+        phaseTimes:
+          type: array
+          items:
+            $ref: '#/components/schemas/PhaseTimeDto'
+        createdAt:
+          type: string
+          format: date-time
+
+    PageMigrationProject:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/MigrationProjectDto'
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+        size:
+          type: integer
+        number:
+          type: integer
+
+    MigrationStatsDto:
+      type: object
+      properties:
+        activeMigrations:
+          type: integer
+          format: int64
+        gatesAwaitingApproval:
+          type: integer
+          format: int64
+        avgCycleTimeDays:
+          type: number
+          format: double
+        reconciliationPassRate:
+          type: number
+          format: double
+
+    BlueprintDto:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        sourceSystem:
+          type: string
+          nullable: true
+        targetSystem:
+          type: string
+          nullable: true
+        proven:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    ApprovalDto:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        projectId:
+          type: string
+          format: uuid
+          nullable: true
+        projectName:
+          type: string
+          nullable: true
+        phaseGateId:
+          type: string
+          format: uuid
+          nullable: true
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        gateType:
+          type: string
+          description: Phase gate type (e.g. MAP, GENERATE) as a string label
+          nullable: true
+        approvalStatus:
+          $ref: '#/components/schemas/ApprovalStatus'
+        requiredRole:
+          type: string
+          description: Role that must perform this approval (TENANT_ADMIN or COACH_ADMIN)
+          example: COACH_ADMIN
+        gateApprovalMode:
+          $ref: '#/components/schemas/GateApprovalMode'
+          nullable: true
+          description: The parent gate's configured approval mode
+        assignedTo:
+          type: string
+          format: uuid
+          nullable: true
+        approvedBy:
+          type: string
+          format: uuid
+          nullable: true
+        approvedAt:
+          type: string
+          format: date-time
+          nullable: true
+        artifactRef:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      example:
+        id: cccccccc-0000-0000-0000-000000000001
+        projectId: aaaaaaaa-0000-0000-0000-000000000001
+        projectName: Denver Data Migration
+        phaseGateId: bbbbbbbb-0000-0000-0000-000000000001
+        title: MAP Gate — Coach Review
+        description: All column mappings have been reviewed. Please authorize to advance.
+        gateType: MAP
+        approvalStatus: PENDING
+        requiredRole: COACH_ADMIN
+        gateApprovalMode: BOTH
+        assignedTo: null
+        approvedBy: null
+        approvedAt: null
+        artifactRef: null
+        createdAt: "2026-08-01T09:00:00Z"
+
+    PageApproval:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApprovalDto'
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+        size:
+          type: integer
+        number:
+          type: integer
+
+    ApprovalStatsDto:
+      type: object
+      properties:
+        total:
+          type: integer
+          format: int64
+        pending:
+          type: integer
+          format: int64
+        approved:
+          type: integer
+          format: int64
+        rejected:
+          type: integer
+          format: int64
+
+    # ── Migration request bodies ──
+    UpdateApprovalModeRequest:
+      type: object
+      required: [approvalMode]
+      properties:
+        approvalMode:
+          $ref: '#/components/schemas/GateApprovalMode'
+
+    UpdateMigrationRequest:
+      type: object
+      properties:
+        sourceSystem:
+          type: string
+          nullable: true
+        targetSystem:
+          type: string
+          nullable: true
+        migrationPhase:
+          $ref: '#/components/schemas/MigrationPhase'
+          nullable: true
+        migrationStatus:
+          $ref: '#/components/schemas/MigrationStatus'
+          nullable: true
+
+    RejectRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          description: Human-readable reason shown on the blocked gate
+          example: Column mappings are incomplete — please review and resubmit.

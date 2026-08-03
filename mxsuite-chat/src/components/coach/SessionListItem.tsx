@@ -1,14 +1,24 @@
 import React from 'react';
 import { Avatar, Tag, Badge, Typography } from 'antd';
 import { AlertOutlined } from '@ant-design/icons';
-import type { ConversationDto } from '../../types/chat';
+import type { ConversationDto, PresenceDetail } from '../../types/chat';
 
 const { Text } = Typography;
+
+const STATUS_COLORS: Record<string, string> = {
+  ONLINE: '#52c41a',
+  BUSY: '#c4314b',
+  DO_NOT_DISTURB: '#c4314b',
+  BE_RIGHT_BACK: '#faad14',
+  AWAY: '#faad14',
+  APPEAR_OFFLINE: '#8c8c8c',
+};
 
 interface SessionListItemProps {
   conversation: ConversationDto;
   active: boolean;
-  online?: boolean;
+  /** Replaces the old online boolean — includes availability status. */
+  presenceDetail?: PresenceDetail | null;
   onClick: () => void;
 }
 
@@ -28,22 +38,27 @@ function getInitials(name: string | null): string {
   return parts[0][0]?.toUpperCase() || '?';
 }
 
-export default function SessionListItem({ conversation: c, active, online, onClick }: SessionListItemProps) {
+export default function SessionListItem({ conversation: c, active, presenceDetail, onClick }: SessionListItemProps) {
+  const online = presenceDetail?.online ?? false;
+  const dotColor = online
+    ? (STATUS_COLORS[presenceDetail?.availabilityStatus ?? 'ONLINE'] ?? '#52c41a')
+    : '#d9d9d9';
+
   return (
     <div
       onClick={onClick}
       style={{
         padding: '10px 12px',
         cursor: 'pointer',
-        background: active ? '#f3eeff' : '#fff',
+        background: active ? '#ede5f9' : 'transparent',
         borderLeft: active ? '3px solid #6b4fa0' : '3px solid transparent',
-        borderBottom: '1px solid #f0f0f0',
+        borderBottom: '1px solid #ece7f3',
         transition: 'background 0.15s',
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {/* Member avatar with presence dot */}
+          {/* Member avatar with presence/availability dot */}
           <div style={{ position: 'relative', flexShrink: 0 }}>
             {c.memberAvatarUrl ? (
               <Avatar size={28} src={c.memberAvatarUrl} />
@@ -52,12 +67,11 @@ export default function SessionListItem({ conversation: c, active, online, onCli
                 {getInitials(c.memberName)}
               </Avatar>
             )}
-            {/* Presence indicator */}
             <div style={{
               position: 'absolute', bottom: -1, right: -1,
               width: 10, height: 10, borderRadius: '50%',
-              background: online ? '#52c41a' : '#d9d9d9',
-              border: '2px solid #fff',
+              background: dotColor,
+              border: '2px solid #faf9fc',
             }} />
           </div>
           <Text strong style={{ fontSize: 13 }}>{c.memberName || 'Member'}</Text>

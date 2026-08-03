@@ -7,6 +7,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import org.hibernate.annotations.Formula;
+
 import java.time.Instant;
 import java.util.UUID;
 
@@ -89,8 +91,14 @@ public class Conversation extends BaseEntity {
     @Column(name = "unread_member_count", nullable = false)
     private int unreadMemberCount = 0;
 
+    @Column(name = "coach_initiated", nullable = false)
+    private boolean coachInitiated = false;
+
     @Column(name = "onboarding_id")
     private UUID onboardingId;
+
+    @Formula("(SELECT t.chat_files_enabled FROM tenants t WHERE t.id = tenant_id)")
+    private Boolean chatFilesEnabled;
 
     @Version
     @Column(nullable = false)

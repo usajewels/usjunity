@@ -90,4 +90,53 @@ public class EmailService {
             log.error("Failed to send admin alert email: {}", e.getMessage(), e);
         }
     }
+
+    @Async
+    public void sendGateApprovalNotification(String toEmail, String reviewerName,
+                                              String projectName, String phase,
+                                              String title, String description) {
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom(fromAddress);
+            message.setTo(toEmail);
+            message.setSubject("Action Required: " + phase + " gate approval — " + projectName);
+            message.setText(
+                "Hi " + reviewerName + ",\n\n" +
+                "A " + phase + " gate is awaiting your review for project: " + projectName + "\n\n" +
+                title + "\n\n" +
+                description + "\n\n" +
+                "Log in to the GrowthZone Migration Portal to take action:\n" +
+                appBaseUrl + "/migration/approvals\n\n" +
+                "— GrowthZone Migration Platform"
+            );
+            mailSender.send(message);
+            log.info("Gate approval notification sent to {} for project={} phase={}", toEmail, projectName, phase);
+        } catch (Exception e) {
+            log.error("Failed to send gate approval notification to {}: {}", toEmail, e.getMessage(), e);
+        }
+    }
+
+    @Async
+    public void sendProjectCompletedNotification(String toEmail, String recipientName,
+                                                  String projectName) {
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom(fromAddress);
+            message.setTo(toEmail);
+            message.setSubject("Migration Complete: " + projectName);
+            message.setText(
+                "Hi " + recipientName + ",\n\n" +
+                "Your GrowthZone migration project \"" + projectName + "\" has been successfully " +
+                "completed and cut over to production.\n\n" +
+                "You can view the final project record at:\n" +
+                appBaseUrl + "/migration\n\n" +
+                "Thank you for using the GrowthZone Migration Platform.\n\n" +
+                "— The GrowthZone Team"
+            );
+            mailSender.send(message);
+            log.info("Project completion notification sent to {} for project={}", toEmail, projectName);
+        } catch (Exception e) {
+            log.error("Failed to send project completion notification to {}: {}", toEmail, e.getMessage(), e);
+        }
+    }
 }

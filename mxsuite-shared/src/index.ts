@@ -13,7 +13,7 @@ export type {
   PaginatedResponse, ApiError, AuthResponse, LoginRequest,
   WsEvent,
   FeatureKey, FeatureConfig,
-  MigrationPhase, MigrationStatus, GateStatus,
+  MigrationPhase, MigrationStatus, GateStatus, GateApprovalMode,
   PhaseGateDto, PhaseTimeDto, MigrationProject, MigrationStats, MigrationBlueprint,
   MappingStatus, MappingCandidateDto, FieldMappingEntryDto, SchemaNodeDto, MappingStatsDto, MappingImportResultDto,
   MappingVersionSource, MappingVersionDto, MappingVersionChangeDto, MappingVersionDetailDto, MappingVersionDiffDto, FieldChangeHistoryDto,
@@ -50,3 +50,6 @@ export type { ViewMode } from './components';
 
 // Theme
 export { mxsuiteTheme } from './theme';
+
+// Utilities
+export { getApiError } from './utils/apiError';

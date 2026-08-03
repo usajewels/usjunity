@@ -1,18 +1,39 @@
 import React from 'react';
 import { Avatar, Typography, Button, Tag } from 'antd';
-import { RobotOutlined, CloseOutlined, QuestionCircleOutlined } from '@ant-design/icons';
-import type { ChatMode } from '../../types/chat';
+import { RobotOutlined, CloseOutlined, QuestionCircleOutlined, DownloadOutlined } from '@ant-design/icons';
+import type { ChatMode, PresenceDetail } from '../../types/chat';
 
 const { Text } = Typography;
+
+const STATUS_COLORS: Record<string, string> = {
+  ONLINE: '#52c41a',
+  BUSY: '#c4314b',
+  DO_NOT_DISTURB: '#c4314b',
+  BE_RIGHT_BACK: '#faad14',
+  AWAY: '#faad14',
+  APPEAR_OFFLINE: '#8c8c8c',
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  ONLINE: 'Available',
+  BUSY: 'Busy',
+  DO_NOT_DISTURB: 'Do not disturb',
+  BE_RIGHT_BACK: 'Be right back',
+  AWAY: 'Away',
+  APPEAR_OFFLINE: 'Offline',
+};
 
 interface ChatHeaderProps {
   mode: ChatMode;
   coachName?: string | null;
   coachAvatarUrl?: string | null;
-  coachOnline?: boolean;
+  /** Replaces the old coachOnline boolean — includes status and message. */
+  presenceDetail?: PresenceDetail | null;
   onClose: () => void;
   onRequestHelp: () => void;
+  onExport?: () => void;
   helpRequested: boolean;
+  loading?: boolean;
 }
 
 function getInitials(name: string | null | undefined): string {
@@ -22,7 +43,12 @@ function getInitials(name: string | null | undefined): string {
   return parts[0][0]?.toUpperCase() || '?';
 }
 
-export default function ChatHeader({ mode, coachName, coachAvatarUrl, coachOnline, onClose, onRequestHelp, helpRequested }: ChatHeaderProps) {
+export default function ChatHeader({ mode, coachName, coachAvatarUrl, presenceDetail, onClose, onRequestHelp, onExport, helpRequested, loading }: ChatHeaderProps) {
+  const coachOnline = presenceDetail?.online ?? false;
+  const availStatus = presenceDetail?.availabilityStatus ?? 'ONLINE';
+  const dotColor = coachOnline ? (STATUS_COLORS[availStatus] ?? '#52c41a') : '#8c8c8c';
+  const statusLabel = coachOnline ? (STATUS_LABELS[availStatus] ?? 'Online') : 'Offline';
+
   return (
     <div style={{
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -46,12 +72,12 @@ export default function ChatHeader({ mode, coachName, coachAvatarUrl, coachOnlin
               {getInitials(coachName)}
             </Avatar>
           )}
-          {/* Presence dot — only show for human coach */}
+          {/* Presence/availability dot — only show for human coach */}
           {mode === 'HUMAN' && (
             <div style={{
               position: 'absolute', bottom: 0, right: 0,
               width: 10, height: 10, borderRadius: '50%',
-              background: coachOnline ? '#52c41a' : '#8c8c8c',
+              background: dotColor,
               border: '2px solid #2d1854',
             }} />
           )}
@@ -66,6 +92,18 @@ export default function ChatHeader({ mode, coachName, coachAvatarUrl, coachOnlin
           >
             {mode === 'AI' ? 'AI' : 'Live'}
           </Tag>
+          {/* Status text: show for HUMAN mode, and for AI mode when coach is online */}
+          {mode === 'HUMAN' && presenceDetail && (
+            <Text style={{ fontSize: 10, color: dotColor, display: 'block', marginTop: 1 }}>
+              ● {statusLabel}
+              {presenceDetail.statusMessage && ` — ${presenceDetail.statusMessage}`}
+            </Text>
+          )}
+          {mode === 'AI' && coachOnline && (
+            <Text style={{ fontSize: 10, color: dotColor, display: 'block', marginTop: 1 }}>
+              ● Coach {statusLabel.toLowerCase()}
+            </Text>
+          )}
         </div>
       </div>
       <div style={{ display: 'flex', gap: 8 }}>
@@ -74,18 +112,30 @@ export default function ChatHeader({ mode, coachName, coachAvatarUrl, coachOnlin
             size="small"
             icon={<QuestionCircleOutlined />}
             onClick={onRequestHelp}
+            loading={loading}
+            disabled={loading}
             style={{
               background: 'transparent', color: '#e0d4f5',
               borderColor: '#e0d4f5', fontSize: 12,
             }}
           >
-            Talk to a Coach
+            {loading ? 'Loading...' : 'Talk to a Coach'}
           </Button>
         )}
         {helpRequested && mode === 'AI' && (
           <Tag color="#f59e0b" style={{ margin: 0, lineHeight: '24px' }}>
             Coach requested
           </Tag>
+        )}
+        {onExport && (
+          <Button
+            type="text"
+            size="small"
+            icon={<DownloadOutlined />}
+            onClick={onExport}
+            style={{ color: '#e0d4f5' }}
+            title="Export chat"
+          />
         )}
         <Button
           type="text"

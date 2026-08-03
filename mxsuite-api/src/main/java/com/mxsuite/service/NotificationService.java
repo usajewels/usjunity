@@ -83,6 +83,54 @@ public class NotificationService {
     }
 
     /**
+     * Notifies a chat participant that a file was shared in their conversation.
+     * Called from ChatService after a file message is saved; runs asynchronously.
+     */
+    @Async
+    @Transactional
+    public void notifyFileShared(UUID recipientId, UUID tenantId, UUID conversationId,
+                                  String sharedByName, String filename) {
+        try {
+            Notification n = new Notification();
+            n.setRecipientId(recipientId);
+            n.setTenantId(tenantId);
+            n.setType("CHAT_FILE_SHARED");
+            n.setTitle(sharedByName + " shared a file");
+            n.setMessage(filename);
+            n.setEntityType("Conversation");
+            n.setEntityId(conversationId);
+            notificationRepository.save(n);
+            log.debug("Sent file-share notification to user={} conversation={}", recipientId, conversationId);
+        } catch (Exception e) {
+            log.error("Failed to create file-share notification: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Notifies a chat participant that they were @mentioned in a message.
+     * Runs asynchronously so it never blocks the message send.
+     */
+    @Async
+    @Transactional
+    public void notifyMention(UUID recipientId, UUID tenantId, UUID conversationId,
+                               String mentionedByName, String excerpt) {
+        try {
+            Notification n = new Notification();
+            n.setRecipientId(recipientId);
+            n.setTenantId(tenantId);
+            n.setType("CHAT_MENTION");
+            n.setTitle(mentionedByName + " mentioned you");
+            n.setMessage(excerpt.length() > 120 ? excerpt.substring(0, 117) + "…" : excerpt);
+            n.setEntityType("Conversation");
+            n.setEntityId(conversationId);
+            notificationRepository.save(n);
+            log.debug("Sent mention notification to user={} conversation={}", recipientId, conversationId);
+        } catch (Exception e) {
+            log.error("Failed to create mention notification: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
      * Notifies a coach that they have been assigned to an organization.
      */
     @Async
@@ -101,6 +149,57 @@ public class NotificationService {
             log.debug("Sent coach assignment notification to user={} tenant={}", coachId, tenantId);
         } catch (Exception e) {
             log.error("Failed to send coach assignment notification: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Notifies coaches that a member has requested live help.
+     * If an assigned coach exists, only they are notified; otherwise all active coaches.
+     */
+    @Async
+    @Transactional
+    public void notifyHelpRequested(UUID assignedCoachId, UUID tenantId, UUID conversationId,
+                                     String memberName) {
+        try {
+            List<User> recipients = assignedCoachId != null
+                    ? userRepository.findById(assignedCoachId).map(List::of).orElseGet(List::of)
+                    : userRepository.findActiveCoaches();
+            for (User coach : recipients) {
+                Notification n = new Notification();
+                n.setRecipientId(coach.getId());
+                n.setTenantId(tenantId);
+                n.setType("HELP_REQUESTED");
+                n.setTitle(memberName + " requested live support");
+                n.setMessage("A member is asking for a live coach in chat.");
+                n.setEntityType("Conversation");
+                n.setEntityId(conversationId);
+                notificationRepository.save(n);
+            }
+            log.debug("Sent help-request notification to {} coaches for conversation={}", recipients.size(), conversationId);
+        } catch (Exception e) {
+            log.error("Failed to create help-request notification: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Notifies a member that a coach has started a conversation with them.
+     */
+    @Async
+    @Transactional
+    public void notifyCoachInitiatedConversation(UUID memberId, UUID tenantId,
+                                                   UUID conversationId, String coachName) {
+        try {
+            Notification n = new Notification();
+            n.setRecipientId(memberId);
+            n.setTenantId(tenantId);
+            n.setType("COACH_INITIATED_CONVERSATION");
+            n.setTitle(coachName + " started a conversation with you");
+            n.setEntityType("Conversation");
+            n.setEntityId(conversationId);
+            notificationRepository.save(n);
+            log.debug("Sent coach-initiated notification to user={} conversation={}", memberId, conversationId);
+        } catch (Exception e) {
+            log.error("Failed to create coach-initiated notification: {}", e.getMessage(), e);
         }
     }
 

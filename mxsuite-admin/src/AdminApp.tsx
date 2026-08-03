@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { Spin } from 'antd';
+import { AuthProvider } from '@mxsuite/shared';
 import TenantListPage from './pages/TenantListPage';
 import TenantDetailPage from './pages/TenantDetailPage';
 import UserListPage from './pages/UserListPage';
@@ -12,6 +13,7 @@ import LogViewerPage from './pages/LogViewerPage';
 // duplicate-React issues if bundled eagerly into the federation expose chunk.
 const AnalyticsDashboardPage = lazy(() => import('./pages/AnalyticsDashboardPage'));
 const CoachPerformancePage = lazy(() => import('./pages/CoachPerformancePage'));
+const ChatAnalyticsPage = lazy(() => import('./pages/ChatAnalyticsPage'));
 
 const AnalyticsSpinner = (
   <div style={{ textAlign: 'center', padding: 80 }}>
@@ -21,6 +23,7 @@ const AnalyticsSpinner = (
 
 export default function AdminApp() {
   return (
+    <AuthProvider>
     <Routes>
       <Route path="tenants" element={<TenantListPage />} />
       <Route path="tenants/:id" element={<TenantDetailPage />} />
@@ -30,6 +33,8 @@ export default function AdminApp() {
       <Route path="logs" element={<LogViewerPage />} />
       <Route path="analytics" element={<Suspense fallback={AnalyticsSpinner}><AnalyticsDashboardPage /></Suspense>} />
       <Route path="analytics/coaches" element={<Suspense fallback={AnalyticsSpinner}><CoachPerformancePage /></Suspense>} />
+      <Route path="analytics/chat" element={<Suspense fallback={AnalyticsSpinner}><ChatAnalyticsPage /></Suspense>} />
     </Routes>
+    </AuthProvider>
   );
 }

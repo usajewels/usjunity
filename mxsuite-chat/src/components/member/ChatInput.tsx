@@ -1,16 +1,24 @@
-import React, { useState, useRef } from 'react';
-import { Input, Button, Badge, Typography } from 'antd';
+import React, { useState, useRef, useEffect } from 'react';
+import { Input, Mentions, Button, Typography, message } from 'antd';
 import { SendOutlined, PaperClipOutlined, CloseOutlined } from '@ant-design/icons';
 
 const { Text } = Typography;
 
 const ACCEPTED_FILE_TYPES = '.png,.jpg,.jpeg,.gif,.webp,.pdf,.docx,.xlsx,.txt';
 
+export interface MentionOption {
+  value: string;   // first name inserted after @
+  label: string;   // shown in dropdown
+}
+
 interface ChatInputProps {
   onSend: (content: string, file?: File) => Promise<void> | void;
   disabled?: boolean;
   placeholder?: string;
   filesEnabled?: boolean;
+  mentions?: MentionOption[];
+  onTyping?: () => void;
+  defaultValue?: string;
 }
 
 function formatFileSize(bytes: number): string {
@@ -19,12 +27,17 @@ function formatFileSize(bytes: number): string {
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
 }
 
-export default function ChatInput({ onSend, disabled, placeholder = 'Type a message...', filesEnabled }: ChatInputProps) {
-  const [text, setText] = useState('');
+export default function ChatInput({ onSend, disabled, placeholder = 'Type a message...', filesEnabled, mentions, onTyping, defaultValue }: ChatInputProps) {
+  const [text, setText] = useState(defaultValue || '');
   const [sending, setSending] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const inputRef = useRef<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Allow parent to inject text (e.g. canned response selection)
+  useEffect(() => {
+    if (defaultValue !== undefined) setText(defaultValue);
+  }, [defaultValue]);
 
   const handleSend = async () => {
     const trimmed = text.trim();
@@ -44,7 +57,7 @@ export default function ChatInput({ onSend, disabled, placeholder = 'Type a mess
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 10 * 1024 * 1024) {
-        // Reset input so user can retry
+        message.error('File must be under 10 MB.');
         e.target.value = '';
         return;
       }
@@ -90,15 +103,30 @@ export default function ChatInput({ onSend, disabled, placeholder = 'Type a mess
             />
           </>
         )}
-        <Input
-          ref={inputRef}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onPressEnter={handleSend}
-          placeholder={placeholder}
-          disabled={disabled || sending}
-          style={{ borderRadius: 20 }}
-        />
+        {mentions && mentions.length > 0 ? (
+          <Mentions
+            ref={inputRef}
+            value={text}
+            onChange={(val) => { setText(val); onTyping?.(); }}
+            onPressEnter={(e) => { e.preventDefault(); handleSend(); }}
+            placeholder={placeholder + ' (@ to mention)'}
+            disabled={disabled || sending}
+            style={{ borderRadius: 20, flex: 1 }}
+            autoSize={{ minRows: 1, maxRows: 4 }}
+            options={mentions}
+            prefix="@"
+          />
+        ) : (
+          <Input
+            ref={inputRef}
+            value={text}
+            onChange={(e) => { setText(e.target.value); onTyping?.(); }}
+            onPressEnter={handleSend}
+            placeholder={placeholder}
+            disabled={disabled || sending}
+            style={{ borderRadius: 20 }}
+          />
+        )}
         <Button
           type="primary"
           shape="circle"
@@ -110,6 +138,7 @@ export default function ChatInput({ onSend, disabled, placeholder = 'Type a mess
             background: '#2d1854',
             borderColor: '#2d1854',
             flexShrink: 0,
+            color: '#fff',
           }}
         />
       </div>

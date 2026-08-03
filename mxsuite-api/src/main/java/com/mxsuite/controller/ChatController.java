@@ -1,19 +1,26 @@
 package com.mxsuite.controller;
 
+import com.mxsuite.model.CannedResponse;
 import com.mxsuite.model.ChatMessage;
 import com.mxsuite.model.Conversation;
+import com.mxsuite.model.enums.AvailabilityStatus;
+import com.mxsuite.repository.CannedResponseRepository;
 import com.mxsuite.security.UserPrincipal;
 import com.mxsuite.model.ChatFile;
 import com.mxsuite.service.ChatFileService;
+import com.mxsuite.service.ChatPdfExportService;
 import com.mxsuite.service.ChatService;
 import com.mxsuite.service.PresenceService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -24,6 +31,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/chat")
@@ -32,12 +40,18 @@ public class ChatController {
     private final ChatService chatService;
     private final PresenceService presenceService;
     private final ChatFileService chatFileService;
+    private final ChatPdfExportService chatPdfExportService;
+    private final CannedResponseRepository cannedResponseRepository;
 
     public ChatController(ChatService chatService, PresenceService presenceService,
-                          ChatFileService chatFileService) {
+                          ChatFileService chatFileService,
+                          ChatPdfExportService chatPdfExportService,
+                          CannedResponseRepository cannedResponseRepository) {
         this.chatService = chatService;
         this.presenceService = presenceService;
         this.chatFileService = chatFileService;
+        this.chatPdfExportService = chatPdfExportService;
+        this.cannedResponseRepository = cannedResponseRepository;
     }
 
     /* ---- DTOs ---- */
@@ -46,6 +60,17 @@ public class ChatController {
 
     record SendMessageRequest(@NotBlank @Size(max = 10000) String content) {}
 
+    record SetAvailabilityRequest(@NotNull AvailabilityStatus status, @Size(max = 100) String statusMessage) {}
+
+    record PresenceDetailDto(boolean online, String availabilityStatus, String statusMessage) {}
+
+    record CannedResponseDto(UUID id, String category, String title, String content, int sortOrder) {}
+
+    record InitiateConversationRequest(@NotNull UUID memberId, @Size(max = 500) String subject) {}
+
+    record CreateCannedResponseRequest(String category, @NotBlank String title,
+                                        @NotBlank String content, int sortOrder) {}
+
     record ConversationDto(
             UUID id, UUID tenantId, UUID memberId, String memberName,
             String memberAvatarUrl,
@@ -53,7 +78,8 @@ public class ChatController {
             UUID controllingCoachId, String controllingCoachName,
             String mode, String status, String subject,
             Double sentimentScore, String sentimentLabel,
-            boolean helpRequested,
+            boolean helpRequested, boolean coachInitiated,
+            boolean chatFilesEnabled,
             Instant lastMessageAt, String lastMessagePreview,
             int unreadCoachCount, int unreadMemberCount,
             Instant createdAt) {}
@@ -110,6 +136,18 @@ public class ChatController {
         return ResponseEntity.ok().build();
     }
 
+    @GetMapping("/conversations/{id}/export/pdf")
+    public ResponseEntity<byte[]> exportPdf(@AuthenticationPrincipal UserPrincipal principal,
+                                              @PathVariable UUID id) {
+        chatService.assertMemberOwns(id, principal);
+        byte[] pdf = chatPdfExportService.generatePdf(id);
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"chat-transcript-" + id + ".pdf\"")
+                .body(pdf);
+    }
+
     /* ---- Coach Endpoints ---- */
 
     @GetMapping("/coach/conversations")
@@ -159,6 +197,27 @@ public class ChatController {
         return toDto(chatService.release(id, principal));
     }
 
+    @GetMapping("/coach/conversations/{id}/export/pdf")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN', 'COACH_ADMIN', 'PLATFORM_SUPPORT')")
+    public ResponseEntity<byte[]> coachExportPdf(@AuthenticationPrincipal UserPrincipal principal,
+                                                   @PathVariable UUID id) {
+        chatService.assertCoachCanAccess(id, principal);
+        byte[] pdf = chatPdfExportService.generatePdf(id);
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"chat-transcript-" + id + ".pdf\"")
+                .body(pdf);
+    }
+
+    @PostMapping("/coach/conversations/initiate")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN', 'COACH_ADMIN', 'PLATFORM_SUPPORT')")
+    public ConversationDto coachInitiateConversation(@AuthenticationPrincipal UserPrincipal principal,
+                                                      @Valid @RequestBody InitiateConversationRequest req) {
+        Conversation conv = chatService.createConversationAsCoach(req.memberId(), principal, req.subject());
+        return toDto(conv);
+    }
+
     @GetMapping("/coach/dashboard")
     @PreAuthorize("hasAnyRole('PLATFORM_ADMIN', 'COACH_ADMIN', 'PLATFORM_SUPPORT')")
     public Map<String, Object> coachDashboard(@AuthenticationPrincipal UserPrincipal principal) {
@@ -168,6 +227,68 @@ public class ChatController {
     @GetMapping("/presence")
     public Map<UUID, Boolean> presence(@RequestParam List<UUID> userIds) {
         return presenceService.getOnlineStatus(userIds);
+    }
+
+    /** Detailed presence including availability status — for the chat UI components. */
+    @GetMapping("/presence/detail")
+    public Map<UUID, PresenceDetailDto> presenceDetail(@RequestParam List<UUID> userIds) {
+        return presenceService.getPresenceDetail(userIds).entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> new PresenceDetailDto(
+                        e.getValue().online(),
+                        e.getValue().availabilityStatus().name(),
+                        e.getValue().statusMessage())));
+    }
+
+    /** Returns the calling user's own availability status — used on page load. */
+    @GetMapping("/presence/my-status")
+    public PresenceDetailDto myStatus(@AuthenticationPrincipal UserPrincipal principal) {
+        PresenceService.PresenceDetail d = presenceService.getMyDetail(principal.id());
+        return new PresenceDetailDto(d.online(), d.availabilityStatus().name(), d.statusMessage());
+    }
+
+    /** Sets the calling user's availability status (ONLINE, AWAY, DO_NOT_DISTURB, BUSY). */
+    @PutMapping("/presence/availability")
+    public ResponseEntity<?> setAvailability(@AuthenticationPrincipal UserPrincipal principal,
+                                              @Valid @RequestBody SetAvailabilityRequest req) {
+        presenceService.setAvailability(principal.id(), principal.tenantId(),
+                req.status(), req.statusMessage());
+        return ResponseEntity.ok().build();
+    }
+
+    /* ---- Canned Responses ---- */
+
+    @GetMapping("/canned-responses")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN', 'COACH_ADMIN', 'PLATFORM_SUPPORT')")
+    public List<CannedResponseDto> listCannedResponses(@AuthenticationPrincipal UserPrincipal principal) {
+        return cannedResponseRepository.findByTenantIdOrderBySortOrderAsc(principal.tenantId())
+                .stream().map(r -> new CannedResponseDto(r.getId(), r.getCategory(),
+                        r.getTitle(), r.getContent(), r.getSortOrder())).toList();
+    }
+
+    @PostMapping("/canned-responses")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN', 'COACH_ADMIN', 'PLATFORM_SUPPORT')")
+    public CannedResponseDto createCannedResponse(@AuthenticationPrincipal UserPrincipal principal,
+                                                    @Valid @RequestBody CreateCannedResponseRequest req) {
+        CannedResponse r = new CannedResponse();
+        r.setTenantId(principal.tenantId());
+        r.setCategory(req.category());
+        r.setTitle(req.title());
+        r.setContent(req.content());
+        r.setSortOrder(req.sortOrder());
+        r = cannedResponseRepository.save(r);
+        return new CannedResponseDto(r.getId(), r.getCategory(), r.getTitle(), r.getContent(), r.getSortOrder());
+    }
+
+    @DeleteMapping("/canned-responses/{id}")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN', 'COACH_ADMIN', 'PLATFORM_SUPPORT')")
+    public ResponseEntity<?> deleteCannedResponse(@AuthenticationPrincipal UserPrincipal principal,
+                                                    @PathVariable UUID id) {
+        cannedResponseRepository.findById(id).ifPresent(r -> {
+            if (r.getTenantId().equals(principal.tenantId())) {
+                cannedResponseRepository.delete(r);
+            }
+        });
+        return ResponseEntity.ok().build();
     }
 
     /* ---- File Sharing ---- */
@@ -234,7 +355,8 @@ public class ChatController {
                 c.getControllingCoachId(), c.getControllingCoachName(),
                 c.getMode().name(), c.getStatus().name(), c.getSubject(),
                 c.getSentimentScore(), c.getSentimentLabel(),
-                c.isHelpRequested(),
+                c.isHelpRequested(), c.isCoachInitiated(),
+                c.getChatFilesEnabled() != null ? c.getChatFilesEnabled() : true,
                 c.getLastMessageAt(), c.getLastMessagePreview(),
                 c.getUnreadCoachCount(), c.getUnreadMemberCount(),
                 c.getCreatedAt()

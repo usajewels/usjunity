@@ -71,6 +71,7 @@ public class TenantOnboardingController {
     private final ValidationIssueRepository validationIssueRepository;
     private final PhaseGateService phaseGateService;
     private final NotificationService notificationService;
+    private final ApprovalRequestRepository approvalRepository;
     private StagingService stagingService;
     private final String basePath;
 
@@ -98,6 +99,7 @@ public class TenantOnboardingController {
                                        ValidationIssueRepository validationIssueRepository,
                                        PhaseGateService phaseGateService,
                                        NotificationService notificationService,
+                                       ApprovalRequestRepository approvalRepository,
                                        @Value("${mxsuite.storage.local.base-path}") String basePath) {
         this.tenantRepository = tenantRepository;
         this.projectRepository = projectRepository;
@@ -123,6 +125,7 @@ public class TenantOnboardingController {
         this.validationIssueRepository = validationIssueRepository;
         this.phaseGateService = phaseGateService;
         this.notificationService = notificationService;
+        this.approvalRepository = approvalRepository;
         this.basePath = basePath;
     }
 
@@ -143,7 +146,9 @@ public class TenantOnboardingController {
 
     public record PhaseGateDto(
             MigrationPhase phase, GateStatus gateStatus,
-            String clearedByName, Instant clearedAt) {}
+            String clearedByName, Instant clearedAt,
+            GateApprovalMode approvalMode, boolean memberApproved,
+            String pendingMemberApprovalId) {}
 
     public record MappingStatsDto(long total, long mapped, long needsReview, long unmapped) {}
 
@@ -224,6 +229,14 @@ public class TenantOnboardingController {
                 gate.setProject(project);
                 gate.setPhase(phase);
                 gate.setGateStatus(GateStatus.PENDING);
+                gate.setApprovalMode(switch (phase) {
+                    case DISCOVER -> GateApprovalMode.AUTO;
+                    case MAP      -> GateApprovalMode.BOTH;
+                    case GENERATE -> GateApprovalMode.COACH_ONLY;
+                    case DRY_RUN  -> GateApprovalMode.BOTH;
+                    case MIGRATE  -> GateApprovalMode.COACH_ONLY;
+                    case CUT_OVER -> GateApprovalMode.COACH_ONLY;
+                });
                 phaseGateRepository.save(gate);
             }
 
@@ -1711,7 +1724,17 @@ public class TenantOnboardingController {
     private TenantOnboardingDto buildDto(Project project) {
         List<PhaseGate> gates = phaseGateRepository.findByProjectIdOrderByPhase(project.getId());
         List<PhaseGateDto> gateDtos = gates.stream()
-                .map(g -> new PhaseGateDto(g.getPhase(), g.getGateStatus(), null, g.getClearedAt()))
+                .map(g -> {
+                    boolean memberApproved = approvalRepository.existsByPhaseGateIdAndRequiredRoleAndApprovalStatus(
+                            g.getId(), "TENANT_ADMIN", ApprovalStatus.APPROVED);
+                    String pendingMemberApprovalId = approvalRepository
+                            .findFirstByPhaseGateIdAndRequiredRoleAndApprovalStatus(
+                                    g.getId(), "TENANT_ADMIN", ApprovalStatus.PENDING)
+                            .map(a -> a.getId().toString())
+                            .orElse(null);
+                    return new PhaseGateDto(g.getPhase(), g.getGateStatus(), null, g.getClearedAt(),
+                            g.getApprovalMode(), memberApproved, pendingMemberApprovalId);
+                })
                 .toList();
 
         // Upload status
@@ -1771,6 +1794,9 @@ public class TenantOnboardingController {
 
         auditService.log("UPLOAD", "OnboardingProject", project.getId(), filename);
         log.info("File uploaded for onboarding project {}: {}", project.getId(), filename);
+
+        // Evaluate (or clear) the DISCOVER gate on successful upload
+        phaseGateService.evaluateDiscoverGate(project.getId());
 
         return ResponseEntity.ok(new UploadResultDto(
                 upload.getId(), filename, result.totalRows(),

@@ -30,13 +30,17 @@ public interface ProjectRepository extends JpaRepository<Project, UUID> {
     @Query("SELECT p FROM Project p WHERE p.tenant.id = :tenantId AND p.migrationPhase IS NOT NULL ORDER BY p.createdAt DESC")
     Page<Project> findMigrationProjectsByTenantId(@Param("tenantId") UUID tenantId, Pageable pageable);
 
-    @Query("SELECT p FROM Project p JOIN FETCH p.tenant WHERE p.migrationPhase IS NOT NULL ORDER BY p.createdAt DESC")
+    @Query(value = "SELECT p FROM Project p JOIN FETCH p.tenant WHERE p.migrationPhase IS NOT NULL ORDER BY p.createdAt DESC",
+           countQuery = "SELECT count(p) FROM Project p WHERE p.migrationPhase IS NOT NULL")
     Page<Project> findAllMigrationProjects(Pageable pageable);
 
-    @Query("SELECT p FROM Project p JOIN FETCH p.tenant WHERE p.migrationPhase IS NOT NULL " +
-           "AND (LOWER(p.name) LIKE LOWER(CONCAT('%', :search, '%')) " +
-           "     OR LOWER(p.tenant.name) LIKE LOWER(CONCAT('%', :search, '%'))) " +
-           "ORDER BY p.createdAt DESC")
+    @Query(value = "SELECT p FROM Project p JOIN FETCH p.tenant WHERE p.migrationPhase IS NOT NULL " +
+                   "AND (LOWER(p.name) LIKE LOWER(CONCAT('%', :search, '%')) " +
+                   "     OR LOWER(p.tenant.name) LIKE LOWER(CONCAT('%', :search, '%'))) " +
+                   "ORDER BY p.createdAt DESC",
+           countQuery = "SELECT count(p) FROM Project p WHERE p.migrationPhase IS NOT NULL " +
+                        "AND (LOWER(p.name) LIKE LOWER(CONCAT('%', :search, '%')) " +
+                        "     OR LOWER(p.tenant.name) LIKE LOWER(CONCAT('%', :search, '%')))")
     Page<Project> findAllMigrationProjectsBySearch(@Param("search") String search, Pageable pageable);
 
     @Query("SELECT p FROM Project p WHERE p.tenant.id = :tenantId AND p.migrationPhase IS NOT NULL " +
@@ -45,10 +49,13 @@ public interface ProjectRepository extends JpaRepository<Project, UUID> {
            "ORDER BY p.createdAt DESC")
     Page<Project> findMigrationProjectsByTenantIdAndSearch(@Param("tenantId") UUID tenantId, @Param("search") String search, Pageable pageable);
 
-    @Query("SELECT p FROM Project p JOIN FETCH p.tenant WHERE p.tenant.id IN :tenantIds AND p.migrationPhase IS NOT NULL " +
-           "AND (LOWER(p.name) LIKE LOWER(CONCAT('%', :search, '%')) " +
-           "     OR LOWER(p.tenant.name) LIKE LOWER(CONCAT('%', :search, '%'))) " +
-           "ORDER BY p.createdAt DESC")
+    @Query(value = "SELECT p FROM Project p JOIN FETCH p.tenant WHERE p.tenant.id IN :tenantIds AND p.migrationPhase IS NOT NULL " +
+                   "AND (LOWER(p.name) LIKE LOWER(CONCAT('%', :search, '%')) " +
+                   "     OR LOWER(p.tenant.name) LIKE LOWER(CONCAT('%', :search, '%'))) " +
+                   "ORDER BY p.createdAt DESC",
+           countQuery = "SELECT count(p) FROM Project p WHERE p.tenant.id IN :tenantIds AND p.migrationPhase IS NOT NULL " +
+                        "AND (LOWER(p.name) LIKE LOWER(CONCAT('%', :search, '%')) " +
+                        "     OR LOWER(p.tenant.name) LIKE LOWER(CONCAT('%', :search, '%')))")
     Page<Project> findMigrationProjectsByTenantIdsAndSearch(@Param("tenantIds") List<UUID> tenantIds, @Param("search") String search, Pageable pageable);
 
     @Query("SELECT COUNT(p) FROM Project p WHERE p.tenant.id = :tenantId AND p.migrationStatus = com.mxsuite.model.enums.MigrationStatus.ACTIVE AND p.migrationPhase IS NOT NULL")
@@ -57,8 +64,25 @@ public interface ProjectRepository extends JpaRepository<Project, UUID> {
     @Query("SELECT COUNT(p) FROM Project p WHERE p.migrationStatus = com.mxsuite.model.enums.MigrationStatus.ACTIVE AND p.migrationPhase IS NOT NULL")
     long countAllActiveMigrations();
 
-    @Query("SELECT p FROM Project p JOIN FETCH p.tenant WHERE p.tenant.id IN :tenantIds AND p.migrationPhase IS NOT NULL ORDER BY p.createdAt DESC")
+    @Query(value = "SELECT p FROM Project p JOIN FETCH p.tenant WHERE p.tenant.id IN :tenantIds AND p.migrationPhase IS NOT NULL ORDER BY p.createdAt DESC",
+           countQuery = "SELECT count(p) FROM Project p WHERE p.tenant.id IN :tenantIds AND p.migrationPhase IS NOT NULL")
     Page<Project> findMigrationProjectsByTenantIds(@Param("tenantIds") List<UUID> tenantIds, Pageable pageable);
+
+    @Query(value = "SELECT p FROM Project p JOIN FETCH p.tenant WHERE p.migrationPhase IS NOT NULL " +
+                   "AND LOWER(p.name) LIKE LOWER(CONCAT(:letter, '%')) ORDER BY p.createdAt DESC",
+           countQuery = "SELECT count(p) FROM Project p WHERE p.migrationPhase IS NOT NULL " +
+                        "AND LOWER(p.name) LIKE LOWER(CONCAT(:letter, '%'))")
+    Page<Project> findAllMigrationProjectsByLetter(@Param("letter") String letter, Pageable pageable);
+
+    @Query("SELECT p FROM Project p WHERE p.tenant.id = :tenantId AND p.migrationPhase IS NOT NULL " +
+           "AND LOWER(p.name) LIKE LOWER(CONCAT(:letter, '%')) ORDER BY p.createdAt DESC")
+    Page<Project> findMigrationProjectsByTenantIdAndLetter(@Param("tenantId") UUID tenantId, @Param("letter") String letter, Pageable pageable);
+
+    @Query(value = "SELECT p FROM Project p JOIN FETCH p.tenant WHERE p.tenant.id IN :tenantIds AND p.migrationPhase IS NOT NULL " +
+                   "AND LOWER(p.name) LIKE LOWER(CONCAT(:letter, '%')) ORDER BY p.createdAt DESC",
+           countQuery = "SELECT count(p) FROM Project p WHERE p.tenant.id IN :tenantIds AND p.migrationPhase IS NOT NULL " +
+                        "AND LOWER(p.name) LIKE LOWER(CONCAT(:letter, '%'))")
+    Page<Project> findMigrationProjectsByTenantIdsAndLetter(@Param("tenantIds") List<UUID> tenantIds, @Param("letter") String letter, Pageable pageable);
 
     @Query("SELECT COUNT(p) FROM Project p WHERE p.tenant.id IN :tenantIds AND p.migrationStatus = com.mxsuite.model.enums.MigrationStatus.ACTIVE AND p.migrationPhase IS NOT NULL")
     long countActiveMigrationsByTenantIds(@Param("tenantIds") List<UUID> tenantIds);

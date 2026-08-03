@@ -6,6 +6,42 @@ import type {
   CoachLeaderboardDto,
 } from '@mxsuite/shared';
 
+export interface CoachChatStatsDto {
+  coachId: string;
+  coachName: string;
+  conversations: number;
+  avgSentiment: number;
+  helpRequested: number;
+  activeCount: number;
+}
+
+export interface ChatVolumeTrendPoint {
+  month: string;
+  total: number;
+  aiMode: number;
+  humanMode: number;
+  helpRequested: number;
+}
+
+export interface ChatSentimentTrendPoint {
+  month: string;
+  avgSentiment: number;
+  count: number;
+}
+
+export interface ChatAnalyticsDto {
+  totalConversations: number;
+  activeConversations: number;
+  aiModeCount: number;
+  humanModeCount: number;
+  helpRequestedCount: number;
+  avgSentimentScore: number;
+  avgUnreadCoachMessages: number;
+  volumeTrend: ChatVolumeTrendPoint[];
+  sentimentTrend: ChatSentimentTrendPoint[];
+  coachStats: CoachChatStatsDto[];
+}
+
 export const analyticsApi = {
   getCrossOrgAnalytics: () =>
     api.get<CrossOrgAnalyticsDto>('/admin/analytics/cross-org'),
@@ -33,4 +69,7 @@ export const analyticsApi = {
       params: status ? { status } : undefined,
       responseType: 'blob',
     }),
+
+  getChatAnalytics: () =>
+    api.get<ChatAnalyticsDto>('/admin/analytics/chat'),
 };

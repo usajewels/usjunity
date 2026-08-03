@@ -9,6 +9,7 @@ import DashboardPage from './pages/DashboardPage';
 import ProfilePage from './pages/ProfilePage';
 import SettingsPage from './pages/SettingsPage';
 import TeamPage from './pages/TeamPage';
+import DevChatScenarioPage from './pages/DevChatScenarioPage';
 
 // Lazy-load remote micro-frontend modules
 const AdminApp = lazy(() => import('mxsuiteAdmin/AdminApp'));
@@ -72,6 +73,7 @@ function ProtectedRoutes() {
           </FeatureGuard>
         } />
         <Route path="chat/*" element={<RemoteModuleLoader module={ChatApp} fallbackTitle="Chat module" />} />
+        <Route path="dev/scenario" element={<DevChatScenarioPage />} />
         <Route path="onboarding/*" element={<Navigate to="/plans/my-onboarding" replace />} />
         <Route path="admin/*" element={<AdminGuard />} />
       </Routes>

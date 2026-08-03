@@ -9,7 +9,7 @@ import {
   SafetyCertificateOutlined, TeamOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
-import { usePageTitle } from '@mxsuite/shared';
+import { usePageTitle, getApiError } from '@mxsuite/shared';
 import { useSearchParams } from 'react-router-dom';
 import { userApi, tenantApi, type UserResponse, type Tenant } from '../services/api';
 import AlphaBar from '../components/AlphaBar';
@@ -93,10 +93,10 @@ export default function UserListPage() {
       } else if (letter) {
         params.letter = letter;
       }
-      const { data } = await userApi.list(params as any);
+      const { data } = await userApi.list(params as any, signal);
       if (!signal?.aborted) {
         setUsers((data.content ?? []) as UserResponse[]);
-        setTotal(data.totalElements ?? 0);
+        setTotal(data.page?.totalElements ?? 0);
       }
     } catch {
       if (!signal?.aborted) message.error('Failed to load users');
@@ -113,7 +113,7 @@ export default function UserListPage() {
     try {
       const params: Record<string, unknown> = { page: 0, size: 50 };
       if (search?.trim()) params.search = search.trim();
-      const { data } = await tenantApi.list(params as any);
+      const { data } = await tenantApi.list(params as any, signal);
       if (!signal?.aborted) setTenants((data.content ?? []) as Tenant[]);
     } catch {
       /* silently fail */
@@ -153,9 +153,8 @@ export default function UserListPage() {
       setCreateModalOpen(false);
       createForm.resetFields();
       fetchUsers();
-    } catch (err: any) {
-      const msg = err?.response?.data?.message || 'Failed to create user';
-      message.error(msg);
+    } catch (err) {
+      message.error(getApiError(err, 'Failed to create user'));
     } finally {
       setCreating(false);
     }
@@ -182,8 +181,8 @@ export default function UserListPage() {
       editForm.resetFields();
       setEditingUser(null);
       fetchUsers();
-    } catch {
-      message.error('Failed to update user');
+    } catch (err) {
+      message.error(getApiError(err, 'Failed to update user'));
     } finally {
       setEditing(false);
     }
@@ -196,8 +195,8 @@ export default function UserListPage() {
       await userApi.update(user.id, { active: !user.active });
       message.success(`${user.firstName} ${user.lastName} ${user.active ? 'deactivated' : 'activated'}`);
       fetchUsers();
-    } catch {
-      message.error('Failed to update user status');
+    } catch (err) {
+      message.error(getApiError(err, 'Failed to update user status'));
     } finally {
       setTogglingId(null);
     }
@@ -209,8 +208,8 @@ export default function UserListPage() {
       await userApi.delete(user.id);
       message.success(`${user.firstName} ${user.lastName} deleted`);
       fetchUsers();
-    } catch (err: any) {
-      message.error(err?.response?.data?.message || 'Failed to delete user');
+    } catch (err) {
+      message.error(getApiError(err, 'Failed to delete user'));
     }
   };
 
@@ -334,7 +333,7 @@ export default function UserListPage() {
           onConfirm={() => handleToggleActive(record)}
           okText="Yes"
           cancelText="No"
-          okButtonProps={{ danger: record.active }}
+          okButtonProps={{}}
         >
           <Switch
             checked={record.active}

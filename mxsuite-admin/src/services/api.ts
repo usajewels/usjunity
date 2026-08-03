@@ -30,8 +30,8 @@ export interface CoachDto {
 }
 
 export const tenantApi = {
-  list: (params?: { page?: number; size?: number; search?: string; letter?: string; tenantType?: string }) =>
-    api.get<PaginatedResponse<Tenant>>('/admin/tenants', { params }),
+  list: (params?: { page?: number; size?: number; search?: string; letter?: string; tenantType?: string }, signal?: AbortSignal) =>
+    api.get<PaginatedResponse<Tenant>>('/admin/tenants', { params, signal }),
 
   get: (id: string) =>
     api.get<Tenant>(`/admin/tenants/${id}`),
@@ -45,7 +45,7 @@ export const tenantApi = {
     coachIds?: string[];
   }) => api.post('/admin/tenants/with-owner', data),
 
-  update: (id: string, data: { name?: string; slug?: string; active?: boolean; brandName?: string; logoUrl?: string; themeConfig?: Record<string, unknown>; featureConfig?: Record<string, unknown>; aiConfig?: Record<string, unknown>; openToAllCoaches?: boolean }) =>
+  update: (id: string, data: { name?: string; slug?: string; active?: boolean; brandName?: string; logoUrl?: string; themeConfig?: Record<string, unknown>; featureConfig?: Record<string, unknown>; aiConfig?: Record<string, unknown>; openToAllCoaches?: boolean; chatFilesEnabled?: boolean }) =>
     api.put<Tenant>(`/admin/tenants/${id}`, data),
 
   uploadLogo: (id: string, file: File) => {
@@ -68,8 +68,8 @@ export const tenantApi = {
 /* ------------------------------------------------------------------ */
 
 export const userApi = {
-  list: (params?: { page?: number; size?: number; tenantId?: string; search?: string; letter?: string; role?: string }) =>
-    api.get<PaginatedResponse<User>>('/admin/users', { params }),
+  list: (params?: { page?: number; size?: number; tenantId?: string; search?: string; letter?: string; role?: string }, signal?: AbortSignal) =>
+    api.get<PaginatedResponse<User>>('/admin/users', { params, signal }),
 
   get: (id: string) =>
     api.get<User>(`/admin/users/${id}`),
@@ -95,8 +95,8 @@ export const userApi = {
 /* ------------------------------------------------------------------ */
 
 export const invitationApi = {
-  list: (params?: { page?: number; size?: number; status?: string; letter?: string }) =>
-    api.get<PaginatedResponse<Invitation>>('/invitations', { params }),
+  list: (params?: { page?: number; size?: number; status?: string; letter?: string }, signal?: AbortSignal) =>
+    api.get<PaginatedResponse<Invitation>>('/invitations', { params, signal }),
 
   create: (data: { email: string; role: string }, tenantId?: string) =>
     api.post<Invitation>('/invitations', data,

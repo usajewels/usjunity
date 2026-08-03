@@ -188,6 +188,18 @@ export default function CoachMappingsTab({ tenantId }: Props) {
     );
   }
 
+  if (!loading && mappings.length === 0) {
+    return (
+      <Alert
+        type="info"
+        message="No field mappings yet"
+        description="Field mappings are generated automatically when the organization uploads their data file on the onboarding page."
+        showIcon
+        style={{ marginTop: 8, background: '#f3eeff', borderColor: '#e0d4f5' }}
+      />
+    );
+  }
+
   return (
     <ConfigProvider theme={{ token: { colorPrimary: '#2d1854' } }}>
     <div>

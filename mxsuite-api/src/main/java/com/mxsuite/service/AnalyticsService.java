@@ -1,19 +1,28 @@
 package com.mxsuite.service;
 
 import com.mxsuite.config.AnalyticsProperties;
+import com.mxsuite.model.Conversation;
 import com.mxsuite.model.PhaseTimeEntry;
 import com.mxsuite.model.Project;
+import com.mxsuite.model.Tenant;
 import com.mxsuite.model.User;
+import com.mxsuite.model.enums.ChatMode;
+import com.mxsuite.model.enums.ConversationStatus;
 import com.mxsuite.model.enums.MigrationPhase;
 import com.mxsuite.model.enums.MigrationStatus;
+import com.mxsuite.model.enums.TenantType;
+import com.mxsuite.repository.ConversationRepository;
 import com.mxsuite.repository.PhaseTimeEntryRepository;
 import com.mxsuite.repository.ProjectRepository;
+import com.mxsuite.repository.TenantRepository;
 import com.mxsuite.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -25,15 +34,24 @@ public class AnalyticsService {
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
     private final AnalyticsProperties analyticsProperties;
+    private final ConversationRepository conversationRepository;
+    private final TenantRepository tenantRepository;
+
+    private static final DateTimeFormatter MONTH_FMT =
+            DateTimeFormatter.ofPattern("yyyy-MM").withZone(ZoneOffset.UTC);
 
     public AnalyticsService(PhaseTimeEntryRepository phaseTimeEntryRepository,
                             ProjectRepository projectRepository,
                             UserRepository userRepository,
-                            AnalyticsProperties analyticsProperties) {
+                            AnalyticsProperties analyticsProperties,
+                            ConversationRepository conversationRepository,
+                            TenantRepository tenantRepository) {
         this.phaseTimeEntryRepository = phaseTimeEntryRepository;
         this.projectRepository = projectRepository;
         this.userRepository = userRepository;
         this.analyticsProperties = analyticsProperties;
+        this.conversationRepository = conversationRepository;
+        this.tenantRepository = tenantRepository;
     }
 
     // --- DTOs ---
@@ -214,6 +232,99 @@ public class AnalyticsService {
 
         coachMetrics.sort(Comparator.comparingDouble(CoachPerformanceDto::avgCycleTimeDays));
         return new CoachLeaderboardDto(coachMetrics, overallAvgDays);
+    }
+
+    // --- Feature 6: Chat Analytics ---
+
+    public record ChatVolumeTrendPoint(String month, long total, long aiMode, long humanMode, long helpRequested) {}
+    public record ChatSentimentTrendPoint(String month, double avgSentiment, long count) {}
+    public record CoachChatStatsDto(UUID coachId, String coachName, long conversations,
+                                    double avgSentiment, long helpRequested, long activeCount) {}
+    public record ChatAnalyticsDto(
+            long totalConversations, long activeConversations,
+            long aiModeCount, long humanModeCount,
+            long helpRequestedCount, double avgSentimentScore,
+            double avgUnreadCoachMessages,
+            List<ChatVolumeTrendPoint> volumeTrend,
+            List<ChatSentimentTrendPoint> sentimentTrend,
+            List<CoachChatStatsDto> coachStats) {}
+
+    public ChatAnalyticsDto computeChatAnalytics() {
+        List<UUID> customerTenantIds = tenantRepository.findByTenantType(TenantType.CUSTOMER)
+                .stream().map(Tenant::getId).toList();
+
+        List<Conversation> all = customerTenantIds.isEmpty()
+                ? List.of()
+                : conversationRepository.findByTenantIdInOrderByLastMessageAtDesc(customerTenantIds);
+
+        long total = all.size();
+        long active = all.stream().filter(c -> c.getStatus() == ConversationStatus.ACTIVE).count();
+        long aiMode = all.stream().filter(c -> c.getMode() == ChatMode.AI).count();
+        long humanMode = total - aiMode;
+        long helpRequested = all.stream().filter(Conversation::isHelpRequested).count();
+
+        double avgSentiment = all.stream()
+                .filter(c -> c.getSentimentScore() != null)
+                .mapToDouble(Conversation::getSentimentScore)
+                .average().orElse(0.0);
+
+        double avgUnread = all.stream()
+                .mapToInt(Conversation::getUnreadCoachCount)
+                .average().orElse(0.0);
+
+        // Volume trend by month
+        Map<String, long[]> byMonth = new TreeMap<>();
+        for (Conversation c : all) {
+            if (c.getCreatedAt() == null) continue;
+            String m = MONTH_FMT.format(c.getCreatedAt());
+            long[] arr = byMonth.computeIfAbsent(m, k -> new long[3]); // [total, ai, helpRequested]
+            arr[0]++;
+            if (c.getMode() == ChatMode.AI) arr[1]++;
+            if (c.isHelpRequested()) arr[2]++;
+        }
+        List<ChatVolumeTrendPoint> volumeTrend = byMonth.entrySet().stream()
+                .map(e -> new ChatVolumeTrendPoint(
+                        e.getKey(), e.getValue()[0],
+                        e.getValue()[1],
+                        e.getValue()[0] - e.getValue()[1],
+                        e.getValue()[2]))
+                .toList();
+
+        // Sentiment trend by month
+        Map<String, DoubleSummaryStatistics> sentByMonth = new TreeMap<>();
+        for (Conversation c : all) {
+            if (c.getCreatedAt() == null || c.getSentimentScore() == null) continue;
+            String m = MONTH_FMT.format(c.getCreatedAt());
+            sentByMonth.computeIfAbsent(m, k -> new DoubleSummaryStatistics());
+            sentByMonth.get(m).accept(c.getSentimentScore());
+        }
+        List<ChatSentimentTrendPoint> sentimentTrend = sentByMonth.entrySet().stream()
+                .map(e -> new ChatSentimentTrendPoint(
+                        e.getKey(), e.getValue().getAverage(), e.getValue().getCount()))
+                .toList();
+
+        // Per-coach stats
+        Map<UUID, List<Conversation>> byCoach = all.stream()
+                .filter(c -> c.getAssignedCoachId() != null)
+                .collect(Collectors.groupingBy(Conversation::getAssignedCoachId));
+        List<CoachChatStatsDto> coachStats = byCoach.entrySet().stream()
+                .map(e -> {
+                    List<Conversation> convs = e.getValue();
+                    String name = convs.getFirst().getAssignedCoachName() != null
+                            ? convs.getFirst().getAssignedCoachName() : e.getKey().toString();
+                    double avg = convs.stream()
+                            .filter(c -> c.getSentimentScore() != null)
+                            .mapToDouble(Conversation::getSentimentScore)
+                            .average().orElse(0.0);
+                    long help = convs.stream().filter(Conversation::isHelpRequested).count();
+                    long activeC = convs.stream().filter(c -> c.getStatus() == ConversationStatus.ACTIVE).count();
+                    return new CoachChatStatsDto(e.getKey(), name, convs.size(), avg, help, activeC);
+                })
+                .sorted(Comparator.comparingLong(CoachChatStatsDto::conversations).reversed())
+                .toList();
+
+        return new ChatAnalyticsDto(total, active, aiMode, humanMode, helpRequested,
+                avgSentiment, avgUnread, volumeTrend, sentimentTrend, coachStats);
     }
 
     private double computeCoachAvgCycleTime(UUID coachId) {

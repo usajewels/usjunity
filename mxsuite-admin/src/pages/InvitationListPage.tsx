@@ -8,7 +8,7 @@ import {
   ClockCircleOutlined, CheckCircleOutlined, CloseCircleOutlined,
   ExclamationCircleOutlined,
 } from '@ant-design/icons';
-import { usePageTitle } from '@mxsuite/shared';
+import { usePageTitle, getApiError } from '@mxsuite/shared';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -114,19 +114,21 @@ export default function InvitationListPage() {
   const [resendingId, setResendingId] = useState<string | null>(null);
 
   /* ---- fetch ---- */
-  const fetchInvitations = useCallback(async () => {
+  const fetchInvitations = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     try {
       const params: Record<string, unknown> = { page, size: pageSize };
       if (statusFilter !== 'ALL') params.status = statusFilter;
       if (letter) params.letter = letter;
-      const { data } = await invitationApi.list(params as any);
-      setInvitations((data.content ?? []) as Invitation[]);
-      setTotal(data.totalElements ?? 0);
+      const { data } = await invitationApi.list(params as any, signal);
+      if (!signal?.aborted) {
+        setInvitations((data.content ?? []) as Invitation[]);
+        setTotal(data.page?.totalElements ?? 0);
+      }
     } catch {
-      message.error('Failed to load invitations');
+      if (!signal?.aborted) message.error('Failed to load invitations');
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   }, [page, pageSize, statusFilter, letter]);
 
@@ -137,7 +139,12 @@ export default function InvitationListPage() {
     } catch { /* non-critical */ }
   }, []);
 
-  useEffect(() => { fetchInvitations(); fetchCounts(); }, [fetchInvitations, fetchCounts]);
+  useEffect(() => {
+    const ac = new AbortController();
+    fetchInvitations(ac.signal);
+    fetchCounts();
+    return () => ac.abort();
+  }, [fetchInvitations, fetchCounts]);
 
   /* ---- send invitation ---- */
   const handleSend = async (values: { email: string; role: string }) => {
@@ -155,8 +162,8 @@ export default function InvitationListPage() {
       sendForm.resetFields();
       fetchInvitations();
       fetchCounts();
-    } catch {
-      message.error('Failed to send invitation');
+    } catch (err) {
+      message.error(getApiError(err, 'Failed to send invitation'));
     } finally {
       setSending(false);
     }
@@ -170,8 +177,8 @@ export default function InvitationListPage() {
       message.success(`Invitation to ${invitation.email} cancelled`);
       fetchInvitations();
       fetchCounts();
-    } catch {
-      message.error('Failed to cancel invitation');
+    } catch (err) {
+      message.error(getApiError(err, 'Failed to cancel invitation'));
     } finally {
       setCancellingId(null);
     }
@@ -189,8 +196,8 @@ export default function InvitationListPage() {
       });
       fetchInvitations();
       fetchCounts();
-    } catch {
-      message.error('Failed to resend invitation');
+    } catch (err) {
+      message.error(getApiError(err, 'Failed to resend invitation'));
     } finally {
       setResendingId(null);
     }

@@ -1,0 +1,1 @@
+ALTER TABLE conversations ADD COLUMN coach_initiated BOOLEAN NOT NULL DEFAULT FALSE;

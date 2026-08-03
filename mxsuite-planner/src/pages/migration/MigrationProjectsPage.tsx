@@ -179,7 +179,7 @@ export default function MigrationProjectsPage() {
             rowKey="id"
             onChange={handleTableChange}
             onRow={(record) => ({
-              onClick: () => navigate(`/plans/onboarding-projects/projects/${record.id}/mappings`),
+              onClick: () => navigate(`/plans/onboarding-projects/projects/${record.id}`),
               style: { cursor: 'pointer' },
             })}
             pagination={{

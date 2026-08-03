@@ -12,7 +12,18 @@ import com.mxsuite.repository.InvitationRepository;
 import com.mxsuite.repository.PlatformAssignmentRepository;
 import com.mxsuite.repository.TenantRepository;
 import com.mxsuite.repository.UserRepository;
+import com.mxsuite.model.PhaseGate;
+import com.mxsuite.model.PhaseTimeEntry;
+import com.mxsuite.model.Project;
+import com.mxsuite.model.enums.GateApprovalMode;
+import com.mxsuite.model.enums.GateStatus;
+import com.mxsuite.model.enums.MigrationPhase;
+import com.mxsuite.model.enums.MigrationStatus;
+import com.mxsuite.repository.PhaseGateRepository;
+import com.mxsuite.repository.PhaseTimeEntryRepository;
+import com.mxsuite.repository.ProjectRepository;
 import com.mxsuite.service.EmailService;
+import java.math.BigDecimal;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -48,6 +59,9 @@ import java.nio.file.Paths;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
@@ -76,6 +90,9 @@ public class TenantController {
     private final Environment environment;
     private final EntityManager entityManager;
     private final com.mxsuite.service.NotificationService notificationService;
+    private final ProjectRepository projectRepository;
+    private final PhaseGateRepository phaseGateRepository;
+    private final PhaseTimeEntryRepository phaseTimeEntryRepository;
     private final String basePath;
 
     private static final String DEV_DEFAULT_PASSWORD = "Admin123!";
@@ -89,6 +106,9 @@ public class TenantController {
                             Environment environment,
                             EntityManager entityManager,
                             com.mxsuite.service.NotificationService notificationService,
+                            ProjectRepository projectRepository,
+                            PhaseGateRepository phaseGateRepository,
+                            PhaseTimeEntryRepository phaseTimeEntryRepository,
                             @Value("${mxsuite.storage.local.base-path}") String basePath) {
         this.tenantRepository = tenantRepository;
         this.userRepository = userRepository;
@@ -100,6 +120,9 @@ public class TenantController {
         this.environment = environment;
         this.entityManager = entityManager;
         this.notificationService = notificationService;
+        this.projectRepository = projectRepository;
+        this.phaseGateRepository = phaseGateRepository;
+        this.phaseTimeEntryRepository = phaseTimeEntryRepository;
         this.basePath = basePath;
     }
 
@@ -121,7 +144,8 @@ public class TenantController {
             Map<String, Object> themeConfig,
             Map<String, Object> featureConfig,
             Map<String, Object> aiConfig,
-            Boolean openToAllCoaches) {}
+            Boolean openToAllCoaches,
+            Boolean chatFilesEnabled) {}
 
     public record CreateTenantWithOwnerRequest(
             @NotBlank @Size(min = 2, max = 100) String name,
@@ -260,6 +284,9 @@ public class TenantController {
             owner.setActive(true);
             userRepository.save(owner);
 
+            // Auto-create the onboarding project so it appears in the pipeline immediately
+            initOnboardingProject(tenant, owner);
+
             auditService.log("CREATE", "Tenant", tenant.getId(),
                     tenant.getName() + " (dev-mode: owner created directly: " + email + ")");
             log.info("Created tenant with direct owner (dev mode): slug={} owner={}", tenant.getSlug(), email);
@@ -328,6 +355,7 @@ public class TenantController {
                     if (request.featureConfig() != null) tenant.setFeatureConfig(request.featureConfig());
                     if (request.aiConfig() != null) tenant.setAiConfig(request.aiConfig());
                     if (request.openToAllCoaches() != null) tenant.setOpenToAllCoaches(request.openToAllCoaches());
+                    if (request.chatFilesEnabled() != null) tenant.setChatFilesEnabled(request.chatFilesEnabled());
                     tenant = tenantRepository.save(tenant);
                     auditService.log("UPDATE", "Tenant", tenant.getId(), tenant.getName());
                     return ResponseEntity.ok(tenant);
@@ -400,8 +428,8 @@ public class TenantController {
         if (tenant == null) return ResponseEntity.notFound().build();
         var user = userRepository.findById(request.userId()).orElse(null);
         if (user == null) return ResponseEntity.badRequest().body(Map.of("message", "User not found"));
-        if (!user.getRole().name().startsWith("PLATFORM_")) {
-            return ResponseEntity.badRequest().body(Map.of("message", "User must be a platform user"));
+        if (user.getRole() != UserRole.COACH_ADMIN && user.getRole() != UserRole.PLATFORM_SUPPORT) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Only coach admins and coaches can be assigned to organizations"));
         }
         var existing = assignmentRepository.findByTenantId(id).stream()
                 .filter(a -> a.getPlatformUser().getId().equals(request.userId()))
@@ -419,14 +447,25 @@ public class TenantController {
         auditService.log("ASSIGN_COACH", "Tenant", id, user.getFullName());
         String assignerName = userRepository.findById(principal.id())
                 .map(User::getFullName).orElse("An administrator");
-        notificationService.notifyCoachAssigned(user.getId(), id, tenant.getName(), assignerName);
+        UUID notifyUserId = user.getId();
+        String notifyTenantName = tenant.getName();
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override public void afterCommit() {
+                notificationService.notifyCoachAssigned(notifyUserId, id, notifyTenantName, assignerName);
+            }
+        });
         return ResponseEntity.ok(toCoachDto(user));
     }
 
     @DeleteMapping("/{id}/coaches/{userId}")
-    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN', 'COACH_ADMIN')")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN', 'COACH_ADMIN', 'PLATFORM_SUPPORT')")
     @Transactional
-    public ResponseEntity<Void> unassignCoach(@PathVariable UUID id, @PathVariable UUID userId) {
+    public ResponseEntity<Void> unassignCoach(@PathVariable UUID id, @PathVariable UUID userId,
+                                               @AuthenticationPrincipal UserPrincipal principal) {
+        // Coaches (PLATFORM_SUPPORT) can only remove themselves
+        if (principal.role() == UserRole.PLATFORM_SUPPORT && !principal.id().equals(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         assignmentRepository.findByTenantId(id).stream()
                 .filter(a -> a.getPlatformUser().getId().equals(userId))
                 .forEach(a -> { a.setActive(false); assignmentRepository.save(a); });
@@ -438,14 +477,20 @@ public class TenantController {
         if (coachIds == null || coachIds.isEmpty()) return;
         for (UUID coachId : coachIds) {
             userRepository.findById(coachId).ifPresent(user -> {
+                if (user.getRole() != UserRole.COACH_ADMIN && user.getRole() != UserRole.PLATFORM_SUPPORT) return;
                 if (!assignmentRepository.existsByPlatformUserIdAndTenantId(coachId, tenant.getId())) {
                     PlatformAssignment pa = new PlatformAssignment();
                     pa.setPlatformUser(user);
                     pa.setTenant(tenant);
                     pa.setActive(true);
                     assignmentRepository.save(pa);
-                    notificationService.notifyCoachAssigned(coachId, tenant.getId(),
-                            tenant.getName(), "An administrator");
+                    UUID tId = tenant.getId();
+                    String tName = tenant.getName();
+                    TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                        @Override public void afterCommit() {
+                            notificationService.notifyCoachAssigned(coachId, tId, tName, "An administrator");
+                        }
+                    });
                 }
             });
         }
@@ -655,6 +700,50 @@ public class TenantController {
 
         log.info("Demo reset: deleted {} organization(s) and all related data", orgCount);
         return ResponseEntity.ok(Map.of("deletedOrganizations", orgCount));
+    }
+
+    /** Creates the onboarding project + phase gates + DISCOVER timer for a newly provisioned tenant. */
+    private void initOnboardingProject(Tenant tenant, User owner) {
+        try {
+            Project project = new Project();
+            project.setName(tenant.getName() + " Onboarding");
+            project.setTenant(tenant);
+            project.setOwner(owner);
+            project.setMigrationPhase(MigrationPhase.DISCOVER);
+            project.setMigrationStatus(MigrationStatus.ACTIVE);
+            project.setTargetSystem("GrowthZone");
+            project.setReconciliationPct(BigDecimal.ZERO);
+            project = projectRepository.save(project);
+
+            for (MigrationPhase phase : MigrationPhase.values()) {
+                PhaseGate gate = new PhaseGate();
+                gate.setProject(project);
+                gate.setPhase(phase);
+                gate.setGateStatus(GateStatus.PENDING);
+                gate.setApprovalMode(switch (phase) {
+                    case DISCOVER -> GateApprovalMode.AUTO;
+                    case MAP      -> GateApprovalMode.BOTH;
+                    case GENERATE -> GateApprovalMode.COACH_ONLY;
+                    case DRY_RUN  -> GateApprovalMode.BOTH;
+                    case MIGRATE  -> GateApprovalMode.COACH_ONLY;
+                    case CUT_OVER -> GateApprovalMode.COACH_ONLY;
+                });
+                phaseGateRepository.save(gate);
+            }
+
+            PhaseTimeEntry timer = new PhaseTimeEntry();
+            timer.setProject(project);
+            timer.setPhase(MigrationPhase.DISCOVER);
+            timer.setStartedAt(Instant.now());
+            phaseTimeEntryRepository.save(timer);
+
+            tenant.setOnboardingProject(project);
+            tenantRepository.save(tenant);
+
+            log.info("Auto-created onboarding project for tenant={}: project={}", tenant.getId(), project.getId());
+        } catch (Exception e) {
+            log.error("Failed to auto-create onboarding project for tenant={}: {}", tenant.getId(), e.getMessage(), e);
+        }
     }
 
     private boolean isDevLoginEnabled() {

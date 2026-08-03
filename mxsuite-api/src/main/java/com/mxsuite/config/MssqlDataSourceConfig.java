@@ -35,6 +35,10 @@ public class MssqlDataSourceConfig implements DisposableBean {
         config.setConnectionTimeout(10_000);
         config.setIdleTimeout(300_000);
         config.setDriverClassName("com.microsoft.sqlserver.jdbc.SQLServerDriver");
+        // Defer the initial connection check so the API starts even when SQL Server is
+        // unreachable (e.g. MSSQL_HOST set but server not yet running).
+        // Actual queries will still fail fast if the server is down when they execute.
+        config.setInitializationFailTimeout(-1);
         this.mssqlPool = new HikariDataSource(config);
         return new JdbcTemplate(this.mssqlPool);
     }

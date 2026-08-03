@@ -157,6 +157,10 @@ export const authService = {
     }
   },
 
+  updateStoredUser(user: UserData): void {
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+  },
+
   isDevLogin(): boolean {
     return localStorage.getItem(DEV_LOGIN_KEY) === 'true';
   },

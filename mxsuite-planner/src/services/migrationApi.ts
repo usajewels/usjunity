@@ -1,6 +1,7 @@
 import { api } from '@mxsuite/shared';
 import type {
   MigrationProject, MigrationStats, MigrationBlueprint,
+  PhaseGateDto, GateApprovalMode,
   FieldMappingEntryDto, SchemaNodeDto, MappingStatsDto, MappingStatus,
   MappingImportResultDto, EntityCoverageEntry,
   SemanticDecisionDto, DecisionStatsDto, DecisionStatus,
@@ -27,6 +28,9 @@ export const migrationApi = {
 
   advancePhase: (projectId: string) =>
     api.post<MigrationProject>(`/migration/projects/${projectId}/advance-phase`),
+
+  updateGateApprovalMode: (projectId: string, phase: string, approvalMode: GateApprovalMode) =>
+    api.put<PhaseGateDto>(`/migration/projects/${projectId}/gates/${phase}/approval-mode`, { approvalMode }),
 
   getProjectPhaseTimes: (projectId: string) =>
     api.get<PhaseTimeDto[]>(`/migration/projects/${projectId}/phase-times`),
@@ -139,7 +143,7 @@ export const migrationApi = {
     api.get<DecisionStatsDto>('/migration/decisions/stats'),
 
   // Approvals
-  listApprovals: (params?: { status?: ApprovalStatus; page?: number; size?: number }) =>
+  listApprovals: (params?: { status?: ApprovalStatus; gateType?: string; search?: string; letter?: string; page?: number; size?: number }) =>
     api.get<{ content: ApprovalRequestDto[]; totalElements: number; totalPages: number }>(
       '/migration/approvals', { params }),
 

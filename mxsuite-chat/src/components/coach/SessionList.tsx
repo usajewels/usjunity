@@ -2,16 +2,16 @@ import React from 'react';
 import { Input, Empty } from 'antd';
 import { SearchOutlined } from '@ant-design/icons';
 import SessionListItem from './SessionListItem';
-import type { ConversationDto } from '../../types/chat';
+import type { ConversationDto, PresenceDetail } from '../../types/chat';
 
 interface SessionListProps {
   conversations: ConversationDto[];
   activeId: string | null;
-  onlineUserIds?: Set<string>;
+  presenceDetails?: Map<string, PresenceDetail>;
   onSelect: (id: string) => void;
 }
 
-export default function SessionList({ conversations, activeId, onlineUserIds, onSelect }: SessionListProps) {
+export default function SessionList({ conversations, activeId, presenceDetails, onSelect }: SessionListProps) {
   const [search, setSearch] = React.useState('');
 
   const filtered = conversations.filter((c) => {
@@ -34,10 +34,10 @@ export default function SessionList({ conversations, activeId, onlineUserIds, on
 
   return (
     <div style={{
-      width: 300, borderRight: '1px solid #e0d4f5',
-      display: 'flex', flexDirection: 'column', background: '#fff',
+      width: 300, borderRight: '1px solid #d9d0e8',
+      display: 'flex', flexDirection: 'column', background: '#faf9fc',
     }}>
-      <div style={{ padding: '12px', borderBottom: '1px solid #f0f0f0' }}>
+      <div style={{ padding: '12px', borderBottom: '1px solid #e0d4f5', background: '#f3eeff' }}>
         <Input
           prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
           placeholder="Search conversations..."
@@ -57,7 +57,7 @@ export default function SessionList({ conversations, activeId, onlineUserIds, on
               key={c.id}
               conversation={c}
               active={c.id === activeId}
-              online={onlineUserIds?.has(c.memberId)}
+              presenceDetail={presenceDetails?.get(c.memberId) ?? null}
               onClick={() => onSelect(c.id)}
             />
           ))
